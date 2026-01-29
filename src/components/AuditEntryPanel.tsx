@@ -27,7 +27,7 @@ import {
   importAuditRecord 
 } from '@/api/auditRecords';
 import { computeCertificateHash } from '@/lib/canonicalize';
-import { normalizeHash } from '@/api/auditRecords';
+import { normalizeHash } from '@/lib/hashResolver';
 
 interface AuditEntryPanelProps {
   onRecordFound?: (hash: string) => void;
