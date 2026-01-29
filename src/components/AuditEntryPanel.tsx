@@ -44,6 +44,12 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
   // URL fetch state
   const [urlInput, setUrlInput] = useState('');
   const [isFetching, setIsFetching] = useState(false);
+  const [fetchDetails, setFetchDetails] = useState<{
+    requestId?: string;
+    upstreamStatus?: number;
+    fetchedFrom?: string;
+    bodyPreview?: string;
+  } | null>(null);
   
   // File upload state
   const [isUploading, setIsUploading] = useState(false);
@@ -97,6 +103,7 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
     
     setIsFetching(true);
     setError(null);
+    setFetchDetails(null);
     
     try {
       // Validate URL
@@ -109,8 +116,18 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
         return;
       }
       
-      // Fetch and parse bundle
+      // Fetch and parse bundle via server-side proxy
       const result = await fetchBundleFromUrl(url.toString());
+      
+      // Store fetch details for error display
+      if (result.requestId || result.upstreamStatus || result.fetchedFrom || result.bodyPreview) {
+        setFetchDetails({
+          requestId: result.requestId,
+          upstreamStatus: result.upstreamStatus,
+          fetchedFrom: result.fetchedFrom,
+          bodyPreview: result.bodyPreview,
+        });
+      }
       
       if (!result.success || !result.bundle) {
         setError(result.error || 'Failed to fetch bundle');
@@ -400,9 +417,34 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
 
         {/* Error Display */}
         {error && (
-          <div className="p-3 rounded-md border border-destructive/30 bg-destructive/10 flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
-            <p className="text-sm text-destructive">{error}</p>
+          <div className="p-3 rounded-md border border-destructive/30 bg-destructive/10 space-y-2">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+            {fetchDetails && (
+              <div className="text-xs text-muted-foreground font-mono space-y-1 pl-6">
+                {fetchDetails.requestId && (
+                  <p>Request ID: {fetchDetails.requestId}</p>
+                )}
+                {fetchDetails.upstreamStatus && (
+                  <p>Upstream Status: {fetchDetails.upstreamStatus}</p>
+                )}
+                {fetchDetails.fetchedFrom && (
+                  <p>Fetched From: {fetchDetails.fetchedFrom}</p>
+                )}
+                {fetchDetails.bodyPreview && (
+                  <details className="mt-1">
+                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                      Response preview
+                    </summary>
+                    <pre className="mt-1 p-2 bg-muted/50 rounded text-xs overflow-x-auto whitespace-pre-wrap break-all">
+                      {fetchDetails.bodyPreview}
+                    </pre>
+                  </details>
+                )}
+              </div>
+            )}
           </div>
         )}
       </CardContent>
