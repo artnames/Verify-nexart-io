@@ -190,49 +190,79 @@ export async function updateRenderStatus(
 }
 
 /**
- * Fetch bundle from a URL and parse as CER
+ * Response from the fetch-bundle edge function
+ */
+interface FetchBundleProxyResponse {
+  ok: boolean;
+  bundle?: unknown;
+  fetchedFrom?: string;
+  upstreamStatus?: number;
+  requestId?: string;
+  error?: string;
+  message?: string;
+  bodyPreview?: string;
+}
+
+/**
+ * Fetch bundle from a URL via the server-side proxy to avoid CORS issues
  */
 export async function fetchBundleFromUrl(url: string): Promise<{
   success: boolean;
   bundle?: CERBundle;
   error?: string;
+  fetchedFrom?: string;
+  upstreamStatus?: number;
+  requestId?: string;
+  bodyPreview?: string;
 }> {
   try {
-    const response = await fetch(url, {
+    // Use direct fetch to the edge function with URL as query param
+    const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fetch-bundle?url=${encodeURIComponent(url)}`;
+    
+    const response = await fetch(proxyUrl, {
+      method: 'GET',
       headers: {
-        'Accept': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
       },
     });
     
-    if (!response.ok) {
+    const result: FetchBundleProxyResponse = await response.json();
+    
+    if (!result.ok || !result.bundle) {
       return { 
         success: false, 
-        error: `Failed to fetch: ${response.status} ${response.statusText}` 
+        error: result.message || result.error || 'Failed to fetch bundle',
+        fetchedFrom: result.fetchedFrom,
+        upstreamStatus: result.upstreamStatus,
+        requestId: result.requestId,
+        bodyPreview: result.bodyPreview,
       };
     }
     
-    const text = await response.text();
-    let bundle: CERBundle;
-    
-    try {
-      bundle = JSON.parse(text);
-    } catch {
-      return { success: false, error: 'Invalid JSON response' };
-    }
-    
-    const validation = validateCERBundle(bundle);
+    // Validate the fetched bundle
+    const validation = validateCERBundle(result.bundle as CERBundle);
     if (!validation.valid) {
       return { 
         success: false, 
-        error: `Invalid bundle: ${validation.errors.join(', ')}` 
+        error: `Invalid bundle: ${validation.errors.join(', ')}`,
+        fetchedFrom: result.fetchedFrom,
+        upstreamStatus: result.upstreamStatus,
+        requestId: result.requestId,
       };
     }
     
-    return { success: true, bundle };
+    return { 
+      success: true, 
+      bundle: result.bundle as CERBundle,
+      fetchedFrom: result.fetchedFrom,
+      upstreamStatus: result.upstreamStatus,
+      requestId: result.requestId,
+    };
   } catch (error) {
     return { 
       success: false, 
-      error: error instanceof Error ? error.message : 'Network error' 
+      error: error instanceof Error ? error.message : 'Network error',
     };
   }
 }
