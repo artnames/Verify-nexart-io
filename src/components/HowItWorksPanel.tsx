@@ -1,7 +1,8 @@
-import { BookOpen, Play, ShieldCheck, RotateCcw, FileCode, CheckCircle2, AlertTriangle, Zap, Trophy, DollarSign, ArrowRight, Stamp } from "lucide-react";
+import { BookOpen, Play, ShieldCheck, RotateCcw, FileCode, CheckCircle2, AlertTriangle, Zap, Trophy, DollarSign, ArrowRight, Stamp, FileSearch } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import type { ClaimType } from "@/types/claimBundle";
+import { AuditEntryPanel } from "./AuditEntryPanel";
 
 interface HowItWorksPanelProps {
   onNavigate?: (view: string, example?: ClaimType) => void;
@@ -24,6 +25,9 @@ export function HowItWorksPanel({ onNavigate }: HowItWorksPanelProps) {
           Anyone can independently check the result without trusting the author.
         </p>
       </div>
+
+      {/* Audit Entry Panel */}
+      <AuditEntryPanel />
 
       {/* What is Recanon - Brief */}
       <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-transparent">

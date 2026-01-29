@@ -5,6 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import { AuditPage } from "./components/AuditPage";
+import { AuditLogPage } from "./components/AuditLogPage";
+import { AuditLayout } from "./components/AuditLayout";
 
 const queryClient = new QueryClient();
 
@@ -16,6 +19,16 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/audit/:hash" element={
+            <AuditLayout>
+              <AuditPage />
+            </AuditLayout>
+          } />
+          <Route path="/audit-log" element={
+            <AuditLayout>
+              <AuditLogPage />
+            </AuditLayout>
+          } />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
