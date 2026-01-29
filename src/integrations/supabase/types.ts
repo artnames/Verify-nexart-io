@@ -14,6 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_records: {
+        Row: {
+          bundle_created_at: string | null
+          bundle_json: Json
+          bundle_version: string
+          canonical_json: string
+          certificate_hash: string
+          certificate_verified: boolean | null
+          claim_type: string | null
+          created_at: string
+          expected_animation_hash: string | null
+          expected_image_hash: string | null
+          id: string
+          import_source: string | null
+          imported_by: string | null
+          last_verified_at: string | null
+          mode: string
+          render_status: string | null
+          render_verified: boolean | null
+          statement: string | null
+          subject: string | null
+          title: string | null
+        }
+        Insert: {
+          bundle_created_at?: string | null
+          bundle_json: Json
+          bundle_version: string
+          canonical_json: string
+          certificate_hash: string
+          certificate_verified?: boolean | null
+          claim_type?: string | null
+          created_at?: string
+          expected_animation_hash?: string | null
+          expected_image_hash?: string | null
+          id?: string
+          import_source?: string | null
+          imported_by?: string | null
+          last_verified_at?: string | null
+          mode: string
+          render_status?: string | null
+          render_verified?: boolean | null
+          statement?: string | null
+          subject?: string | null
+          title?: string | null
+        }
+        Update: {
+          bundle_created_at?: string | null
+          bundle_json?: Json
+          bundle_version?: string
+          canonical_json?: string
+          certificate_hash?: string
+          certificate_verified?: boolean | null
+          claim_type?: string | null
+          created_at?: string
+          expected_animation_hash?: string | null
+          expected_image_hash?: string | null
+          id?: string
+          import_source?: string | null
+          imported_by?: string | null
+          last_verified_at?: string | null
+          mode?: string
+          render_status?: string | null
+          render_verified?: boolean | null
+          statement?: string | null
+          subject?: string | null
+          title?: string | null
+        }
+        Relationships: []
+      }
       sealed_claims: {
         Row: {
           animation_hash: string | null

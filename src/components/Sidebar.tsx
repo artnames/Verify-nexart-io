@@ -7,11 +7,14 @@ import {
   Database,
   BookOpen,
   Stamp,
-  Library
+  Library,
+  FileSearch,
+  ScrollText
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import recanonIcon from "@/assets/recanon-icon.png";
 import { AuthButton } from "@/components/AuthButton";
+import { useNavigate } from "react-router-dom";
 
 interface SidebarProps {
   activeView: string;
@@ -22,6 +25,7 @@ const navItems = [
   { id: 'guide', label: 'Start Here', icon: BookOpen },
   { id: 'claim', label: 'Create Claim', icon: Stamp },
   { id: 'library', label: 'Library', icon: Library },
+  { id: 'audit-log', label: 'Audit Log', icon: ScrollText, route: '/audit-log' },
   { id: 'verify', label: 'Check & Test', icon: RotateCcw },
   { id: 'strategies', label: 'Strategies', icon: FileCode },
   { id: 'execute', label: 'Execute', icon: Play },
@@ -34,6 +38,16 @@ const bottomItems = [
 ];
 
 export function Sidebar({ activeView, onViewChange }: SidebarProps) {
+  const navigate = useNavigate();
+  
+  const handleNavClick = (item: typeof navItems[0]) => {
+    if ('route' in item && item.route) {
+      navigate(item.route);
+    } else {
+      onViewChange(item.id);
+    }
+  };
+  
   return (
     <aside className="hidden md:flex w-56 h-screen bg-sidebar border-r border-sidebar-border flex-col sticky top-0">
       {/* Logo */}
@@ -55,7 +69,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
             return (
               <button
                 key={item.id}
-                onClick={() => onViewChange(item.id)}
+                onClick={() => handleNavClick(item)}
                 className={cn(
                   "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
                   activeView === item.id

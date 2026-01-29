@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Menu, X, BookOpen, Stamp, Library, RotateCcw, FileCode, Play, ShieldCheck, Database, Settings } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Menu, X, BookOpen, Stamp, Library, RotateCcw, FileCode, Play, ShieldCheck, Database, Settings, ScrollText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,7 @@ const navItems = [
   { id: 'guide', label: 'Start Here', icon: BookOpen },
   { id: 'claim', label: 'Create Claim', icon: Stamp },
   { id: 'library', label: 'Library', icon: Library },
+  { id: 'audit-log', label: 'Audit Log', icon: ScrollText, route: '/audit-log' },
   { id: 'verify', label: 'Check & Test', icon: RotateCcw },
   { id: 'strategies', label: 'Strategies', icon: FileCode },
   { id: 'execute', label: 'Execute', icon: Play },
@@ -27,9 +29,14 @@ const bottomItems = [
 
 export function MobileHeader({ activeView, onViewChange }: MobileHeaderProps) {
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
 
-  const handleNavClick = (id: string) => {
-    onViewChange(id);
+  const handleNavClick = (item: typeof navItems[0]) => {
+    if ('route' in item && item.route) {
+      navigate(item.route);
+    } else {
+      onViewChange(item.id);
+    }
     setOpen(false);
   };
 
@@ -78,7 +85,7 @@ export function MobileHeader({ activeView, onViewChange }: MobileHeaderProps) {
                     return (
                       <button
                         key={item.id}
-                        onClick={() => handleNavClick(item.id)}
+                        onClick={() => handleNavClick(item)}
                         className={cn(
                           "w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors",
                           activeView === item.id
@@ -102,7 +109,7 @@ export function MobileHeader({ activeView, onViewChange }: MobileHeaderProps) {
                     return (
                       <button
                         key={item.id}
-                        onClick={() => handleNavClick(item.id)}
+                        onClick={() => handleNavClick(item as typeof navItems[0])}
                         className={cn(
                           "w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors",
                           activeView === item.id
