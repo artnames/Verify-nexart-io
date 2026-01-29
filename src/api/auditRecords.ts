@@ -201,6 +201,7 @@ interface FetchBundleProxyResponse {
   error?: string;
   message?: string;
   bodyPreview?: string;
+  suggestion?: string;
 }
 
 /**
@@ -210,10 +211,12 @@ export async function fetchBundleFromUrl(url: string): Promise<{
   success: boolean;
   bundle?: CERBundle;
   error?: string;
+  errorCode?: string;
   fetchedFrom?: string;
   upstreamStatus?: number;
   requestId?: string;
   bodyPreview?: string;
+  suggestion?: string;
 }> {
   try {
     // Use direct fetch to the edge function with URL as query param
@@ -233,10 +236,12 @@ export async function fetchBundleFromUrl(url: string): Promise<{
       return { 
         success: false, 
         error: result.message || result.error || 'Failed to fetch bundle',
+        errorCode: result.error,
         fetchedFrom: result.fetchedFrom,
         upstreamStatus: result.upstreamStatus,
         requestId: result.requestId,
         bodyPreview: result.bodyPreview,
+        suggestion: result.suggestion,
       };
     }
     

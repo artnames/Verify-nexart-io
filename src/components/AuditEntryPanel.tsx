@@ -49,6 +49,8 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
     upstreamStatus?: number;
     fetchedFrom?: string;
     bodyPreview?: string;
+    errorCode?: string;
+    suggestion?: string;
   } | null>(null);
   
   // File upload state
@@ -120,12 +122,14 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
       const result = await fetchBundleFromUrl(url.toString());
       
       // Store fetch details for error display
-      if (result.requestId || result.upstreamStatus || result.fetchedFrom || result.bodyPreview) {
+      if (result.requestId || result.upstreamStatus || result.fetchedFrom || result.bodyPreview || result.suggestion || result.errorCode) {
         setFetchDetails({
           requestId: result.requestId,
           upstreamStatus: result.upstreamStatus,
           fetchedFrom: result.fetchedFrom,
           bodyPreview: result.bodyPreview,
+          errorCode: result.errorCode,
+          suggestion: result.suggestion,
         });
       }
       
@@ -431,9 +435,21 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
                   <p>Upstream Status: {fetchDetails.upstreamStatus}</p>
                 )}
                 {fetchDetails.fetchedFrom && (
-                  <p>Fetched From: {fetchDetails.fetchedFrom}</p>
+                  <p className="break-all">Fetched From: {fetchDetails.fetchedFrom}</p>
                 )}
-                {fetchDetails.bodyPreview && (
+                {fetchDetails.suggestion && (
+                  <div className="mt-2 p-2 bg-muted/50 rounded text-xs">
+                    <p className="font-medium text-foreground mb-1">💡 Suggestion:</p>
+                    <p>{fetchDetails.suggestion}</p>
+                    {fetchDetails.errorCode === 'AUTH_REDIRECT' && (
+                      <ul className="mt-2 list-disc list-inside space-y-1 text-muted-foreground">
+                        <li>Use a public endpoint like <code className="bg-background px-1 rounded">/api/public/certificates/:hash</code></li>
+                        <li>Or fetch from Supabase REST: <code className="bg-background px-1 rounded">*.supabase.co/rest/v1/...</code></li>
+                      </ul>
+                    )}
+                  </div>
+                )}
+                {fetchDetails.bodyPreview && !fetchDetails.suggestion && (
                   <details className="mt-1">
                     <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
                       Response preview

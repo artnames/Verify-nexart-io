@@ -9,13 +9,15 @@ const corsHeaders = {
 // SECURITY CONFIGURATION
 // ============================================================
 
-// Allowlisted domains for fetching bundles (demo list)
+// Allowlisted domains for fetching bundles
 const ALLOWED_DOMAINS = [
   'preview--decision-certifier.lovable.app',
   '.supabase.co',
   '.supabase.in',
   'recanon.lovable.app',
+  'recanon.xyz',
   'localhost',
+  // Add production custom domains here as needed
 ];
 
 // Request timeout in milliseconds
@@ -43,6 +45,25 @@ function isDomainAllowed(url: URL): boolean {
         return true;
       }
     }
+  }
+  
+  return false;
+}
+
+/**
+ * Detect if the final URL is an auth redirect (e.g., Lovable auth-bridge)
+ */
+function isAuthRedirect(url: URL): boolean {
+  const hostname = url.hostname.toLowerCase();
+  const pathname = url.pathname.toLowerCase();
+  
+  // Lovable auth-bridge detection
+  if (hostname === 'lovable.dev' || hostname.endsWith('.lovable.dev')) {
+    return true;
+  }
+  
+  if (pathname.includes('/auth-bridge') || pathname.includes('/auth/')) {
+    return true;
   }
   
   return false;
@@ -148,8 +169,34 @@ serve(async (req) => {
 
     const finalUrl = response.url;
     const upstreamStatus = response.status;
+    const finalUrlParsed = new URL(finalUrl);
 
     console.log(`[fetch-bundle] Response: ${upstreamStatus} from ${finalUrl}`);
+
+    // Check if we were redirected to an auth page
+    if (isAuthRedirect(finalUrlParsed)) {
+      console.warn(`[fetch-bundle] Detected auth redirect to: ${finalUrl}`);
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: 'AUTH_REDIRECT',
+          message: 'The provided URL redirects to an auth page. The endpoint requires authentication. Use a public JSON endpoint (e.g., /api/public/certificates/:hash) or a Supabase REST URL.',
+          upstreamStatus,
+          fetchedFrom: finalUrl,
+          requestId,
+          suggestion: 'Try using the Supabase REST endpoint directly, or ensure the API endpoint is publicly accessible without authentication.',
+        }),
+        { 
+          status: 403, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store',
+            'X-Request-Id': requestId,
+          } 
+        }
+      );
+    }
 
     // Check response status
     if (!response.ok) {
