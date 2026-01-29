@@ -4,6 +4,11 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { canonicalize, computeCertificateHash } from '@/lib/canonicalize';
+import { 
+  normalizeHash, 
+  resolveExpectedImageHash, 
+  resolveExpectedAnimationHash 
+} from '@/lib/hashResolver';
 import type { 
   CERBundle, 
   AuditRecordRow, 
@@ -19,13 +24,8 @@ import {
   extractSubject 
 } from '@/types/auditRecord';
 
-/**
- * Normalize a hash: strip sha256: prefix and lowercase
- */
-export function normalizeHash(hash: string | null | undefined): string | null {
-  if (!hash) return null;
-  return hash.replace(/^sha256:/i, '').toLowerCase();
-}
+// Re-export normalizeHash for backwards compatibility
+export { normalizeHash } from '@/lib/hashResolver';
 
 /**
  * Get an audit record by its certificate hash
@@ -134,6 +134,10 @@ export async function importAuditRecord(
     };
   }
   
+  // Use shared hash resolver for consistent hash extraction
+  const expectedImageHash = resolveExpectedImageHash(bundle);
+  const expectedAnimationHash = resolveExpectedAnimationHash(bundle);
+  
   // Prepare record
   const record: Record<string, unknown> = {
     certificate_hash: certificateHash,
@@ -144,10 +148,10 @@ export async function importAuditRecord(
     title: extractTitle(bundle)?.slice(0, 500) || null,
     statement: extractStatement(bundle)?.slice(0, 2000) || null,
     subject: extractSubject(bundle)?.slice(0, 200) || null,
-    expected_image_hash: normalizeHash(validation.expectedImageHash),
-    expected_animation_hash: normalizeHash(validation.expectedAnimationHash),
+    expected_image_hash: expectedImageHash,
+    expected_animation_hash: expectedAnimationHash,
     certificate_verified: true,
-    render_status: validation.hasSnapshot ? 'PENDING' : 'SKIPPED',
+    render_status: validation.hasSnapshot && expectedImageHash ? 'PENDING' : 'SKIPPED',
     bundle_json: bundle as unknown,
     canonical_json: canonicalJson,
     import_source: source,

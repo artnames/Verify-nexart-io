@@ -301,9 +301,18 @@ serve(async (req) => {
           JSON.stringify({
             verified: false,
             error: 'Render failed during verification',
-            details: errorText.substring(0, 500),
+            upstreamStatus: renderResponse.status,
+            details: errorText.substring(0, 300),
+            requestId: crypto.randomUUID(),
           }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { 
+            status: 200, 
+            headers: { 
+              ...corsHeaders, 
+              'Content-Type': 'application/json',
+              'X-Request-Id': crypto.randomUUID(),
+            } 
+          }
         );
       }
 
@@ -322,6 +331,7 @@ serve(async (req) => {
 
       console.log(`[canonical-proxy] Verify result: ${verified ? 'PASSED' : 'FAILED'} (expected=${expectedNorm.substring(0,16)}, computed=${computedNorm.substring(0,16)})`);
 
+      const requestId = crypto.randomUUID();
       return new Response(
         JSON.stringify({
           verified,
@@ -336,6 +346,7 @@ serve(async (req) => {
             ...corsHeaders, 
             'Content-Type': 'application/json',
             'X-RateLimit-Remaining': String(rateCheck.remaining),
+            'X-Request-Id': requestId,
           } 
         }
       );
