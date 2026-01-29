@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { Sidebar } from "@/components/Sidebar";
+import { MobileHeader } from "@/components/MobileHeader";
 import { StrategiesPanel } from "@/components/StrategiesPanel";
 import { BacktestExecutor } from "@/components/BacktestExecutor";
 import { ArtifactsList } from "@/components/ArtifactsList";
@@ -388,9 +389,10 @@ export default function Index() {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex flex-col md:flex-row min-h-screen bg-background">
+      <MobileHeader activeView={activeView} onViewChange={handleViewChange} />
       <Sidebar activeView={activeView} onViewChange={handleViewChange} />
-      <main className="flex-1 p-6 overflow-auto">
+      <main className="flex-1 p-4 md:p-6 overflow-auto">
         <div className="max-w-6xl mx-auto">
           {renderContent()}
         </div>
