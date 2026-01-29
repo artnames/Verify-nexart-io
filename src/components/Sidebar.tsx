@@ -35,7 +35,7 @@ const bottomItems = [
 
 export function Sidebar({ activeView, onViewChange }: SidebarProps) {
   return (
-    <aside className="w-56 h-screen bg-sidebar border-r border-sidebar-border flex flex-col">
+    <aside className="hidden md:flex w-56 h-screen bg-sidebar border-r border-sidebar-border flex-col sticky top-0">
       {/* Logo */}
       <div className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
@@ -48,7 +48,7 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
       </div>
 
       {/* Main Nav */}
-      <nav className="flex-1 p-3">
+      <nav className="flex-1 p-3 overflow-auto">
         <div className="space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
