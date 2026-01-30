@@ -110,6 +110,16 @@ export interface CERBundle {
   canonical?: AuditCanonical;
   protocol?: AuditCanonical;
   
+  // Execution conditions (recanon.execution.v1 format)
+  executionConditions?: {
+    engine?: string;
+    engineVersion?: string;
+    runtime?: string;
+    runtimeVersion?: string;
+    deterministic?: boolean;
+    [key: string]: unknown;
+  };
+  
   // Execution snapshot (optional, for NexArt bundles)
   snapshot?: AuditSnapshot;
   
@@ -127,6 +137,14 @@ export interface CERBundle {
   output?: Record<string, unknown>;
   result?: Record<string, unknown>;
   decision?: Record<string, unknown>;
+  
+  // Certification details (recanon.execution.v1 format)
+  certification?: {
+    hash?: string;
+    algorithm?: string;
+    timestamp?: string;
+    [key: string]: unknown;
+  };
   
   // Certificate hash (if pre-computed)
   certificateHash?: string;

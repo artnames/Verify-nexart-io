@@ -516,9 +516,9 @@ async function processResponse(response: Response, fetchedFrom: string, requestI
     );
   }
 
-  let bundle: unknown;
+  let parsedJson: unknown;
   try {
-    bundle = JSON.parse(text);
+    parsedJson = JSON.parse(text);
   } catch {
     return new Response(
       JSON.stringify({
@@ -542,9 +542,50 @@ async function processResponse(response: Response, fetchedFrom: string, requestI
     );
   }
 
-  console.log(`[fetch-bundle] Success: parsed JSON bundle from ${fetchedFrom}`);
+  // ============================================================
+  // WRAPPER DETECTION: Unwrap public-certificate responses
+  // ============================================================
+  // Decision Certifier's public-certificate endpoint returns:
+  // { ok: true, certificateHash, createdAt, status, expectedImageHash, bundle }
+  // The actual CER is nested inside 'bundle', so we need to unwrap it.
+  
+  let bundle: unknown;
+  let wrapperMetadata: {
+    isWrapped: boolean;
+    certificateHash?: string;
+    createdAt?: string;
+    status?: string;
+    expectedImageHash?: string;
+  } = { isWrapped: false };
+  
+  const p = parsedJson as Record<string, unknown>;
+  
+  // Detect wrapper format: { ok: true, bundle: {...} }
+  if (
+    p &&
+    typeof p === 'object' &&
+    p.ok === true &&
+    typeof p.bundle === 'object' &&
+    p.bundle !== null
+  ) {
+    console.log(`[fetch-bundle] Detected public-certificate wrapper, unwrapping...`);
+    
+    bundle = p.bundle;
+    wrapperMetadata = {
+      isWrapped: true,
+      certificateHash: (p.certificateHash || p.certificate_hash) as string | undefined,
+      createdAt: (p.createdAt || p.created_at) as string | undefined,
+      status: p.status as string | undefined,
+      expectedImageHash: (p.expectedImageHash || p.expected_image_hash) as string | undefined,
+    };
+  } else {
+    // No wrapper, use as-is
+    bundle = parsedJson;
+  }
 
-  // Return successful response
+  console.log(`[fetch-bundle] Success: parsed JSON bundle from ${fetchedFrom} (wrapped: ${wrapperMetadata.isWrapped})`);
+
+  // Return successful response with wrapper metadata
   return new Response(
     JSON.stringify({
       ok: true,
@@ -552,6 +593,16 @@ async function processResponse(response: Response, fetchedFrom: string, requestI
       fetchedFrom,
       upstreamStatus,
       requestId,
+      // Pass through wrapper metadata if present
+      ...(wrapperMetadata.isWrapped && {
+        wrapperMetadata: {
+          source: 'public-certificate',
+          certificateHash: wrapperMetadata.certificateHash,
+          createdAt: wrapperMetadata.createdAt,
+          status: wrapperMetadata.status,
+          expectedImageHash: wrapperMetadata.expectedImageHash,
+        },
+      }),
     }),
     { 
       status: 200, 

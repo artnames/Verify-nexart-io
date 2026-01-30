@@ -93,7 +93,8 @@ export async function listAuditRecords(options?: {
  */
 export async function importAuditRecord(
   bundle: CERBundle,
-  source: ImportSource
+  source: ImportSource,
+  wrapperMetadata?: WrapperMetadata
 ): Promise<{ 
   success: boolean; 
   certificateHash?: string; 
@@ -135,7 +136,8 @@ export async function importAuditRecord(
   }
   
   // Use shared hash resolver for consistent hash extraction
-  const expectedImageHash = resolveExpectedImageHash(bundle);
+  // Prefer wrapper metadata's expectedImageHash if available (from public-certificate)
+  const expectedImageHash = wrapperMetadata?.expectedImageHash || resolveExpectedImageHash(bundle);
   const expectedAnimationHash = resolveExpectedAnimationHash(bundle);
   
   // Prepare record
@@ -193,6 +195,17 @@ export async function updateRenderStatus(
 const DECISION_CERTIFIER_PUBLIC_BASE = 'https://nxjkrwcxyhftoaenyztu.supabase.co/functions/v1/public-certificate';
 
 /**
+ * Wrapper metadata from public-certificate endpoint
+ */
+export interface WrapperMetadata {
+  source: 'public-certificate';
+  certificateHash?: string;
+  createdAt?: string;
+  status?: string;
+  expectedImageHash?: string;
+}
+
+/**
  * Response from the fetch-bundle edge function
  */
 interface FetchBundleProxyResponse {
@@ -205,6 +218,7 @@ interface FetchBundleProxyResponse {
   message?: string;
   bodyPreview?: string;
   suggestion?: string;
+  wrapperMetadata?: WrapperMetadata;
 }
 
 /**
@@ -259,6 +273,7 @@ export async function fetchBundleFromUrl(urlOrHash: string): Promise<{
   bodyPreview?: string;
   suggestion?: string;
   constructedUrl?: string;
+  wrapperMetadata?: WrapperMetadata;
 }> {
   try {
     let queryParam: string;
@@ -324,6 +339,7 @@ export async function fetchBundleFromUrl(urlOrHash: string): Promise<{
       upstreamStatus: result.upstreamStatus,
       requestId: result.requestId,
       constructedUrl,
+      wrapperMetadata: result.wrapperMetadata,
     };
   } catch (error) {
     return { 

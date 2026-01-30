@@ -181,8 +181,8 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
         return;
       }
       
-      // Import new record
-      const importResult = await importAuditRecord(result.bundle, 'url');
+      // Import new record (pass wrapper metadata if present)
+      const importResult = await importAuditRecord(result.bundle, 'url', result.wrapperMetadata);
       
       if (importResult.authRequired) {
         setError('Sign in required to import new bundles');
