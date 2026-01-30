@@ -1,12 +1,24 @@
 /**
- * Audit Page - Four-layer compliance view for Certified Execution Records
+ * Audit Page - Certified Execution Record Report
+ * 
+ * Auditor-friendly layout with:
+ * - Executive Summary
+ * - Policy Explanation
+ * - 4-layer evidence (numbered, with subtitles)
+ * - Technical Appendix
  */
 
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { 
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import { 
   ChevronLeft, 
   Download, 
@@ -15,7 +27,6 @@ import {
   XCircle, 
   Loader2,
   FileJson,
-  Clock,
   Server,
   Shield,
   FileText,
@@ -24,7 +35,12 @@ import {
   Play,
   Eye,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Info,
+  Scale,
+  Code,
+  FileCheck,
+  Fingerprint
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAuditRecordByHash } from '@/api/auditRecords';
@@ -36,7 +52,6 @@ import {
   formatHashForDisplay,
   truncateHash,
   normalizeHash,
-  hashesMatch
 } from '@/lib/hashResolver';
 import { getProxyUrl } from '@/certified/canonicalConfig';
 import type { AuditRecordRow, CERBundle, AuditSnapshot } from '@/types/auditRecord';
@@ -54,6 +69,89 @@ interface RenderVerificationResult {
   pngByteLength?: number;
 }
 
+// Helper to extract decision from bundle output
+function extractDecision(bundle: CERBundle): { decision: string; reason: string } | null {
+  const output = bundle.output || bundle.result || bundle.decision;
+  if (!output || typeof output !== 'object') return null;
+  
+  const o = output as Record<string, unknown>;
+  const decision = o.decision || o.result || o.outcome;
+  const reason = o.reason || o.message || o.explanation || o.details;
+  
+  if (typeof decision === 'string') {
+    return {
+      decision: decision.toUpperCase(),
+      reason: typeof reason === 'string' ? reason : '',
+    };
+  }
+  return null;
+}
+
+// Helper to extract policy info from bundle
+function extractPolicy(bundle: CERBundle): { name: string; version: string; rule?: string } | null {
+  const ec = bundle.executionConditions;
+  if (ec) {
+    return {
+      name: (ec.policy_name || ec.policyName || ec.engine || 'Unknown') as string,
+      version: (ec.policy_version || ec.policyVersion || ec.engineVersion || '1.0') as string,
+      rule: ec.rule as string | undefined,
+    };
+  }
+  return null;
+}
+
+// Helper to extract certification info
+function extractCertification(bundle: CERBundle): { protocol: string; protocolVersion: string; certifiedBy?: string } {
+  const cert = bundle.certification;
+  const canonical = bundle.canonical;
+  const ec = bundle.executionConditions;
+  
+  return {
+    protocol: cert?.protocol as string || canonical?.protocol || 'nexart',
+    protocolVersion: cert?.protocol_version as string || cert?.protocolVersion as string || canonical?.protocolVersion || '1.2.0',
+    certifiedBy: cert?.certified_by as string || cert?.certifiedBy as string || 'NexArt Canonical Renderer',
+  };
+}
+
+// Helper to format input snapshot as table rows
+function formatInputAsTable(bundle: CERBundle): Array<{ label: string; value: string }> {
+  const input = bundle.inputSnapshot || bundle.input || bundle.claim;
+  if (!input || typeof input !== 'object') return [];
+  
+  const rows: Array<{ label: string; value: string }> = [];
+  const i = input as Record<string, unknown>;
+  
+  // Map common fields to friendly labels
+  const labelMap: Record<string, string> = {
+    account_id: 'Account ID',
+    accountId: 'Account ID',
+    withdrawals_24h: 'Withdrawals (24h)',
+    withdrawals24h: 'Withdrawals (24h)',
+    amount_24h: 'Amount (24h)',
+    amount24h: 'Amount (24h)',
+    window: 'Window',
+    window_hours: 'Window (hours)',
+    title: 'Title',
+    statement: 'Statement',
+    subject: 'Subject',
+    type: 'Type',
+    eventDate: 'Event Date',
+  };
+  
+  for (const [key, value] of Object.entries(i)) {
+    if (value !== undefined && value !== null) {
+      const label = labelMap[key] || key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim();
+      let displayValue = String(value);
+      if (typeof value === 'number' && key.toLowerCase().includes('amount')) {
+        displayValue = `$${value.toLocaleString()}`;
+      }
+      rows.push({ label, value: displayValue });
+    }
+  }
+  
+  return rows;
+}
+
 export function AuditPage() {
   const { hash } = useParams<{ hash: string }>();
   const navigate = useNavigate();
@@ -68,7 +166,7 @@ export function AuditPage() {
     computedHash: string;
     expectedHash: string;
     bundleByteLength: number;
-    canonicalPreview: string;
+    canonicalJson: string;
   } | null>(null);
   const [isCertVerifying, setIsCertVerifying] = useState(false);
   
@@ -77,7 +175,9 @@ export function AuditPage() {
   const [isRenderVerifying, setIsRenderVerifying] = useState(false);
   
   // UI state
-  const [showCanonicalPreview, setShowCanonicalPreview] = useState(false);
+  const [showRawInput, setShowRawInput] = useState(false);
+  const [showCode, setShowCode] = useState(false);
+  const [showWhyMatters, setShowWhyMatters] = useState(false);
 
   useEffect(() => {
     async function loadRecord() {
@@ -93,7 +193,6 @@ export function AuditPage() {
       
       if (data) {
         setRecord(data);
-        // Auto-verify certificate on load
         await verifyCertificate(data);
       } else {
         setNotFound(true);
@@ -116,9 +215,7 @@ export function AuditPage() {
         computedHash: result.computedHash,
         expectedHash: result.expectedHash,
         bundleByteLength: new TextEncoder().encode(canonicalJson).length,
-        canonicalPreview: canonicalJson.length > 500 
-          ? canonicalJson.slice(0, 500) + '...'
-          : canonicalJson,
+        canonicalJson,
       });
     } catch (err) {
       console.error('Certificate verification failed:', err);
@@ -136,7 +233,6 @@ export function AuditPage() {
       return;
     }
     
-    // Resolve expected hash using shared helper
     const expectedHash = resolveExpectedImageHash(bundle);
     const hashSource = getImageHashSource(bundle);
     
@@ -155,7 +251,6 @@ export function AuditPage() {
     setIsRenderVerifying(true);
     
     try {
-      // Call edge proxy /verify endpoint
       const proxyUrl = getProxyUrl();
       const snapshot = bundle.snapshot as AuditSnapshot;
       
@@ -233,8 +328,8 @@ export function AuditPage() {
   };
 
   const handleCopyCanonical = () => {
-    if (record) {
-      navigator.clipboard.writeText(record.canonical_json);
+    if (certVerification) {
+      navigator.clipboard.writeText(certVerification.canonicalJson);
       toast.success('Canonical JSON copied');
     }
   };
@@ -246,7 +341,7 @@ export function AuditPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `audit-${record.certificate_hash.slice(0, 12)}.json`;
+    a.download = `cer-${record.certificate_hash.slice(0, 16)}.json`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Bundle downloaded');
@@ -255,6 +350,15 @@ export function AuditPage() {
   const handleCopyHash = (hashValue: string, label = 'Hash') => {
     navigator.clipboard.writeText(hashValue);
     toast.success(`${label} copied`);
+  };
+  
+  const handleCopySnapshot = () => {
+    if (!record) return;
+    const bundle = record.bundle_json as CERBundle;
+    if (bundle.snapshot) {
+      navigator.clipboard.writeText(JSON.stringify(bundle.snapshot, null, 2));
+      toast.success('Snapshot JSON copied');
+    }
   };
 
   if (isLoading) {
@@ -300,12 +404,25 @@ export function AuditPage() {
 
   const bundle = record.bundle_json as CERBundle;
   const hasSnapshot = !!bundle.snapshot;
+  const snapshot = bundle.snapshot as AuditSnapshot | undefined;
   const expectedImageHash = resolveExpectedImageHash(bundle);
   const expectedAnimationHash = resolveExpectedAnimationHash(bundle);
   const imageHashSource = getImageHashSource(bundle);
+  
+  // Extract structured data
+  const decisionInfo = extractDecision(bundle);
+  const policyInfo = extractPolicy(bundle);
+  const certInfo = extractCertification(bundle);
+  const inputRows = formatInputAsTable(bundle);
+  
+  // Check if snapshot is complete (has code/seed/vars)
+  const hasRenderableSnapshot = hasSnapshot && 
+    typeof snapshot?.code === 'string' &&
+    typeof snapshot?.seed === 'number' &&
+    Array.isArray(snapshot?.vars);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4 md:space-y-6 px-4">
+    <div className="max-w-4xl mx-auto space-y-6 px-4 pb-12">
       {/* Header */}
       <div className="flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -314,15 +431,9 @@ export function AuditPage() {
             Audit Log
           </Button>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={handleCopyCanonical}>
-              <Copy className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">Copy Canonical</span>
-              <span className="sm:hidden">Canonical</span>
-            </Button>
             <Button variant="outline" size="sm" onClick={handleDownloadBundle}>
               <Download className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">Download Bundle</span>
-              <span className="sm:hidden">Download</span>
+              <span className="hidden sm:inline">Download</span>
             </Button>
             <Button 
               variant="outline" 
@@ -331,44 +442,181 @@ export function AuditPage() {
             >
               <Hash className="w-4 h-4 mr-1" />
               <span className="hidden sm:inline">Copy Hash</span>
-              <span className="sm:hidden">Hash</span>
             </Button>
           </div>
         </div>
-        <div>
-          <div className="flex flex-wrap items-center gap-2 mb-1">
-            <h1 className="text-lg md:text-xl font-semibold">{record.title || 'Certified Execution Record'}</h1>
-            {record.import_source === 'url' && (
-              <Badge variant="secondary" className="text-xs">
-                Source: public-certificate (unwrapped)
-              </Badge>
-            )}
-          </div>
-          {record.statement && (
-            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{record.statement}</p>
-          )}
-        </div>
       </div>
 
-      {/* Layer 1: Input Snapshot (immutable) */}
-      <Card>
+      {/* ============================================ */}
+      {/* EXECUTIVE SUMMARY */}
+      {/* ============================================ */}
+      <Card className="border-2">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <FileText className="w-4 h-4" />
-            Input Snapshot
-            <Badge variant="secondary" className="text-xs">immutable</Badge>
-          </CardTitle>
+          <div className="flex items-center gap-2">
+            <FileCheck className="w-5 h-5 text-primary" />
+            <CardTitle className="text-lg">Certified Execution Record</CardTitle>
+          </div>
+          <CardDescription className="text-sm leading-relaxed mt-2">
+            This record proves that a specific decision was produced from specific inputs 
+            under a specific policy and runtime, and that anyone can reproduce the result 
+            by re-executing the snapshot.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="bg-muted rounded-lg p-3 md:p-4 max-h-64 overflow-auto">
-            <pre className="text-xs font-mono whitespace-pre-wrap break-all">
-              {JSON.stringify(bundle.claim || bundle.inputSnapshot || bundle.input || {}, null, 2)}
-            </pre>
+          {/* Key fields grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Decision */}
+            <div className="p-4 rounded-lg bg-muted/50 border">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Decision</p>
+              {decisionInfo ? (
+                <Badge 
+                  variant={decisionInfo.decision === 'ALLOW' ? 'default' : 'destructive'}
+                  className="text-lg px-3 py-1"
+                >
+                  {decisionInfo.decision}
+                </Badge>
+              ) : (
+                <span className="text-sm text-muted-foreground">Not applicable</span>
+              )}
+            </div>
+            
+            {/* Reason */}
+            <div className="p-4 rounded-lg bg-muted/50 border">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Reason</p>
+              <p className="text-sm font-medium">
+                {decisionInfo?.reason || record.statement || 'See output details'}
+              </p>
+            </div>
+            
+            {/* Policy */}
+            <div className="p-4 rounded-lg bg-muted/50 border">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Policy</p>
+              <p className="text-sm font-medium">
+                {policyInfo ? `${policyInfo.name} v${policyInfo.version}` : 'Not specified'}
+              </p>
+            </div>
+            
+            {/* Certificate Hash */}
+            <div className="p-4 rounded-lg bg-muted/50 border">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Certificate Hash</p>
+              <code className="text-xs font-mono break-all">
+                {truncateHash(record.certificate_hash, 8, 8)}
+              </code>
+            </div>
           </div>
-          {bundle.sources && bundle.sources.length > 0 && (
+          
+          {/* Why this matters - expandable */}
+          <div className="pt-2">
+            <button
+              onClick={() => setShowWhyMatters(!showWhyMatters)}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Info className="w-4 h-4" />
+              <span>Why this matters</span>
+              {showWhyMatters ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+            {showWhyMatters && (
+              <ul className="mt-3 text-sm text-muted-foreground space-y-2 pl-6 list-disc">
+                <li><strong>Prevents disputes:</strong> Same inputs always produce the same decision</li>
+                <li><strong>Prevents drift:</strong> Engine and policy versions are permanently recorded</li>
+                <li><strong>Supports audit:</strong> Bundle hash covers inputs + conditions + output + snapshot</li>
+              </ul>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ============================================ */}
+      {/* POLICY EXPLANATION */}
+      {/* ============================================ */}
+      {policyInfo && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Scale className="w-5 h-5 text-primary" />
+              <CardTitle className="text-base">Policy Explanation</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {policyInfo.rule ? (
+              <>
+                <p className="text-sm bg-muted p-3 rounded-lg font-mono">
+                  {policyInfo.rule}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {(bundle.executionConditions as Record<string, unknown>)?.max_withdrawals !== undefined && (
+                    <Badge variant="outline">Max withdrawals: {String((bundle.executionConditions as Record<string, unknown>).max_withdrawals)}</Badge>
+                  )}
+                  {(bundle.executionConditions as Record<string, unknown>)?.max_amount !== undefined && (
+                    <Badge variant="outline">Max amount: ${String((bundle.executionConditions as Record<string, unknown>).max_amount).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</Badge>
+                  )}
+                  {(bundle.executionConditions as Record<string, unknown>)?.window_hours !== undefined && (
+                    <Badge variant="outline">Window: {String((bundle.executionConditions as Record<string, unknown>).window_hours)}h</Badge>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">
+                Policy details not provided in this bundle.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ============================================ */}
+      {/* LAYER 1: INPUT SNAPSHOT */}
+      {/* ============================================ */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">1</div>
             <div>
-              <p className="text-sm font-medium mb-2">Sources ({bundle.sources.length})</p>
-              <div className="space-y-2">
+              <CardTitle className="text-base">Input Snapshot</CardTitle>
+              <CardDescription className="text-xs">The exact inputs used to produce the decision.</CardDescription>
+            </div>
+          </div>
+          <Badge variant="secondary" className="w-fit text-xs mt-2">immutable</Badge>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {inputRows.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <tbody>
+                  {inputRows.map((row, i) => (
+                    <tr key={i} className="border-b border-border/50 last:border-0">
+                      <td className="py-2 pr-4 text-muted-foreground whitespace-nowrap">{row.label}</td>
+                      <td className="py-2 font-mono">{row.value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">No structured input data available.</p>
+          )}
+          
+          {/* Toggle raw JSON */}
+          <button
+            onClick={() => setShowRawInput(!showRawInput)}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>{showRawInput ? 'Hide' : 'Show'} raw JSON</span>
+          </button>
+          {showRawInput && (
+            <div className="bg-muted rounded-lg p-3 max-h-48 overflow-auto">
+              <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                {JSON.stringify(bundle.claim || bundle.inputSnapshot || bundle.input || {}, null, 2)}
+              </pre>
+            </div>
+          )}
+          
+          {/* Sources */}
+          {bundle.sources && bundle.sources.length > 0 && (
+            <div className="pt-3 border-t">
+              <p className="text-xs font-medium mb-2">Sources ({bundle.sources.length})</p>
+              <div className="space-y-1.5">
                 {bundle.sources.map((source, i) => (
                   <div key={i} className="text-xs bg-muted/50 rounded p-2">
                     <span className="font-medium">{source.label}</span>
@@ -390,115 +638,135 @@ export function AuditPage() {
         </CardContent>
       </Card>
 
-      {/* Layer 2: Execution Conditions */}
+      {/* ============================================ */}
+      {/* LAYER 2: EXECUTION CONDITIONS */}
+      {/* ============================================ */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Server className="w-4 h-4" />
-            Execution Conditions
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">2</div>
             <div>
-              <p className="text-xs text-muted-foreground">Mode</p>
-              <Badge variant="outline" className="mt-1">{record.mode}</Badge>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Bundle Version</p>
-              <p className="text-sm font-mono">{record.bundle_version}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Protocol</p>
-              <p className="text-sm font-mono">
-                {bundle.executionConditions?.engine || bundle.canonical?.protocol || bundle.protocol?.protocol || 'N/A'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Protocol Version</p>
-              <p className="text-sm font-mono">
-                {bundle.executionConditions?.engineVersion || bundle.canonical?.protocolVersion || bundle.protocol?.protocolVersion || 'N/A'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Created At</p>
-              <p className="text-xs md:text-sm font-mono">
-                {record.bundle_created_at 
-                  ? new Date(record.bundle_created_at).toISOString().split('T')[0]
-                  : 'N/A'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Renderer Version</p>
-              <p className="text-sm font-mono">
-                {bundle.executionConditions?.runtimeVersion || bundle.canonical?.rendererVersion || 'N/A'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Determinism</p>
-              <Badge variant={hasSnapshot || bundle.executionConditions?.deterministic ? 'default' : 'secondary'}>
-                {hasSnapshot || bundle.executionConditions?.deterministic ? 'Reproducible' : 'Attestation'}
-              </Badge>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Has Snapshot</p>
-              <Badge variant={hasSnapshot ? 'default' : 'outline'}>
-                {hasSnapshot ? 'Yes' : 'No'}
-              </Badge>
+              <CardTitle className="text-base">Execution Conditions</CardTitle>
+              <CardDescription className="text-xs">How the decision was executed (engine, policy, runtime, determinism).</CardDescription>
             </div>
           </div>
+          <Badge variant="secondary" className="w-fit text-xs mt-2">immutable</Badge>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <tbody>
+                <tr className="border-b border-border/50">
+                  <td className="py-2 pr-4 text-muted-foreground whitespace-nowrap">Engine</td>
+                  <td className="py-2 font-mono">{bundle.executionConditions?.engine || 'N/A'}</td>
+                </tr>
+                <tr className="border-b border-border/50">
+                  <td className="py-2 pr-4 text-muted-foreground whitespace-nowrap">Engine Version</td>
+                  <td className="py-2 font-mono">{bundle.executionConditions?.engineVersion || 'N/A'}</td>
+                </tr>
+                <tr className="border-b border-border/50">
+                  <td className="py-2 pr-4 text-muted-foreground whitespace-nowrap">Policy</td>
+                  <td className="py-2 font-mono">
+                    {policyInfo ? `${policyInfo.name} v${policyInfo.version}` : 'N/A'}
+                  </td>
+                </tr>
+                <tr className="border-b border-border/50">
+                  <td className="py-2 pr-4 text-muted-foreground whitespace-nowrap">Runtime</td>
+                  <td className="py-2 font-mono">
+                    {bundle.executionConditions?.runtime || bundle.canonical?.nodeVersion || 'N/A'}
+                  </td>
+                </tr>
+                <tr className="border-b border-border/50">
+                  <td className="py-2 pr-4 text-muted-foreground whitespace-nowrap">Determinism</td>
+                  <td className="py-2">
+                    <Badge variant={hasSnapshot || bundle.executionConditions?.deterministic ? 'default' : 'secondary'}>
+                      {hasSnapshot || bundle.executionConditions?.deterministic ? 'Reproducible' : 'Attestation'}
+                    </Badge>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
           
-          {/* Show executionConditions details if present (recanon.execution.v1) */}
-          {bundle.executionConditions && (
-            <div className="mt-4 pt-4 border-t border-border">
-              <p className="text-sm font-medium mb-2">Engine Details</p>
-              <div className="bg-muted/50 rounded-lg p-3 max-h-32 overflow-auto">
-                <pre className="text-xs font-mono whitespace-pre-wrap break-all">
-                  {JSON.stringify(bundle.executionConditions, null, 2)}
-                </pre>
+          {/* Certification block */}
+          <div className="p-3 bg-muted/50 rounded-lg border">
+            <p className="text-xs font-medium mb-2">Certification</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div>
+                <span className="text-muted-foreground block">Certified by</span>
+                <span className="font-mono">{certInfo.certifiedBy}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block">Protocol</span>
+                <span className="font-mono">{certInfo.protocol}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block">Protocol Version</span>
+                <span className="font-mono">{certInfo.protocolVersion}</span>
               </div>
             </div>
-          )}
-          
-          {hasSnapshot && bundle.snapshot && (
-            <div className="mt-4 pt-4 border-t border-border">
-              <p className="text-sm font-medium mb-2">Execution Snapshot</p>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 text-sm">
-                <div>
-                  <p className="text-xs text-muted-foreground">Seed</p>
-                  <p className="font-mono">{bundle.snapshot.seed}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Vars</p>
-                  <p className="font-mono text-xs truncate">
-                    [{bundle.snapshot.vars?.slice(0, 5).join(', ')}...]
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Code Length</p>
-                  <p className="font-mono">{bundle.snapshot.code?.length || 0} chars</p>
-                </div>
-              </div>
-            </div>
-          )}
+          </div>
         </CardContent>
       </Card>
 
-      {/* Layer 3: Certified Output */}
+      {/* ============================================ */}
+      {/* LAYER 3: CERTIFIED OUTPUT */}
+      {/* ============================================ */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <FileJson className="w-4 h-4" />
-            Certified Output
-          </CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">3</div>
+            <div>
+              <CardTitle className="text-base">Certified Output</CardTitle>
+              <CardDescription className="text-xs">The exact outcome produced by the run.</CardDescription>
+            </div>
+          </div>
+          <Badge variant="secondary" className="w-fit text-xs mt-2">immutable</Badge>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Expected Hashes */}
+          {decisionInfo ? (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-4 rounded-lg bg-muted/50 border">
+                  <p className="text-xs text-muted-foreground mb-1">Decision</p>
+                  <Badge 
+                    variant={decisionInfo.decision === 'ALLOW' ? 'default' : 'destructive'}
+                    className="text-base"
+                  >
+                    {decisionInfo.decision}
+                  </Badge>
+                </div>
+                <div className="p-4 rounded-lg bg-muted/50 border">
+                  <p className="text-xs text-muted-foreground mb-1">Reason</p>
+                  <p className="text-sm">{decisionInfo.reason || 'Not provided'}</p>
+                </div>
+              </div>
+              
+              {/* Outcome interpretation */}
+              <div className="p-3 bg-muted/30 rounded-lg text-sm">
+                <strong>Outcome interpretation:</strong>{' '}
+                {decisionInfo.decision === 'BLOCK' 
+                  ? 'Decision blocked by velocity policy thresholds.'
+                  : decisionInfo.decision === 'ALLOW'
+                    ? 'Decision allowed; inputs remain within limits.'
+                    : `Decision: ${decisionInfo.decision}`
+                }
+              </div>
+            </>
+          ) : (
+            <div className="bg-muted rounded-lg p-3 max-h-48 overflow-auto">
+              <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                {JSON.stringify(bundle.output || bundle.result || bundle.decision || { note: 'No output data' }, null, 2)}
+              </pre>
+            </div>
+          )}
+          
+          {/* Expected hashes */}
           {expectedImageHash && (
-            <div className="p-3 bg-muted/50 rounded-lg">
+            <div className="p-3 bg-muted/50 rounded-lg border">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground mb-1">Expected Image Hash</p>
+                  <p className="text-xs text-muted-foreground mb-1">Expected Image Hash (poster)</p>
                   <code className="text-xs font-mono break-all block">
                     {formatHashForDisplay(expectedImageHash)}
                   </code>
@@ -517,135 +785,12 @@ export function AuditPage() {
               </div>
             </div>
           )}
-          
-          {expectedAnimationHash && (
-            <div className="p-3 bg-muted/50 rounded-lg">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground mb-1">Expected Animation Hash</p>
-                  <code className="text-xs font-mono break-all block">
-                    {formatHashForDisplay(expectedAnimationHash)}
-                  </code>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="shrink-0"
-                  onClick={() => handleCopyHash(expectedAnimationHash, 'Animation hash')}
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            </div>
-          )}
-          
-          {(bundle.output || bundle.result || bundle.decision) && (
-            <div className="bg-muted rounded-lg p-3 md:p-4 max-h-48 overflow-auto">
-              <pre className="text-xs font-mono whitespace-pre-wrap break-all">
-                {JSON.stringify(bundle.output || bundle.result || bundle.decision, null, 2)}
-              </pre>
-            </div>
-          )}
-          
-          {/* Render Verification */}
-          {hasSnapshot && expectedImageHash && (
-            <div className="pt-4 border-t border-border">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
-                <p className="text-sm font-medium">Render Verification</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={verifyRender}
-                  disabled={isRenderVerifying}
-                >
-                  {isRenderVerifying ? (
-                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                  ) : (
-                    <Play className="w-4 h-4 mr-1" />
-                  )}
-                  Verify Render
-                </Button>
-              </div>
-              
-              {renderVerification && (
-                <div className={`p-3 rounded-lg border ${
-                  renderVerification.verified 
-                    ? 'border-verified/30 bg-verified/5' 
-                    : 'border-destructive/30 bg-destructive/5'
-                }`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    {renderVerification.verified ? (
-                      <>
-                        <CheckCircle2 className="w-4 h-4 text-verified" />
-                        <span className="text-sm font-medium text-verified">Render Verified</span>
-                      </>
-                    ) : (
-                      <>
-                        <XCircle className="w-4 h-4 text-destructive" />
-                        <span className="text-sm font-medium text-destructive">Render Failed</span>
-                      </>
-                    )}
-                  </div>
-                  
-                  <div className="text-xs space-y-1.5">
-                    <div className="flex flex-col sm:flex-row sm:gap-2">
-                      <span className="text-muted-foreground shrink-0">Computed:</span>
-                      <code className="font-mono break-all">
-                        {renderVerification.computedHash 
-                          ? truncateHash(renderVerification.computedHash, 12, 12)
-                          : '(none)'}
-                      </code>
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:gap-2">
-                      <span className="text-muted-foreground shrink-0">Expected:</span>
-                      <code className="font-mono break-all">
-                        {truncateHash(renderVerification.expectedHash, 12, 12)}
-                      </code>
-                    </div>
-                    {renderVerification.hashSource && (
-                      <div className="flex flex-col sm:flex-row sm:gap-2">
-                        <span className="text-muted-foreground shrink-0">Hash source:</span>
-                        <code className="font-mono">{renderVerification.hashSource}</code>
-                      </div>
-                    )}
-                    {renderVerification.pngByteLength && (
-                      <div className="flex gap-2">
-                        <span className="text-muted-foreground">PNG size:</span>
-                        <span>{(renderVerification.pngByteLength / 1024).toFixed(1)} KB</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Error details */}
-                  {!renderVerification.verified && renderVerification.error && (
-                    <div className="mt-3 pt-3 border-t border-destructive/20">
-                      <p className="text-xs font-medium text-destructive mb-1">Error Details</p>
-                      <p className="text-xs text-destructive">{renderVerification.error}</p>
-                      {renderVerification.requestId && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Request ID: <code className="font-mono">{renderVerification.requestId}</code>
-                        </p>
-                      )}
-                      {renderVerification.upstreamStatus && (
-                        <p className="text-xs text-muted-foreground">
-                          Upstream status: <code className="font-mono">{renderVerification.upstreamStatus}</code>
-                        </p>
-                      )}
-                      {renderVerification.upstreamDetails && (
-                        <p className="text-xs text-muted-foreground mt-1 font-mono break-all">
-                          {renderVerification.upstreamDetails}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </CardContent>
       </Card>
 
-      {/* Layer 4: Execution Certificate */}
+      {/* ============================================ */}
+      {/* LAYER 4: CERTIFICATION PROOF */}
+      {/* ============================================ */}
       <Card className={
         certVerification?.verified 
           ? 'border-verified/30' 
@@ -654,19 +799,20 @@ export function AuditPage() {
             : ''
       }>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Shield className="w-4 h-4" />
-            Execution Certificate
-          </CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">4</div>
+            <div>
+              <CardTitle className="text-base">Certification Proof (Seal)</CardTitle>
+              <CardDescription className="text-xs">Hash of the canonical bundle. If any input/condition/output/snapshot changes, the hash changes.</CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Certificate Hash */}
-          <div className="p-3 bg-muted/50 rounded-lg">
+          <div className="p-3 bg-muted/50 rounded-lg border">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground mb-1">
-                  Certificate Hash (SHA-256 of canonical bundle)
-                </p>
+                <p className="text-xs text-muted-foreground mb-1">Certificate Hash (SHA-256)</p>
                 <code className="text-xs font-mono break-all block">
                   {formatHashForDisplay(record.certificate_hash)}
                 </code>
@@ -682,7 +828,7 @@ export function AuditPage() {
             </div>
           </div>
           
-          {/* Certificate Verification */}
+          {/* Verification status */}
           {isCertVerifying ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -728,70 +874,261 @@ export function AuditPage() {
                   <span className="font-mono">{certVerification.bundleByteLength.toLocaleString()} bytes</span>
                 </div>
               </div>
-              
-              {/* Canonical JSON Preview */}
-              <div className="mt-3 pt-3 border-t border-border/50">
-                <button
-                  onClick={() => setShowCanonicalPreview(!showCanonicalPreview)}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>Canonical JSON preview</span>
-                  {showCanonicalPreview ? (
-                    <ChevronUp className="w-3.5 h-3.5" />
-                  ) : (
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  )}
-                </button>
-                {showCanonicalPreview && (
-                  <div className="mt-2 bg-muted rounded p-2 max-h-32 overflow-auto">
-                    <pre className="text-xs font-mono whitespace-pre-wrap break-all">
-                      {certVerification.canonicalPreview}
-                    </pre>
-                  </div>
-                )}
-              </div>
             </div>
           ) : null}
           
-          {/* What the certificate covers */}
+          {/* What is covered */}
           <div className="text-xs text-muted-foreground space-y-1">
-            <p className="font-medium text-foreground">This certificate covers:</p>
+            <p className="font-medium text-foreground">What is covered by this hash:</p>
             <ul className="list-disc list-inside space-y-0.5 pl-1">
-              <li>Input snapshot and claim data</li>
-              <li>Execution conditions and parameters</li>
-              <li>Protocol and renderer versions</li>
-              {hasSnapshot && <li>Reproducible execution code and seed</li>}
-              {expectedImageHash && <li>Expected output hash baseline</li>}
+              <li>Inputs (claim/inputSnapshot)</li>
+              <li>Execution conditions (engine, policy, runtime)</li>
+              <li>Output (decision, reason)</li>
+              <li>Certification metadata</li>
+              {hasRenderableSnapshot && <li>Snapshot code + seed + vars</li>}
             </ul>
           </div>
-          
-          {/* Record Metadata */}
-          <div className="pt-4 border-t border-border">
-            <p className="text-xs text-muted-foreground mb-2">Record Metadata</p>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div>
-                <span className="text-muted-foreground">Imported at:</span>
-                <p className="font-mono">{new Date(record.created_at).toLocaleString()}</p>
+        </CardContent>
+      </Card>
+
+      {/* ============================================ */}
+      {/* REPRODUCIBLE SNAPSHOT */}
+      {/* ============================================ */}
+      {hasSnapshot && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Code className="w-5 h-5 text-primary" />
+              <CardTitle className="text-base">Reproducible Snapshot</CardTitle>
+            </div>
+            <CardDescription className="text-xs">
+              This code is executed by the NexArt canonical renderer to deterministically 
+              produce the artifact linked to this record.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-3 bg-muted/50 rounded-lg border">
+                <p className="text-xs text-muted-foreground mb-1">Seed</p>
+                <p className="font-mono text-sm">{snapshot?.seed ?? 'N/A'}</p>
               </div>
-              <div>
-                <span className="text-muted-foreground">Import source:</span>
-                <p className="font-mono">{record.import_source || 'unknown'}</p>
+              <div className="p-3 bg-muted/50 rounded-lg border">
+                <p className="text-xs text-muted-foreground mb-1">Vars</p>
+                <p className="font-mono text-xs truncate">
+                  {Array.isArray(snapshot?.vars) 
+                    ? `[${snapshot.vars.slice(0, 10).join(', ')}${snapshot.vars.length > 10 ? '...' : ''}]`
+                    : 'N/A'}
+                </p>
               </div>
-              {record.render_status && (
-                <div>
-                  <span className="text-muted-foreground">Render status:</span>
-                  <Badge variant={
-                    record.render_status === 'VERIFIED' ? 'default' :
-                    record.render_status === 'FAILED' ? 'destructive' :
-                    'secondary'
-                  } className="ml-1 text-xs">
-                    {record.render_status}
-                  </Badge>
-                </div>
+              <div className="p-3 bg-muted/50 rounded-lg border">
+                <p className="text-xs text-muted-foreground mb-1">Code Length</p>
+                <p className="font-mono text-sm">{snapshot?.code?.length || 0} chars</p>
+              </div>
+            </div>
+            
+            {/* Action buttons */}
+            <div className="flex flex-wrap gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setShowCode(!showCode)}
+              >
+                <Eye className="w-4 h-4 mr-1" />
+                {showCode ? 'Hide code' : 'View code'}
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleCopySnapshot}
+              >
+                <Copy className="w-4 h-4 mr-1" />
+                Copy snapshot JSON
+              </Button>
+              {hasRenderableSnapshot && expectedImageHash && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={verifyRender}
+                  disabled={isRenderVerifying}
+                >
+                  {isRenderVerifying ? (
+                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                  ) : (
+                    <Play className="w-4 h-4 mr-1" />
+                  )}
+                  Re-run on canonical renderer
+                </Button>
               )}
             </div>
+            
+            {/* Code viewer */}
+            {showCode && snapshot?.code && (
+              <div className="bg-muted rounded-lg p-3 max-h-64 overflow-auto">
+                <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                  {snapshot.code}
+                </pre>
+              </div>
+            )}
+            
+            {/* Render verification result */}
+            {renderVerification && (
+              <div className={`p-3 rounded-lg border ${
+                renderVerification.verified 
+                  ? 'border-verified/30 bg-verified/5' 
+                  : 'border-destructive/30 bg-destructive/5'
+              }`}>
+                <div className="flex items-center gap-2 mb-2">
+                  {renderVerification.verified ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-verified" />
+                      <span className="text-sm font-medium text-verified">Render Verified</span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-4 h-4 text-destructive" />
+                      <span className="text-sm font-medium text-destructive">Render Failed</span>
+                    </>
+                  )}
+                </div>
+                
+                <div className="text-xs space-y-1.5">
+                  <div className="flex flex-col sm:flex-row sm:gap-2">
+                    <span className="text-muted-foreground shrink-0">Computed:</span>
+                    <code className="font-mono break-all">
+                      {renderVerification.computedHash 
+                        ? truncateHash(renderVerification.computedHash, 12, 12)
+                        : '(none)'}
+                    </code>
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:gap-2">
+                    <span className="text-muted-foreground shrink-0">Expected:</span>
+                    <code className="font-mono break-all">
+                      {truncateHash(renderVerification.expectedHash, 12, 12)}
+                    </code>
+                  </div>
+                </div>
+                
+                {!renderVerification.verified && renderVerification.error && (
+                  <div className="mt-3 pt-3 border-t border-destructive/20 text-xs">
+                    <p className="text-destructive">{renderVerification.error}</p>
+                    {renderVerification.requestId && (
+                      <p className="text-muted-foreground mt-1">
+                        Request ID: <code className="font-mono">{renderVerification.requestId}</code>
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ============================================ */}
+      {/* TECHNICAL APPENDIX */}
+      {/* ============================================ */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Fingerprint className="w-5 h-5 text-muted-foreground" />
+            <CardTitle className="text-base text-muted-foreground">Technical Appendix</CardTitle>
           </div>
+        </CardHeader>
+        <CardContent>
+          <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="canonical">
+              <AccordionTrigger className="text-sm">
+                Canonical JSON (used for hashing)
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="relative">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="absolute top-2 right-2 z-10"
+                    onClick={handleCopyCanonical}
+                  >
+                    <Copy className="w-3.5 h-3.5 mr-1" />
+                    Copy
+                  </Button>
+                  <div className="bg-muted rounded-lg p-3 max-h-64 overflow-auto">
+                    <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                      {certVerification?.canonicalJson || record.canonical_json}
+                    </pre>
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+            
+            <AccordionItem value="full-bundle">
+              <AccordionTrigger className="text-sm">
+                Full Bundle JSON
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="relative">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="absolute top-2 right-2 z-10"
+                    onClick={handleDownloadBundle}
+                  >
+                    <Download className="w-3.5 h-3.5 mr-1" />
+                    Download
+                  </Button>
+                  <div className="bg-muted rounded-lg p-3 max-h-64 overflow-auto">
+                    <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                      {JSON.stringify(record.bundle_json, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+            
+            <AccordionItem value="metadata">
+              <AccordionTrigger className="text-sm">
+                Fetch Source & Metadata
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-2 text-sm">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                    <div className="text-muted-foreground">Import source:</div>
+                    <div className="font-mono">{record.import_source || 'unknown'}</div>
+                    
+                    <div className="text-muted-foreground">Imported at:</div>
+                    <div className="font-mono">{new Date(record.created_at).toISOString()}</div>
+                    
+                    <div className="text-muted-foreground">Bundle created at:</div>
+                    <div className="font-mono">
+                      {record.bundle_created_at 
+                        ? new Date(record.bundle_created_at).toISOString()
+                        : 'Not provided by source'}
+                    </div>
+                    
+                    <div className="text-muted-foreground">Bundle version:</div>
+                    <div className="font-mono">{record.bundle_version}</div>
+                    
+                    <div className="text-muted-foreground">Mode:</div>
+                    <div className="font-mono">{record.mode}</div>
+                    
+                    {record.render_status && (
+                      <>
+                        <div className="text-muted-foreground">Render status:</div>
+                        <div>
+                          <Badge variant={
+                            record.render_status === 'VERIFIED' ? 'default' :
+                            record.render_status === 'FAILED' ? 'destructive' :
+                            'secondary'
+                          } className="text-xs">
+                            {record.render_status}
+                          </Badge>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </CardContent>
       </Card>
     </div>
