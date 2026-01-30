@@ -336,7 +336,14 @@ export function AuditPage() {
           </div>
         </div>
         <div>
-          <h1 className="text-lg md:text-xl font-semibold">{record.title || 'Certified Execution Record'}</h1>
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <h1 className="text-lg md:text-xl font-semibold">{record.title || 'Certified Execution Record'}</h1>
+            {record.import_source === 'url' && (
+              <Badge variant="secondary" className="text-xs">
+                Source: public-certificate (unwrapped)
+              </Badge>
+            )}
+          </div>
           {record.statement && (
             <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{record.statement}</p>
           )}
@@ -403,11 +410,15 @@ export function AuditPage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Protocol</p>
-              <p className="text-sm font-mono">{bundle.canonical?.protocol || bundle.protocol?.protocol || 'N/A'}</p>
+              <p className="text-sm font-mono">
+                {bundle.executionConditions?.engine || bundle.canonical?.protocol || bundle.protocol?.protocol || 'N/A'}
+              </p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Protocol Version</p>
-              <p className="text-sm font-mono">{bundle.canonical?.protocolVersion || bundle.protocol?.protocolVersion || 'N/A'}</p>
+              <p className="text-sm font-mono">
+                {bundle.executionConditions?.engineVersion || bundle.canonical?.protocolVersion || bundle.protocol?.protocolVersion || 'N/A'}
+              </p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Created At</p>
@@ -419,12 +430,14 @@ export function AuditPage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Renderer Version</p>
-              <p className="text-sm font-mono">{bundle.canonical?.rendererVersion || 'N/A'}</p>
+              <p className="text-sm font-mono">
+                {bundle.executionConditions?.runtimeVersion || bundle.canonical?.rendererVersion || 'N/A'}
+              </p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Determinism</p>
-              <Badge variant={hasSnapshot ? 'default' : 'secondary'}>
-                {hasSnapshot ? 'Reproducible' : 'Attestation'}
+              <Badge variant={hasSnapshot || bundle.executionConditions?.deterministic ? 'default' : 'secondary'}>
+                {hasSnapshot || bundle.executionConditions?.deterministic ? 'Reproducible' : 'Attestation'}
               </Badge>
             </div>
             <div>
@@ -434,6 +447,18 @@ export function AuditPage() {
               </Badge>
             </div>
           </div>
+          
+          {/* Show executionConditions details if present (recanon.execution.v1) */}
+          {bundle.executionConditions && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <p className="text-sm font-medium mb-2">Engine Details</p>
+              <div className="bg-muted/50 rounded-lg p-3 max-h-32 overflow-auto">
+                <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                  {JSON.stringify(bundle.executionConditions, null, 2)}
+                </pre>
+              </div>
+            </div>
+          )}
           
           {hasSnapshot && bundle.snapshot && (
             <div className="mt-4 pt-4 border-t border-border">
