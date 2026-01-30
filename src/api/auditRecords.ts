@@ -189,6 +189,9 @@ export async function updateRenderStatus(
   return false;
 }
 
+// Decision Certifier public certificate endpoint base URL
+const DECISION_CERTIFIER_PUBLIC_BASE = 'https://nxjkrwcxyhftoaenyztu.supabase.co/functions/v1/public-certificate';
+
 /**
  * Response from the fetch-bundle edge function
  */
@@ -205,9 +208,47 @@ interface FetchBundleProxyResponse {
 }
 
 /**
- * Fetch bundle from a URL via the server-side proxy to avoid CORS issues
+ * Check if input looks like a certificate hash (not a URL)
  */
-export async function fetchBundleFromUrl(url: string): Promise<{
+export function looksLikeHash(input: string): boolean {
+  const trimmed = input.trim().toLowerCase();
+  
+  // Check for sha256: prefix
+  if (trimmed.startsWith('sha256:')) {
+    const hex = trimmed.slice(7);
+    return /^[a-f0-9]{64}$/.test(hex);
+  }
+  
+  // Check for raw 64-char hex
+  if (/^[a-f0-9]{64}$/.test(trimmed)) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Build the public certificate URL for a given hash
+ */
+export function buildPublicCertificateUrl(hash: string): string {
+  const normalized = normalizeHash(hash);
+  if (!normalized) {
+    throw new Error('Invalid hash format');
+  }
+  return `${DECISION_CERTIFIER_PUBLIC_BASE}/sha256:${normalized}`;
+}
+
+/**
+ * Get the Decision Certifier public endpoint base URL
+ */
+export function getDecisionCertifierBaseUrl(): string {
+  return DECISION_CERTIFIER_PUBLIC_BASE;
+}
+
+/**
+ * Fetch bundle from a URL or hash via the server-side proxy
+ */
+export async function fetchBundleFromUrl(urlOrHash: string): Promise<{
   success: boolean;
   bundle?: CERBundle;
   error?: string;
@@ -217,10 +258,27 @@ export async function fetchBundleFromUrl(url: string): Promise<{
   requestId?: string;
   bodyPreview?: string;
   suggestion?: string;
+  constructedUrl?: string;
 }> {
   try {
-    // Use direct fetch to the edge function with URL as query param
-    const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fetch-bundle?url=${encodeURIComponent(url)}`;
+    let queryParam: string;
+    let constructedUrl: string | undefined;
+    
+    // Check if input is a hash - if so, use the hash parameter
+    if (looksLikeHash(urlOrHash)) {
+      // Use the edge function's hash parameter to auto-construct URL
+      queryParam = `hash=${encodeURIComponent(urlOrHash)}`;
+      try {
+        constructedUrl = buildPublicCertificateUrl(urlOrHash);
+      } catch {
+        // If URL construction fails, continue anyway
+      }
+    } else {
+      // Use the URL parameter directly
+      queryParam = `url=${encodeURIComponent(urlOrHash)}`;
+    }
+    
+    const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fetch-bundle?${queryParam}`;
     
     const response = await fetch(proxyUrl, {
       method: 'GET',
@@ -242,6 +300,7 @@ export async function fetchBundleFromUrl(url: string): Promise<{
         requestId: result.requestId,
         bodyPreview: result.bodyPreview,
         suggestion: result.suggestion,
+        constructedUrl,
       };
     }
     
@@ -254,6 +313,7 @@ export async function fetchBundleFromUrl(url: string): Promise<{
         fetchedFrom: result.fetchedFrom,
         upstreamStatus: result.upstreamStatus,
         requestId: result.requestId,
+        constructedUrl,
       };
     }
     
@@ -263,6 +323,7 @@ export async function fetchBundleFromUrl(url: string): Promise<{
       fetchedFrom: result.fetchedFrom,
       upstreamStatus: result.upstreamStatus,
       requestId: result.requestId,
+      constructedUrl,
     };
   } catch (error) {
     return { 
