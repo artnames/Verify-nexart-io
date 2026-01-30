@@ -231,23 +231,26 @@ export function validateCERBundle(bundle: unknown): BundleValidationResult {
     warnings.push('Bundle has no claim, input, snapshot, or output data');
   }
   
-  // Validate snapshot if present AND it looks like a NexArt execution snapshot
-  // (has code property - distinguishes from other snapshot formats)
-  const isNexArtSnapshot = hasSnapshot && 
-    (b.snapshot?.code !== undefined || b.snapshot?.seed !== undefined || b.snapshot?.vars !== undefined);
+  // Validate snapshot if present AND it's a complete NexArt execution snapshot
+  // A NexArt snapshot requires ALL of: code (string), seed (number), vars (array)
+  // Partial snapshots (e.g., Decision Certifier with only seed) should not trigger validation
+  const isCompleteNexArtSnapshot = hasSnapshot && 
+    typeof b.snapshot?.code === 'string' &&
+    typeof b.snapshot?.seed === 'number' &&
+    Array.isArray(b.snapshot?.vars);
   
-  if (isNexArtSnapshot) {
-    const snapshot = b.snapshot!;
-    if (!snapshot.code || typeof snapshot.code !== 'string') {
-      errors.push('Missing required field: snapshot.code must be a non-empty string');
-    }
-    if (typeof snapshot.seed !== 'number') {
-      errors.push('Missing required field: snapshot.seed must be a number');
-    }
-    if (!Array.isArray(snapshot.vars)) {
-      errors.push('Missing required field: snapshot.vars must be an array');
-    }
+  // Log for debugging when snapshot exists but is not complete NexArt format
+  if (hasSnapshot && !isCompleteNexArtSnapshot) {
+    console.log('[validateCERBundle] Snapshot present but not complete NexArt format:', {
+      hasCode: typeof b.snapshot?.code === 'string',
+      hasSeed: typeof b.snapshot?.seed === 'number',
+      hasVars: Array.isArray(b.snapshot?.vars),
+      snapshotKeys: Object.keys(b.snapshot || {}),
+    });
   }
+  
+  // Only validate if it's a complete NexArt snapshot (no partial validation errors)
+  // Incomplete snapshots are allowed for other bundle formats (Decision Certifier, etc.)
   
   // Determine mode
   let mode: AuditMode = 'static';
@@ -284,8 +287,8 @@ export function validateCERBundle(bundle: unknown): BundleValidationResult {
       null;
   }
   
-  // Validate loop mode has animation hash if NexArt snapshot present
-  if (mode === 'loop' && isNexArtSnapshot && !expectedAnimationHash) {
+  // Validate loop mode has animation hash if complete NexArt snapshot present
+  if (mode === 'loop' && isCompleteNexArtSnapshot && !expectedAnimationHash) {
     warnings.push('Loop mode bundle with snapshot is missing expectedAnimationHash');
   }
   
@@ -298,8 +301,8 @@ export function validateCERBundle(bundle: unknown): BundleValidationResult {
     expectedImageHash,
     expectedAnimationHash,
     hasSnapshot,
-    // Only NexArt snapshots can be re-rendered for verification
-    hasRenderableSnapshot: isNexArtSnapshot && errors.length === 0,
+    // Only complete NexArt snapshots can be re-rendered for verification
+    hasRenderableSnapshot: isCompleteNexArtSnapshot,
   };
 }
 
