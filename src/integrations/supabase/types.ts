@@ -83,6 +83,68 @@ export type Database = {
         }
         Relationships: []
       }
+      recertification_runs: {
+        Row: {
+          created_at: string
+          duration_ms: number | null
+          error_code: string | null
+          error_message: string | null
+          expected_hash: string | null
+          http_status: number | null
+          id: string
+          node_endpoint: string
+          output_hash: string | null
+          protocol_defaulted: boolean | null
+          protocol_version: string | null
+          record_id: string
+          request_fingerprint: string | null
+          runtime_hash: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          duration_ms?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          expected_hash?: string | null
+          http_status?: number | null
+          id?: string
+          node_endpoint: string
+          output_hash?: string | null
+          protocol_defaulted?: boolean | null
+          protocol_version?: string | null
+          record_id: string
+          request_fingerprint?: string | null
+          runtime_hash?: string | null
+          status: string
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          expected_hash?: string | null
+          http_status?: number | null
+          id?: string
+          node_endpoint?: string
+          output_hash?: string | null
+          protocol_defaulted?: boolean | null
+          protocol_version?: string | null
+          record_id?: string
+          request_fingerprint?: string | null
+          runtime_hash?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recertification_runs_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "audit_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sealed_claims: {
         Row: {
           animation_hash: string | null
