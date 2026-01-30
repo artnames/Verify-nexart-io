@@ -165,6 +165,8 @@ export interface BundleValidationResult {
   expectedImageHash?: string | null;
   expectedAnimationHash?: string | null;
   hasSnapshot?: boolean;
+  /** True if snapshot has code/seed/vars and can be re-rendered for verification */
+  hasRenderableSnapshot?: boolean;
 }
 
 /**
@@ -229,8 +231,12 @@ export function validateCERBundle(bundle: unknown): BundleValidationResult {
     warnings.push('Bundle has no claim, input, snapshot, or output data');
   }
   
-  // Validate snapshot if present
-  if (hasSnapshot) {
+  // Validate snapshot if present AND it looks like a NexArt execution snapshot
+  // (has code property - distinguishes from other snapshot formats)
+  const isNexArtSnapshot = hasSnapshot && 
+    (b.snapshot?.code !== undefined || b.snapshot?.seed !== undefined || b.snapshot?.vars !== undefined);
+  
+  if (isNexArtSnapshot) {
     const snapshot = b.snapshot!;
     if (!snapshot.code || typeof snapshot.code !== 'string') {
       errors.push('Missing required field: snapshot.code must be a non-empty string');
@@ -278,8 +284,8 @@ export function validateCERBundle(bundle: unknown): BundleValidationResult {
       null;
   }
   
-  // Validate loop mode has animation hash if snapshot present
-  if (mode === 'loop' && hasSnapshot && !expectedAnimationHash) {
+  // Validate loop mode has animation hash if NexArt snapshot present
+  if (mode === 'loop' && isNexArtSnapshot && !expectedAnimationHash) {
     warnings.push('Loop mode bundle with snapshot is missing expectedAnimationHash');
   }
   
@@ -292,6 +298,8 @@ export function validateCERBundle(bundle: unknown): BundleValidationResult {
     expectedImageHash,
     expectedAnimationHash,
     hasSnapshot,
+    // Only NexArt snapshots can be re-rendered for verification
+    hasRenderableSnapshot: isNexArtSnapshot && errors.length === 0,
   };
 }
 
