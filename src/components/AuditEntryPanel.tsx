@@ -9,6 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { 
   Search, 
   Link2, 
@@ -17,7 +24,9 @@ import {
   AlertCircle,
   ArrowRight,
   FileJson,
-  Hash
+  Hash,
+  Shield,
+  Info,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { 
@@ -29,8 +38,11 @@ import {
   buildPublicCertificateUrl,
   getDecisionCertifierBaseUrl,
 } from '@/api/auditRecords';
+import { recertifyBundle, type RecertifyResponse } from '@/api/recertification';
 import { computeCertificateHash } from '@/lib/canonicalize';
 import { normalizeHash } from '@/lib/hashResolver';
+import { RecertificationStatus } from '@/components/RecertificationStatus';
+import type { CERBundle } from '@/types/auditRecord';
 
 interface AuditEntryPanelProps {
   onRecordFound?: (hash: string) => void;
@@ -59,6 +71,17 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
   
   // Preview URL for hash input
   const [urlPreview, setUrlPreview] = useState<string | null>(null);
+  
+  // Recertification state
+  const [recertifyEnabled, setRecertifyEnabled] = useState(true);
+  const [isRecertifying, setIsRecertifying] = useState(false);
+  const [recertifyResult, setRecertifyResult] = useState<RecertifyResponse | null>(null);
+  const [lastImportedBundle, setLastImportedBundle] = useState<{
+    recordId: string;
+    bundle: CERBundle;
+    sourceUrl?: string;
+    expectedHash?: string;
+  } | null>(null);
   
   // File upload state
   const [isUploading, setIsUploading] = useState(false);
@@ -125,12 +148,47 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
     }
   };
 
+  const handleRecertify = async () => {
+    if (!lastImportedBundle) return;
+    
+    setIsRecertifying(true);
+    setRecertifyResult(null);
+    
+    try {
+      const result = await recertifyBundle(
+        lastImportedBundle.recordId,
+        lastImportedBundle.bundle,
+        lastImportedBundle.sourceUrl,
+        lastImportedBundle.expectedHash
+      );
+      
+      setRecertifyResult(result);
+      
+      if (result.status === 'pass') {
+        toast.success('Re-certification passed');
+      } else if (result.status === 'fail') {
+        toast.error('Re-certification failed: hash mismatch');
+      } else if (result.status === 'error') {
+        toast.error(`Re-certification error: ${result.errorCode || 'Unknown'}`);
+      } else if (result.status === 'skipped') {
+        toast.info(result.message || 'Re-certification skipped');
+      }
+    } catch (err) {
+      console.error('[AuditEntryPanel] Recertify error:', err);
+      toast.error('Re-certification failed');
+    } finally {
+      setIsRecertifying(false);
+    }
+  };
+
   const handleUrlFetch = async () => {
     if (!urlInput.trim()) return;
     
     setIsFetching(true);
     setError(null);
     setFetchDetails(null);
+    setRecertifyResult(null);
+    setLastImportedBundle(null);
     
     try {
       const input = urlInput.trim();
@@ -177,6 +235,37 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
       const existing = await getAuditRecordByHash(certificateHash);
       if (existing) {
         toast.success('Bundle already in registry');
+        
+        // Trigger recertification for existing record if enabled
+        if (recertifyEnabled) {
+          setLastImportedBundle({
+            recordId: existing.id,
+            bundle: result.bundle,
+            sourceUrl: result.fetchedFrom,
+            expectedHash: result.wrapperMetadata?.expectedImageHash,
+          });
+          
+          // Auto-trigger recertification
+          setIsFetching(false);
+          setIsRecertifying(true);
+          
+          const recertResult = await recertifyBundle(
+            existing.id,
+            result.bundle,
+            result.fetchedFrom,
+            result.wrapperMetadata?.expectedImageHash
+          );
+          
+          setRecertifyResult(recertResult);
+          setIsRecertifying(false);
+          
+          if (recertResult.status === 'pass') {
+            toast.success('Re-certification passed');
+          } else if (recertResult.status === 'fail') {
+            toast.error('Re-certification failed: hash mismatch');
+          }
+        }
+        
         navigateToAudit(certificateHash);
         return;
       }
@@ -196,7 +285,40 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
       }
       
       toast.success('Bundle imported successfully');
+      
+      // Get the record ID for recertification
       if (importResult.certificateHash) {
+        const newRecord = await getAuditRecordByHash(importResult.certificateHash);
+        
+        // Trigger recertification if enabled
+        if (recertifyEnabled && newRecord) {
+          setLastImportedBundle({
+            recordId: newRecord.id,
+            bundle: result.bundle,
+            sourceUrl: result.fetchedFrom,
+            expectedHash: result.wrapperMetadata?.expectedImageHash,
+          });
+          
+          setIsFetching(false);
+          setIsRecertifying(true);
+          
+          const recertResult = await recertifyBundle(
+            newRecord.id,
+            result.bundle,
+            result.fetchedFrom,
+            result.wrapperMetadata?.expectedImageHash
+          );
+          
+          setRecertifyResult(recertResult);
+          setIsRecertifying(false);
+          
+          if (recertResult.status === 'pass') {
+            toast.success('Re-certification passed');
+          } else if (recertResult.status === 'fail') {
+            toast.error('Re-certification failed: hash mismatch');
+          }
+        }
+        
         navigateToAudit(importResult.certificateHash);
       }
     } catch (err) {
@@ -415,6 +537,39 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
               <p className="text-xs text-muted-foreground mb-1">Will fetch from:</p>
               <p className="text-xs font-mono text-foreground break-all">{urlPreview}</p>
             </div>
+          )}
+          
+          {/* Re-certification toggle */}
+          <div className="flex items-center justify-between py-2 px-3 rounded-md bg-muted/30 border border-border/50">
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm">Re-certify with Canonical Renderer</span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Replays the snapshot against the NexArt canonical renderer using server-held credentials to verify the output hash matches.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <Switch
+              checked={recertifyEnabled}
+              onCheckedChange={setRecertifyEnabled}
+              aria-label="Enable re-certification"
+            />
+          </div>
+          
+          {/* Recertification status */}
+          {(isRecertifying || recertifyResult) && (
+            <RecertificationStatus
+              result={recertifyResult}
+              isLoading={isRecertifying}
+              onRecertify={lastImportedBundle ? handleRecertify : undefined}
+              enabled={recertifyEnabled}
+            />
           )}
         </div>
 
