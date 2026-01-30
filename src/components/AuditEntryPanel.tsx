@@ -540,26 +540,21 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
           )}
           
           {/* Re-certification toggle */}
-          <div className="flex items-center justify-between py-2 px-3 rounded-md bg-muted/30 border border-border/50">
-            <div className="flex items-center gap-2">
-              <Shield className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm">Re-certify with Canonical Renderer</span>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p>Replays the snapshot against the NexArt canonical renderer using server-held credentials to verify the output hash matches.</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+          <div className="space-y-2 py-3 px-3 rounded-md bg-muted/30 border border-border/50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Canonical Re-Certification</span>
+              </div>
+              <Switch
+                checked={recertifyEnabled}
+                onCheckedChange={setRecertifyEnabled}
+                aria-label="Enable re-certification"
+              />
             </div>
-            <Switch
-              checked={recertifyEnabled}
-              onCheckedChange={setRecertifyEnabled}
-              aria-label="Enable re-certification"
-            />
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              When enabled, this record is independently re-executed against the NexArt Canonical Renderer to confirm that the certified output can be reproduced exactly under the current canonical runtime. This verification is performed server-side using a secured credential and does not modify the original record.
+            </p>
           </div>
           
           {/* Recertification status */}

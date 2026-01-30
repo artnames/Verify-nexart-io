@@ -92,21 +92,33 @@ export function RecertificationStatus({
 
   const getStatusBadge = () => {
     if (isLoading) {
-      return <Badge variant="outline">Re-certifying...</Badge>;
+      return <Badge variant="outline">Verifying...</Badge>;
     }
     if (!status) {
-      return <Badge variant="outline">Not run</Badge>;
+      return <Badge variant="outline">Not Re-Certified</Badge>;
     }
 
     switch (status) {
       case 'pass':
-        return <Badge className="bg-verified text-verified-foreground">PASS</Badge>;
+        return <Badge className="bg-verified text-verified-foreground">Re-Certified</Badge>;
       case 'fail':
-        return <Badge variant="destructive">FAIL</Badge>;
+        return <Badge variant="destructive">Mismatch Detected</Badge>;
       case 'error':
-        return <Badge className="bg-warning text-warning-foreground">ERROR</Badge>;
+        return <Badge className="bg-warning text-warning-foreground">Re-Certification Failed</Badge>;
       case 'skipped':
-        return <Badge variant="secondary">SKIPPED</Badge>;
+        return <Badge variant="secondary">Not Re-Certified</Badge>;
+    }
+  };
+
+  const getCompactStatusLabel = () => {
+    if (isLoading) return 'Verifying...';
+    if (!status) return 'Not Re-Certified';
+    switch (status) {
+      case 'pass': return 'Re-Certified';
+      case 'fail': return 'Mismatch Detected';
+      case 'error': return 'Re-Certification Failed';
+      case 'skipped': return 'Not Re-Certified';
+      default: return 'Not Re-Certified';
     }
   };
 
@@ -115,7 +127,7 @@ export function RecertificationStatus({
       <div className="flex items-center gap-2">
         {getStatusIcon()}
         <span className="text-sm">
-          {isLoading ? 'Re-certifying...' : status ? status.toUpperCase() : 'Not run'}
+          {getCompactStatusLabel()}
         </span>
         {onRecertify && enabled && !isLoading && (
           <Button
@@ -148,30 +160,33 @@ export function RecertificationStatus({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {/* Status explanation */}
+        {/* Status explanation - auditor-friendly language */}
         {status === 'pass' && (
           <p className="text-sm text-verified">
-            ✓ The snapshot was re-executed on the canonical renderer and produced the same hash.
+            The execution was independently reproduced by the NexArt Canonical Renderer. The computed output matches the original certified result.
           </p>
         )}
         {status === 'fail' && (
           <p className="text-sm text-destructive">
-            ✗ Hash mismatch: the canonical renderer produced a different output.
+            The execution was reproduced, but the resulting output does not match the original certified result. This indicates a discrepancy that requires review.
           </p>
         )}
         {status === 'error' && (
           <div className="flex items-start gap-2 text-sm text-warning">
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
             <div>
-              <p className="font-medium">{errorCode || 'Error'}</p>
-              {errorMessage && <p className="text-muted-foreground">{errorMessage}</p>}
-              {httpStatus && <p className="text-xs text-muted-foreground">HTTP {httpStatus}</p>}
+              <p className="font-medium">Re-Certification Failed</p>
+              <p className="text-muted-foreground">
+                The record could not be re-certified due to a verification error. No confirmation could be established.
+              </p>
+              {errorCode && <p className="text-xs text-muted-foreground mt-1">Reference: {errorCode}</p>}
             </div>
           </div>
         )}
         {status === 'skipped' && (
           <p className="text-sm text-muted-foreground">
-            {errorMessage || 'Re-certification was skipped.'}
+            This record was reviewed as provided and was not independently re-certified against the Canonical Renderer.
+            {errorMessage && ` (${errorMessage})`}
           </p>
         )}
 
@@ -281,12 +296,12 @@ export function RecertificationStatus({
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Re-certifying...
+                Verifying...
               </>
             ) : (
               <>
                 <RefreshCw className="w-4 h-4 mr-2" />
-                {status ? 'Re-run Certification' : 'Run Certification'}
+                {status ? 'Re-Certify Again' : 'Perform Re-Certification'}
               </>
             )}
           </Button>
