@@ -24,7 +24,10 @@ import {
   getAuditRecordByHash, 
   fetchBundleFromUrl, 
   parseBundleJson,
-  importAuditRecord 
+  importAuditRecord,
+  looksLikeHash,
+  buildPublicCertificateUrl,
+  getDecisionCertifierBaseUrl,
 } from '@/api/auditRecords';
 import { computeCertificateHash } from '@/lib/canonicalize';
 import { normalizeHash } from '@/lib/hashResolver';
@@ -51,13 +54,35 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
     bodyPreview?: string;
     errorCode?: string;
     suggestion?: string;
+    constructedUrl?: string;
   } | null>(null);
+  
+  // Preview URL for hash input
+  const [urlPreview, setUrlPreview] = useState<string | null>(null);
   
   // File upload state
   const [isUploading, setIsUploading] = useState(false);
   
   // Error state
   const [error, setError] = useState<string | null>(null);
+  
+  // Detect hash input and show URL preview
+  const handleUrlInputChange = (value: string) => {
+    setUrlInput(value);
+    setError(null);
+    setFetchDetails(null);
+    
+    if (looksLikeHash(value.trim())) {
+      try {
+        const constructedUrl = buildPublicCertificateUrl(value.trim());
+        setUrlPreview(constructedUrl);
+      } catch {
+        setUrlPreview(null);
+      }
+    } else {
+      setUrlPreview(null);
+    }
+  };
 
   const navigateToAudit = (hash: string) => {
     const normalizedHash = normalizeHash(hash);
@@ -108,21 +133,26 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
     setFetchDetails(null);
     
     try {
-      // Validate URL
-      let url: URL;
-      try {
-        url = new URL(urlInput.trim());
-      } catch {
-        setError('Invalid URL format');
-        setIsFetching(false);
-        return;
+      const input = urlInput.trim();
+      const isHash = looksLikeHash(input);
+      
+      // For hash input, we pass it directly - the API will construct the URL
+      // For URL input, validate it first
+      if (!isHash) {
+        try {
+          new URL(input);
+        } catch {
+          setError('Invalid URL format');
+          setIsFetching(false);
+          return;
+        }
       }
       
-      // Fetch and parse bundle via server-side proxy
-      const result = await fetchBundleFromUrl(url.toString());
+      // Fetch and parse bundle via server-side proxy (handles both URLs and hashes)
+      const result = await fetchBundleFromUrl(input);
       
       // Store fetch details for error display
-      if (result.requestId || result.upstreamStatus || result.fetchedFrom || result.bodyPreview || result.suggestion || result.errorCode) {
+      if (result.requestId || result.upstreamStatus || result.fetchedFrom || result.bodyPreview || result.suggestion || result.errorCode || result.constructedUrl) {
         setFetchDetails({
           requestId: result.requestId,
           upstreamStatus: result.upstreamStatus,
@@ -130,6 +160,7 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
           bodyPreview: result.bodyPreview,
           errorCode: result.errorCode,
           suggestion: result.suggestion,
+          constructedUrl: result.constructedUrl,
         });
       }
       
@@ -349,21 +380,21 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
           </div>
         </div>
 
-        {/* URL Fetch */}
+        {/* URL or Hash Fetch */}
         <div className="space-y-2">
           <Label htmlFor="url-input" className="text-sm font-medium">
-            Verify by URL
+            Verify by URL or Hash
           </Label>
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 id="url-input"
-                placeholder="https://example.com/bundle.json"
+                placeholder="https://... or sha256:..."
                 value={urlInput}
-                onChange={(e) => setUrlInput(e.target.value)}
+                onChange={(e) => handleUrlInputChange(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleUrlFetch()}
-                className="pl-9 text-sm"
+                className="pl-9 text-sm font-mono"
               />
             </div>
             <Button 
@@ -377,6 +408,14 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
               )}
             </Button>
           </div>
+          
+          {/* URL Preview for hash input */}
+          {urlPreview && (
+            <div className="p-2 rounded-md bg-muted/50 border border-border/50">
+              <p className="text-xs text-muted-foreground mb-1">Will fetch from:</p>
+              <p className="text-xs font-mono text-foreground break-all">{urlPreview}</p>
+            </div>
+          )}
         </div>
 
         <div className="relative">
