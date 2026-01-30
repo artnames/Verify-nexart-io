@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAuditRecordByHash } from '@/api/auditRecords';
+import { recertifyBundle, getLatestRecertificationRun, type RecertifyResponse, type RecertificationRun } from '@/api/recertification';
 import { verifyCertificateHash, canonicalize } from '@/lib/canonicalize';
 import { 
   resolveExpectedImageHash, 
@@ -54,6 +55,7 @@ import {
   normalizeHash,
 } from '@/lib/hashResolver';
 import { getProxyUrl } from '@/certified/canonicalConfig';
+import { RecertificationStatus } from '@/components/RecertificationStatus';
 import type { AuditRecordRow, CERBundle, AuditSnapshot } from '@/types/auditRecord';
 
 // Render verification result with detailed error info
@@ -174,6 +176,11 @@ export function AuditPage() {
   const [renderVerification, setRenderVerification] = useState<RenderVerificationResult | null>(null);
   const [isRenderVerifying, setIsRenderVerifying] = useState(false);
   
+  // Recertification state
+  const [recertificationRun, setRecertificationRun] = useState<RecertificationRun | null>(null);
+  const [recertifyResult, setRecertifyResult] = useState<RecertifyResponse | null>(null);
+  const [isRecertifying, setIsRecertifying] = useState(false);
+  
   // UI state
   const [showRawInput, setShowRawInput] = useState(false);
   const [showCode, setShowCode] = useState(false);
@@ -194,6 +201,11 @@ export function AuditPage() {
       if (data) {
         setRecord(data);
         await verifyCertificate(data);
+        // Load latest recertification run
+        const latestRun = await getLatestRecertificationRun(data.id);
+        if (latestRun) {
+          setRecertificationRun(latestRun);
+        }
       } else {
         setNotFound(true);
       }
@@ -203,6 +215,46 @@ export function AuditPage() {
     
     loadRecord();
   }, [hash]);
+
+  const handleRecertify = async () => {
+    if (!record) return;
+    
+    setIsRecertifying(true);
+    setRecertifyResult(null);
+    
+    try {
+      const bundle = record.bundle_json as CERBundle;
+      const expectedHash = resolveExpectedImageHash(bundle);
+      
+      const result = await recertifyBundle(
+        record.id,
+        bundle,
+        undefined, // sourceUrl not available here
+        expectedHash || undefined
+      );
+      
+      setRecertifyResult(result);
+      
+      // Refresh the run from DB
+      const latestRun = await getLatestRecertificationRun(record.id);
+      if (latestRun) {
+        setRecertificationRun(latestRun);
+      }
+      
+      if (result.status === 'pass') {
+        toast.success('Re-certification passed');
+      } else if (result.status === 'fail') {
+        toast.error('Re-certification failed: hash mismatch');
+      } else if (result.status === 'error') {
+        toast.error(`Re-certification error: ${result.errorCode || 'Unknown'}`);
+      }
+    } catch (err) {
+      console.error('[AuditPage] Recertify error:', err);
+      toast.error('Re-certification failed');
+    } finally {
+      setIsRecertifying(false);
+    }
+  };
 
   const verifyCertificate = async (rec: AuditRecordRow) => {
     setIsCertVerifying(true);
@@ -892,6 +944,17 @@ export function AuditPage() {
       </Card>
 
       {/* ============================================ */}
+      {/* CANONICAL RE-CERTIFICATION */}
+      {/* ============================================ */}
+      {hasRenderableSnapshot && (
+        <RecertificationStatus
+          result={recertifyResult}
+          latestRun={recertificationRun}
+          isLoading={isRecertifying}
+          onRecertify={handleRecertify}
+          enabled={true}
+        />
+      )}
       {/* REPRODUCIBLE SNAPSHOT */}
       {/* ============================================ */}
       {hasSnapshot && (

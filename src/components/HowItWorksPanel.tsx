@@ -35,7 +35,7 @@ export function HowItWorksPanel() {
             <strong className="text-foreground">Import:</strong> Bring in Certified Execution Records from external sources via URL, hash lookup, or file upload.
           </p>
           <p className="text-muted-foreground">
-            <strong className="text-foreground">Verify:</strong> Validate certificate hashes and re-render snapshots to confirm integrity.
+            <strong className="text-foreground">Verify:</strong> Validate certificate hashes and optionally re-certify snapshots against the NexArt Canonical Renderer.
           </p>
           <p className="text-muted-foreground">
             <strong className="text-foreground">Audit:</strong> Review the complete evidence trail: inputs, conditions, outputs, and cryptographic proof.
@@ -62,9 +62,9 @@ export function HowItWorksPanel() {
             </div>
             <div className="flex-1 p-4 rounded-lg bg-muted/50 text-center">
               <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center mx-auto mb-3 font-bold">2</div>
-              <div className="font-medium mb-1">Verify</div>
+              <div className="font-medium mb-1">Verify & Re-Certify</div>
               <p className="text-xs text-muted-foreground">
-                Certificate hash is validated on import
+                Certificate hash is validated; snapshot can be re-run against canonical renderer
               </p>
             </div>
             <div className="hidden sm:flex items-center">
@@ -119,7 +119,10 @@ export function HowItWorksPanel() {
               <Link className="w-4 h-4 mt-0.5 text-primary" />
               <div>
                 <span className="font-medium">Verify by URL</span>
-                <p className="text-sm text-muted-foreground">Fetch a CER from a remote endpoint. The bundle is validated and stored locally.</p>
+                <p className="text-sm text-muted-foreground">
+                  Fetch a CER from a remote endpoint. The bundle is validated, stored locally, 
+                  and optionally re-certified against the NexArt Canonical Renderer.
+                </p>
               </div>
             </div>
             
