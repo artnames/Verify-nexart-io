@@ -23,19 +23,10 @@ interface SidebarProps {
 
 const navItems = [
   { id: 'guide', label: 'Start Here', icon: BookOpen },
-  { id: 'claim', label: 'Create Claim', icon: Stamp },
-  { id: 'library', label: 'Library', icon: Library },
   { id: 'audit-log', label: 'Audit Log', icon: ScrollText, route: '/audit-log' },
-  { id: 'verify', label: 'Check & Test', icon: RotateCcw },
-  { id: 'strategies', label: 'Strategies', icon: FileCode },
-  { id: 'execute', label: 'Execute', icon: Play },
-  { id: 'artifacts', label: 'Sealed Results', icon: ShieldCheck },
 ];
 
-const bottomItems = [
-  { id: 'datasets', label: 'Datasets', icon: Database },
-  { id: 'settings', label: 'Settings', icon: Settings },
-];
+const bottomItems: typeof navItems = [];
 
 export function Sidebar({ activeView, onViewChange }: SidebarProps) {
   const navigate = useNavigate();
