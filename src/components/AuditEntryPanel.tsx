@@ -273,12 +273,6 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
       // Import new record (pass wrapper metadata if present)
       const importResult = await importAuditRecord(result.bundle, 'url', result.wrapperMetadata);
       
-      if (importResult.authRequired) {
-        setError('Sign in required to import new bundles');
-        toast.error('Authentication required', { description: 'Sign in to import bundles' });
-        return;
-      }
-      
       if (!importResult.success) {
         setError(importResult.error || 'Import failed');
         return;
@@ -357,12 +351,6 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
       
       // Import new record
       const importResult = await importAuditRecord(result.bundle, 'upload');
-      
-      if (importResult.authRequired) {
-        setError('Sign in required to import new bundles');
-        toast.error('Authentication required', { description: 'Sign in to import bundles' });
-        return;
-      }
       
       if (!importResult.success) {
         setError(importResult.error || 'Import failed');

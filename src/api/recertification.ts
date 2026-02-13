@@ -3,6 +3,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import { getNodeApiKey } from '@/storage/nodeApiKey';
 import type { CERBundle } from '@/types/auditRecord';
 
 /**
@@ -61,15 +62,23 @@ export async function recertifyBundle(
   expectedHash?: string
 ): Promise<RecertifyResponse> {
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    };
+    
+    // Include user-supplied node API key if available
+    const nodeKey = getNodeApiKey();
+    if (nodeKey) {
+      headers['X-Node-Api-Key'] = nodeKey;
+    }
+    
     const response = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/recertify`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        },
+        headers,
         body: JSON.stringify({
           recordId,
           bundle,

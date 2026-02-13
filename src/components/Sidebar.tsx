@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import recanonIcon from "@/assets/recanon-icon.png";
-import { AuthButton } from "@/components/AuthButton";
+
 import { useNavigate } from "react-router-dom";
 
 interface SidebarProps {
@@ -100,9 +100,11 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
         </div>
       </div>
 
-      {/* Auth Section */}
+      {/* Anonymous mode — no auth section */}
       <div className="p-3 border-t border-sidebar-border">
-        <AuthButton />
+        <p className="text-[10px] text-muted-foreground text-center leading-relaxed">
+          Anonymous verification mode
+        </p>
       </div>
     </aside>
   );

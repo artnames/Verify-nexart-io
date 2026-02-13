@@ -1,10 +1,13 @@
 /**
  * RecertificationStatus - Display component for canonical re-certification results
+ * 
+ * Gated behind user-supplied API key (sessionStorage).
  */
 
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Tooltip,
@@ -29,22 +32,20 @@ import {
   Hash,
   Server,
   AlertCircle,
+  Lock,
+  KeyRound,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { hasNodeApiKey, setNodeApiKey } from '@/storage/nodeApiKey';
 import type { RecertifyResponse, RecertificationRun } from '@/api/recertification';
 
 interface RecertificationStatusProps {
-  /** Current recertification result (from API call) */
   result?: RecertifyResponse | null;
-  /** Latest stored run (from database) */
   latestRun?: RecertificationRun | null;
-  /** Whether recertification is in progress */
   isLoading?: boolean;
-  /** Callback to trigger recertification */
   onRecertify?: () => void;
-  /** Whether recertification is enabled */
   enabled?: boolean;
-  /** Compact mode for inline display */
   compact?: boolean;
 }
 
@@ -57,8 +58,9 @@ export function RecertificationStatus({
   compact = false,
 }: RecertificationStatusProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [hasKey, setHasKey] = useState(hasNodeApiKey());
 
-  // Use result if available, otherwise fall back to latestRun
   const status = result?.status || latestRun?.status;
   const outputHash = result?.outputHash || latestRun?.output_hash;
   const expectedHash = result?.expectedHash || latestRun?.expected_hash;
@@ -72,8 +74,17 @@ export function RecertificationStatus({
   const requestFingerprint = result?.requestFingerprint || latestRun?.request_fingerprint;
   const createdAt = latestRun?.created_at;
 
+  const handleSaveKey = () => {
+    if (apiKeyInput.trim()) {
+      setNodeApiKey(apiKeyInput.trim());
+      setHasKey(true);
+      setApiKeyInput('');
+    }
+  };
+
   const getStatusIcon = () => {
     if (isLoading) return <Loader2 className="w-4 h-4 animate-spin" />;
+    if (!hasKey && !status) return <Lock className="w-4 h-4 text-muted-foreground" />;
     if (!status) return <Shield className="w-4 h-4 text-muted-foreground" />;
     
     switch (status) {
@@ -91,12 +102,8 @@ export function RecertificationStatus({
   };
 
   const getStatusBadge = () => {
-    if (isLoading) {
-      return <Badge variant="outline">Verifying...</Badge>;
-    }
-    if (!status) {
-      return <Badge variant="outline">Not Re-Certified</Badge>;
-    }
+    if (isLoading) return <Badge variant="outline">Verifying...</Badge>;
+    if (!status) return <Badge variant="outline">Not Re-Certified</Badge>;
 
     switch (status) {
       case 'pass':
@@ -129,7 +136,7 @@ export function RecertificationStatus({
         <span className="text-sm">
           {getCompactStatusLabel()}
         </span>
-        {onRecertify && enabled && !isLoading && (
+        {onRecertify && enabled && hasKey && !isLoading && (
           <Button
             variant="ghost"
             size="sm"
@@ -160,7 +167,54 @@ export function RecertificationStatus({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {/* Status explanation - auditor-friendly language */}
+        {/* API Key gating */}
+        {!hasKey && !status && (
+          <div className="space-y-3 p-3 rounded-md border border-border bg-muted/30">
+            <div className="flex items-start gap-2 text-sm">
+              <Lock className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
+              <div>
+                <p className="font-medium text-muted-foreground">
+                  Re-certification requires an API key
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  You can still verify integrity locally. Re-certification is optional and requires a key because it consumes canonical node quota.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Paste NexArt Node API key"
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSaveKey()}
+                  className="pl-9 text-sm font-mono"
+                  type="password"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSaveKey}
+                disabled={!apiKeyInput.trim()}
+              >
+                Unlock
+              </Button>
+            </div>
+            <a
+              href="https://nexart.io"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              Get an API key on nexart.io
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        )}
+
+        {/* Status explanation */}
         {status === 'pass' && (
           <p className="text-sm text-verified">
             The execution was independently reproduced by the NexArt Canonical Renderer. The computed output matches the original certified result.
@@ -290,13 +344,18 @@ export function RecertificationStatus({
             variant="outline"
             size="sm"
             onClick={onRecertify}
-            disabled={isLoading}
+            disabled={isLoading || !hasKey}
             className="w-full"
           >
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Verifying...
+              </>
+            ) : !hasKey ? (
+              <>
+                <Lock className="w-4 h-4 mr-2" />
+                Provide API key to unlock
               </>
             ) : (
               <>
