@@ -52,6 +52,22 @@ export function stripSensitiveForAttestation(bundle: any): any {
 }
 
 /**
+ * Full sanitization pipeline for canonical node attestation.
+ * 1. Deep-clone & strip sensitive fields (input/output/prompt)
+ * 2. removeUndefinedDeep
+ * 3. Validate zero undefined paths remain
+ *
+ * Returns { payload, undefinedPaths }.  If undefinedPaths.length > 0 the
+ * payload MUST NOT be sent to the node.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function sanitizeForNode(bundle: any): { payload: any; undefinedPaths: string[] } {
+  const stripped = stripSensitiveForAttestation(bundle); // clone + delete + removeUndefinedDeep
+  const paths = findUndefinedPaths(stripped);
+  return { payload: stripped, undefinedPaths: paths };
+}
+
+/**
  * Walk an object tree and return dot-paths where a value is `undefined`.
  * Useful for preflight validation before sending to a node that rejects undefined.
  */

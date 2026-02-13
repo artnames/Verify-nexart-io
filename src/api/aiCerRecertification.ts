@@ -5,7 +5,7 @@
 import type { AICERBundle } from '@/types/aiCerBundle';
 import { validateAICERForAttestation } from '@/types/aiCerBundle';
 import type { AICERRecertifyResponse } from '@/components/AICERRecertificationStatus';
-import { stripSensitiveForAttestation, findUndefinedPaths } from '@/lib/attestationSanitize';
+import { sanitizeForNode } from '@/lib/attestationSanitize';
 import { getNodeApiKey } from '@/storage/nodeApiKey';
 
 /**
@@ -44,11 +44,9 @@ export async function recertifyAICER(
     };
   }
 
-  // Sanitize: deep-clone, delete sensitive keys, strip any remaining undefined
-  const sanitizedBundle = stripSensitiveForAttestation(bundle);
+  // Sanitize: single pipeline — clone, strip sensitive, removeUndefinedDeep, validate
+  const { payload: sanitizedBundle, undefinedPaths } = sanitizeForNode(bundle);
 
-  // Preflight: check for any remaining undefined paths
-  const undefinedPaths = findUndefinedPaths(sanitizedBundle);
   if (undefinedPaths.length > 0) {
     console.error('[AIRecertifyAPI] Payload contains undefined paths:', undefinedPaths);
     return {
@@ -57,6 +55,7 @@ export async function recertifyAICER(
       errorCode: 'INVALID_PAYLOAD',
       errorMessage: `Cannot attest: payload contains unsupported values (undefined).`,
       undefinedPaths: undefinedPaths.slice(0, 20),
+      sanitizedPayload: sanitizedBundle,
     };
   }
 

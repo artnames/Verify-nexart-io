@@ -47,7 +47,7 @@ import { toast } from 'sonner';
 import { getAuditRecordByHash } from '@/api/auditRecords';
 import { recertifyBundle, getLatestRecertificationRun, type RecertifyResponse, type RecertificationRun } from '@/api/recertification';
 import { recertifyAICER } from '@/api/aiCerRecertification';
-import { stripSensitiveForAttestation, findUndefinedPaths } from '@/lib/attestationSanitize';
+import { sanitizeForNode } from '@/lib/attestationSanitize';
 import { verifyCertificateHash, canonicalize } from '@/lib/canonicalize';
 import { 
   resolveExpectedImageHash, 
@@ -614,8 +614,7 @@ export function AuditPage() {
                 <AccordionTrigger className="text-sm">Payload Sent to Node</AccordionTrigger>
                 <AccordionContent>
                   {(() => {
-                    const sanitized = stripSensitiveForAttestation(aiBundle);
-                    const paths = findUndefinedPaths(sanitized);
+                    const { payload: sanitized, undefinedPaths: paths } = sanitizeForNode(aiBundle);
                     return (
                       <div className="space-y-3">
                         <div className="flex items-center gap-2 text-xs">
