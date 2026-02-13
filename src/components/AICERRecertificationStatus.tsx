@@ -1,7 +1,11 @@
 /**
  * AI CER Recertification Status - Badge display for AI execution attestation
  * 
- * Uses auditor-grade language matching the existing RecertificationStatus patterns.
+ * Status taxonomy:
+ * - Attested (green): 200 + ok:true from canonical node
+ * - Attestation Mismatch (amber): 200 + ok:false (genuine hash mismatch)
+ * - Attestation Failed (red): non-200 / network error / timeout
+ * - Not Attested (neutral): no attempt made
  */
 
 import { useState } from 'react';
@@ -26,6 +30,7 @@ import {
   Server,
   AlertCircle,
   Fingerprint,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { RecertificationRun } from '@/api/recertification';
@@ -42,6 +47,8 @@ interface AICERRecertifyResponse {
   errorMessage?: string;
   durationMs?: number;
   httpStatus?: number;
+  upstreamBody?: string;
+  nodeRequestId?: string;
 }
 
 interface AICERRecertificationStatusProps {
@@ -52,6 +59,35 @@ interface AICERRecertificationStatusProps {
   enabled?: boolean;
 }
 
+/** Map error codes to short reason chips */
+function getReasonChip(errorCode?: string | null, httpStatus?: number | null): string | null {
+  if (errorCode === 'INVALID_BUNDLE' || httpStatus === 400) return 'Invalid bundle';
+  if (errorCode === 'UNAUTHORIZED' || httpStatus === 401 || httpStatus === 403) return 'Unauthorized';
+  if (errorCode === 'QUOTA_EXCEEDED' || httpStatus === 429) return 'Quota exceeded';
+  if (errorCode === 'NODE_ERROR' || (httpStatus && httpStatus >= 500)) return 'Node error';
+  if (errorCode === 'TIMEOUT') return 'Network/timeout';
+  if (errorCode === 'NETWORK_ERROR') return 'Network/timeout';
+  if (errorCode === 'INVALID_RESPONSE') return 'Invalid response';
+  return null;
+}
+
+/** Try to parse upstream body as structured error */
+function parseUpstreamError(body?: string | null): { error?: string; details?: string[] } | null {
+  if (!body) return null;
+  try {
+    const parsed = JSON.parse(body);
+    if (parsed && typeof parsed === 'object') {
+      return {
+        error: parsed.error || parsed.message || undefined,
+        details: Array.isArray(parsed.details) ? parsed.details.map(String) : undefined,
+      };
+    }
+  } catch {
+    // Not JSON
+  }
+  return null;
+}
+
 export function AICERRecertificationStatus({
   result,
   latestRun,
@@ -60,6 +96,7 @@ export function AICERRecertificationStatus({
   enabled = true,
 }: AICERRecertificationStatusProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showUpstreamBody, setShowUpstreamBody] = useState(false);
 
   const status = result?.status || latestRun?.status;
   const attestationHash = result?.attestationHash;
@@ -71,14 +108,19 @@ export function AICERRecertificationStatus({
   const durationMs = result?.durationMs || latestRun?.duration_ms;
   const httpStatus = result?.httpStatus || latestRun?.http_status;
   const createdAt = latestRun?.created_at;
+  const upstreamBody = result?.upstreamBody || latestRun?.upstream_body;
+  const nodeRequestId = result?.nodeRequestId || latestRun?.node_request_id;
+
+  const reasonChip = status === 'error' ? getReasonChip(errorCode, httpStatus) : null;
+  const parsedError = parseUpstreamError(upstreamBody);
 
   const getStatusIcon = () => {
     if (isLoading) return <Loader2 className="w-4 h-4 animate-spin" />;
     if (!status) return <Shield className="w-4 h-4 text-muted-foreground" />;
     switch (status) {
       case 'pass': return <ShieldCheck className="w-4 h-4 text-verified" />;
-      case 'fail': return <ShieldX className="w-4 h-4 text-destructive" />;
-      case 'error': return <ShieldAlert className="w-4 h-4 text-warning" />;
+      case 'fail': return <ShieldX className="w-4 h-4 text-warning" />;
+      case 'error': return <ShieldAlert className="w-4 h-4 text-destructive" />;
       case 'skipped': return <Shield className="w-4 h-4 text-muted-foreground" />;
       default: return <Shield className="w-4 h-4 text-muted-foreground" />;
     }
@@ -88,10 +130,23 @@ export function AICERRecertificationStatus({
     if (isLoading) return <Badge variant="outline">Requesting attestation...</Badge>;
     if (!status) return <Badge variant="outline">Not Attested</Badge>;
     switch (status) {
-      case 'pass': return <Badge className="bg-verified text-verified-foreground">Attested</Badge>;
-      case 'fail': return <Badge variant="destructive">Attestation Mismatch</Badge>;
-      case 'error': return <Badge className="bg-warning text-warning-foreground">Attestation Failed</Badge>;
-      case 'skipped': return <Badge variant="secondary">Not Attested</Badge>;
+      case 'pass':
+        return <Badge className="bg-verified text-verified-foreground">Attested</Badge>;
+      case 'fail':
+        return <Badge className="bg-warning text-warning-foreground">Attestation Mismatch</Badge>;
+      case 'error':
+        return (
+          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+            <Badge variant="destructive">Attestation Failed</Badge>
+            {reasonChip && (
+              <Badge variant="outline" className="text-destructive border-destructive/40 text-xs">
+                {reasonChip}
+              </Badge>
+            )}
+          </div>
+        );
+      case 'skipped':
+        return <Badge variant="secondary">Not Attested</Badge>;
     }
   };
 
@@ -99,11 +154,11 @@ export function AICERRecertificationStatus({
     <Card className={cn(
       "border",
       status === 'pass' && "border-verified/30 bg-verified/5",
-      status === 'fail' && "border-destructive/30 bg-destructive/5",
-      status === 'error' && "border-warning/30 bg-warning/5",
+      status === 'fail' && "border-warning/30 bg-warning/5",
+      status === 'error' && "border-destructive/30 bg-destructive/5",
     )}>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm flex items-center justify-between">
+        <CardTitle className="text-sm flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             {getStatusIcon()}
             <span>Canonical Attestation</span>
@@ -114,25 +169,36 @@ export function AICERRecertificationStatus({
       <CardContent className="space-y-3">
         {status === 'pass' && (
           <p className="text-sm text-verified">
-            The AI execution record was independently validated by the canonical attestation node. 
+            Canonical node attested to the integrity of this record.
             The certificate hash and snapshot integrity have been confirmed.
           </p>
         )}
         {status === 'fail' && (
-          <p className="text-sm text-destructive">
-            The attestation node could not confirm the integrity of this record. 
-            A discrepancy was detected between the submitted certificate and the canonical validation. This requires review.
+          <p className="text-sm text-warning">
+            Canonical node evaluated the record and detected a discrepancy.
+            The resulting output does not match the original certified result. This requires review.
           </p>
         )}
         {status === 'error' && (
-          <div className="flex items-start gap-2 text-sm text-warning">
-            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          <div className="flex items-start gap-2 text-sm">
+            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-destructive" />
             <div>
-              <p className="font-medium">Attestation Failed</p>
-              <p className="text-muted-foreground">
-                The record could not be attested due to a verification error. No confirmation could be established.
+              <p className="font-medium text-destructive">Canonical attestation could not be completed</p>
+              <p className="text-muted-foreground mt-1">
+                {errorMessage || 'Review details below for more information.'}
               </p>
-              {errorCode && <p className="text-xs text-muted-foreground mt-1">Reference: {errorCode}</p>}
+
+              {/* Structured upstream error */}
+              {parsedError?.error && (
+                <div className="mt-2 p-2 bg-destructive/5 rounded border border-destructive/20 text-xs">
+                  <p className="font-medium text-destructive">{parsedError.error}</p>
+                  {parsedError.details && parsedError.details.length > 0 && (
+                    <ul className="mt-1 space-y-0.5 text-muted-foreground list-disc list-inside">
+                      {parsedError.details.map((d, i) => <li key={i}>{d}</li>)}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -143,8 +209,8 @@ export function AICERRecertificationStatus({
           </p>
         )}
 
-        {/* Details */}
-        {(attestationHash || requestId || protocolVersion) && (
+        {/* Attestation Details — always available when there's data */}
+        {(attestationHash || requestId || protocolVersion || httpStatus || upstreamBody) && (
           <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
             <CollapsibleTrigger asChild>
               <Button variant="ghost" size="sm" className="w-full justify-between h-8">
@@ -173,6 +239,15 @@ export function AICERRecertificationStatus({
                   </div>
                 </div>
               )}
+              {nodeRequestId && nodeRequestId !== requestId && (
+                <div className="flex items-start gap-2 text-xs">
+                  <Server className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
+                  <div className="min-w-0">
+                    <span className="text-muted-foreground">Node Request ID: </span>
+                    <code className="font-mono text-foreground break-all">{nodeRequestId}</code>
+                  </div>
+                </div>
+              )}
               {protocolVersion && (
                 <div className="flex items-center gap-2 text-xs">
                   <Server className="w-3 h-3 text-muted-foreground shrink-0" />
@@ -191,7 +266,7 @@ export function AICERRecertificationStatus({
                   </div>
                 </div>
               )}
-              {durationMs && (
+              {durationMs != null && (
                 <div className="flex items-center gap-2 text-xs">
                   <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
                   <span className="text-muted-foreground">Duration: </span>
@@ -205,12 +280,34 @@ export function AICERRecertificationStatus({
                   <span>{new Date(createdAt).toLocaleString()}</span>
                 </div>
               )}
-              {httpStatus && status !== 'pass' && (
+              {httpStatus != null && httpStatus > 0 && (
                 <div className="flex items-center gap-2 text-xs">
                   <AlertCircle className="w-3 h-3 text-muted-foreground shrink-0" />
                   <span className="text-muted-foreground">Upstream Status: </span>
                   <span className="font-mono">{httpStatus}</span>
                 </div>
+              )}
+
+              {/* Upstream response body — collapsible */}
+              {upstreamBody && (
+                <Collapsible open={showUpstreamBody} onOpenChange={setShowUpstreamBody}>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="w-full justify-between h-7 text-xs">
+                      <span className="flex items-center gap-1.5">
+                        <FileText className="w-3 h-3" />
+                        View node response
+                      </span>
+                      <ChevronDown className={cn("w-3 h-3 transition-transform", showUpstreamBody && "rotate-180")} />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="bg-muted rounded-lg p-3 max-h-48 overflow-auto mt-1">
+                      <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                        {upstreamBody}
+                      </pre>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               )}
             </CollapsibleContent>
           </Collapsible>

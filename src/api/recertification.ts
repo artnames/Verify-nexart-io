@@ -24,6 +24,9 @@ export interface RecertificationRun {
   error_message: string | null;
   duration_ms: number | null;
   request_fingerprint: string | null;
+  upstream_body?: string | null;
+  node_request_id?: string | null;
+  attempted_at?: string | null;
 }
 
 /**
