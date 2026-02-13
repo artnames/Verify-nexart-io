@@ -270,10 +270,12 @@ serve(async (req) => {
 
       if (result.ok) {
         status = 'pass';
-        attestationHash = (result.attestationHash as string) || null;
-        canonicalRuntimeHash = (result.canonicalRuntimeHash as string) || null;
-        canonicalProtocolVersion = (result.canonicalProtocolVersion as string) || null;
-        console.log(`[recertify-ai-cer] PASS: attestation confirmed`);
+        // Node may return fields at top level or nested under attestation.*
+        const att = (result.attestation as Record<string, unknown>) || {};
+        attestationHash = (att.attestationId as string) || (att.attestationHash as string) || (result.attestationHash as string) || null;
+        canonicalRuntimeHash = (att.nodeRuntimeHash as string) || (result.canonicalRuntimeHash as string) || null;
+        canonicalProtocolVersion = (att.protocolVersion as string) || (result.canonicalProtocolVersion as string) || null;
+        console.log(`[recertify-ai-cer] PASS: attestation confirmed, runtimeHash=${canonicalRuntimeHash?.substring(0, 16)}`);
       } else if (errorCode !== 'INVALID_RESPONSE') {
         status = 'fail';
         errorMessage = (result.reason as string) || (result.message as string) || 'Attestation rejected';
