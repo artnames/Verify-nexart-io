@@ -211,6 +211,9 @@ export function AICERRecertificationStatus({
           Canonical attestation confirms this record's hashes and certificate are internally consistent
           when checked by the NexArt canonical node. It does not re-run the model or claim the output is correct.
         </p>
+        <p className="text-xs text-muted-foreground/70 leading-relaxed italic">
+          Sensitive fields may be sent to the canonical node for verification; they are not stored by Recânon.
+        </p>
 
         {/* Not attestable — missing fields */}
         {!attestable && missingFields.length > 0 && (

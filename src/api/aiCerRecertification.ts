@@ -5,7 +5,7 @@
 import type { AICERBundle } from '@/types/aiCerBundle';
 import { validateAICERForAttestation } from '@/types/aiCerBundle';
 import type { AICERRecertifyResponse } from '@/components/AICERRecertificationStatus';
-import { sanitizeForNode } from '@/lib/attestationSanitize';
+import { removeUndefinedDeep, findUndefinedPaths } from '@/lib/attestationSanitize';
 import { getNodeApiKey } from '@/storage/nodeApiKey';
 
 /**
@@ -44,8 +44,10 @@ export async function recertifyAICER(
     };
   }
 
-  // Sanitize: single pipeline — clone, strip sensitive, removeUndefinedDeep, validate
-  const { payload: sanitizedBundle, undefinedPaths } = sanitizeForNode(bundle);
+  // Send full bundle to edge function (node needs input/output to recompute hashes).
+  // Only removeUndefinedDeep — do NOT strip sensitive fields (node needs them).
+  const sanitizedBundle = removeUndefinedDeep(structuredClone(bundle));
+  const undefinedPaths = findUndefinedPaths(sanitizedBundle);
 
   if (undefinedPaths.length > 0) {
     console.error('[AIRecertifyAPI] Payload contains undefined paths:', undefinedPaths);

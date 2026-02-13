@@ -47,7 +47,7 @@ import { toast } from 'sonner';
 import { getAuditRecordByHash } from '@/api/auditRecords';
 import { recertifyBundle, getLatestRecertificationRun, type RecertifyResponse, type RecertificationRun } from '@/api/recertification';
 import { recertifyAICER } from '@/api/aiCerRecertification';
-import { sanitizeForNode } from '@/lib/attestationSanitize';
+import { sanitizeForNode, removeUndefinedDeep, findUndefinedPaths } from '@/lib/attestationSanitize';
 import { verifyCertificateHash, canonicalize } from '@/lib/canonicalize';
 import { 
   resolveExpectedImageHash, 
@@ -614,7 +614,17 @@ export function AuditPage() {
                 <AccordionTrigger className="text-sm">Payload Sent to Node</AccordionTrigger>
                 <AccordionContent>
                   {(() => {
-                    const { payload: sanitized, undefinedPaths: paths } = sanitizeForNode(aiBundle);
+                    // Show what's actually sent: full bundle with undefined removed (no sensitive stripping)
+                    const fullClean = removeUndefinedDeep(structuredClone(aiBundle));
+                    const paths = findUndefinedPaths(fullClean);
+                    // For display, strip sensitive fields so auditors don't see raw prompts
+                    const displayPayload = structuredClone(fullClean) as Record<string, unknown>;
+                    if (displayPayload.snapshot && typeof displayPayload.snapshot === 'object') {
+                      const snap = displayPayload.snapshot as Record<string, unknown>;
+                      delete snap.input;
+                      delete snap.output;
+                      delete snap.prompt;
+                    }
                     return (
                       <div className="space-y-3">
                         <div className="flex items-center gap-2 text-xs">
@@ -623,6 +633,10 @@ export function AuditPage() {
                             {paths.length}
                           </Badge>
                         </div>
+                        <p className="text-xs text-muted-foreground italic">
+                          The full bundle (including sensitive fields) is sent to the canonical node for hash verification.
+                          Sensitive fields are hidden below but are transmitted securely and never stored by Recânon.
+                        </p>
                         {paths.length > 0 && (
                           <div className="p-2 rounded border border-destructive/30 bg-destructive/5 text-xs font-mono">
                             {paths.join(', ')}
@@ -634,20 +648,20 @@ export function AuditPage() {
                             size="sm"
                             className="absolute top-2 right-2 z-10"
                             onClick={() => {
-                              navigator.clipboard.writeText(JSON.stringify(sanitized, null, 2));
-                              toast.success('Sanitized payload copied');
+                              navigator.clipboard.writeText(JSON.stringify(displayPayload, null, 2));
+                              toast.success('Payload copied (sensitive fields redacted for display)');
                             }}
                           >
                             <Copy className="w-3.5 h-3.5 mr-1" /> Copy
                           </Button>
                           <div className="bg-muted rounded-lg p-3 max-h-64 overflow-auto">
                             <pre className="text-xs font-mono whitespace-pre-wrap break-all">
-                              {JSON.stringify(sanitized, null, 2)}
+                              {JSON.stringify(displayPayload, null, 2)}
                             </pre>
                           </div>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Sensitive fields (input, output, prompt) are stripped. Hashes and parameters are preserved.
+                          Display redacted: input, output, prompt hidden. Hashes and parameters preserved.
                         </p>
                       </div>
                     );

@@ -153,14 +153,8 @@ serve(async (req) => {
 
   console.log(`[recertify-ai-cer] ${requestId} Starting attestation for record ${recordId || 'direct'}, cert: ${certificateHash.substring(0, 16)}...`);
 
-  // ---- Sanitize: clone → removeUndefinedDeep → delete sensitive keys ----
+  // ---- Send the FULL bundle to the canonical node (it needs input/output to recompute hashes) ----
   const clean = removeUndefinedDeep(structuredClone(bundle)) as Record<string, unknown>;
-  if (clean.snapshot && typeof clean.snapshot === 'object') {
-    const snap = clean.snapshot as Record<string, unknown>;
-    delete snap.input;
-    delete snap.output;
-    delete snap.prompt;
-  }
 
   // Validate: reject if any undefined survived
   const undefinedPaths = findUndefinedPaths(clean);
@@ -302,8 +296,30 @@ serve(async (req) => {
 
   const durationMs = Date.now() - startTime;
 
-  // Persist to recertification_runs
+  // Persist to recertification_runs — redact sensitive fields from upstream_body
   if (recordId) {
+    let safeUpstreamBody = upstreamBody;
+    if (safeUpstreamBody) {
+      try {
+        const parsed = JSON.parse(safeUpstreamBody);
+        if (parsed && typeof parsed === 'object') {
+          // Strip any echoed sensitive fields the node may have returned
+          if (parsed.snapshot && typeof parsed.snapshot === 'object') {
+            delete parsed.snapshot.input;
+            delete parsed.snapshot.output;
+            delete parsed.snapshot.prompt;
+          }
+          delete parsed.input;
+          delete parsed.output;
+          delete parsed.prompt;
+          safeUpstreamBody = JSON.stringify(parsed);
+        }
+      } catch {
+        // Not JSON — truncate to be safe
+        safeUpstreamBody = safeUpstreamBody.substring(0, 500);
+      }
+    }
+
     const runResult = {
       record_id: recordId,
       node_endpoint: CANONICAL_RENDERER_URL,
@@ -317,7 +333,7 @@ serve(async (req) => {
       error_message: errorMessage,
       duration_ms: durationMs,
       request_fingerprint: requestId,
-      upstream_body: upstreamBody,
+      upstream_body: safeUpstreamBody,
       node_request_id: nodeRequestId,
       attempted_at: new Date().toISOString(),
     };
