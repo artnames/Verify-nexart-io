@@ -162,13 +162,45 @@ serve(async (req) => {
     delete snap.prompt;
   }
 
+  // Log if we found undefined paths before cleaning (server-side diagnostics only)
+  const undefinedBefore = findUndefinedPaths(attestPayload);
+  if (undefinedBefore.length > 0) {
+    console.warn(`[recertify-ai-cer] Found ${undefinedBefore.length} undefined paths before sanitization: ${undefinedBefore.join(', ')}`);
+  }
+
   // Safety net: remove any remaining undefined values
   const cleanPayload = removeUndefinedDeep(attestPayload);
 
-  // Log if we found undefined paths (server-side diagnostics only)
-  const undefinedBefore = findUndefinedPaths(attestPayload);
-  if (undefinedBefore.length > 0) {
-    console.warn(`[recertify-ai-cer] Stripped ${undefinedBefore.length} undefined paths from payload: ${undefinedBefore.join(', ')}`);
+  // Final check: reject if any undefined survived (should never happen after removeUndefinedDeep)
+  const undefinedAfter = findUndefinedPaths(cleanPayload);
+  if (undefinedAfter.length > 0) {
+    console.error(`[recertify-ai-cer] FATAL: undefined paths survived sanitization: ${undefinedAfter.join(', ')}`);
+
+    if (recordId) {
+      await supabase.from('recertification_runs').insert({
+        record_id: recordId,
+        node_endpoint: CANONICAL_RENDERER_URL,
+        status: 'error',
+        error_code: 'INVALID_PAYLOAD',
+        error_message: `Payload contains undefined values at: ${undefinedAfter.slice(0, 20).join(', ')}`,
+        duration_ms: Date.now() - startTime,
+      } as never);
+    }
+
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        status: 'error',
+        error: 'INVALID_PAYLOAD',
+        message: 'Attestation payload contains unsupported values (undefined)',
+        details: undefinedAfter.slice(0, 20),
+        requestId,
+      }),
+      {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-Request-Id': requestId },
+      }
+    );
   }
 
   let status: 'pass' | 'fail' | 'error' = 'error';

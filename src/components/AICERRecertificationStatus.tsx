@@ -12,6 +12,7 @@
  */
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +41,7 @@ import {
   Lock,
   KeyRound,
   ExternalLink,
+  Copy,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { hasNodeApiKey, getNodeApiKey, setNodeApiKey } from '@/storage/nodeApiKey';
@@ -59,6 +61,10 @@ interface AICERRecertifyResponse {
   httpStatus?: number;
   upstreamBody?: string;
   nodeRequestId?: string;
+  /** Paths where undefined was found (client preflight) */
+  undefinedPaths?: string[];
+  /** Sanitized payload sent (or that would be sent) to the node */
+  sanitizedPayload?: unknown;
 }
 
 interface AICERRecertificationStatusProps {
@@ -130,6 +136,8 @@ export function AICERRecertificationStatus({
   const createdAt = latestRun?.created_at;
   const upstreamBody = result?.upstreamBody || latestRun?.upstream_body;
   const nodeRequestId = result?.nodeRequestId || latestRun?.node_request_id;
+  const undefinedPaths = result?.undefinedPaths;
+  const sanitizedPayload = result?.sanitizedPayload;
 
   const reasonChip = status === 'error' ? getReasonChip(errorCode, httpStatus, errorMessage) : null;
   const parsedError = parseUpstreamError(upstreamBody);
@@ -288,7 +296,7 @@ export function AICERRecertificationStatus({
               {/* Specific guidance for undefined-field errors */}
               {(errorCode === 'INVALID_PAYLOAD' || (errorMessage && errorMessage.toLowerCase().includes('undefined'))) && (
                 <p className="text-xs text-muted-foreground mt-2">
-                  Re-import the record or contact support if persistent.
+                  Re-export the CER using @nexart/ai-execution v0.1.0+ or re-download from demo.
                 </p>
               )}
 
@@ -310,6 +318,42 @@ export function AICERRecertificationStatus({
           <p className="text-sm text-muted-foreground">
             This record has not been submitted for canonical attestation.
           </p>
+        )}
+
+        {/* Undefined paths diagnostic block */}
+        {undefinedPaths && undefinedPaths.length > 0 && (
+          <div className="space-y-2 p-3 rounded-md border border-destructive/30 bg-destructive/5">
+            <div className="flex items-start gap-2 text-sm">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-destructive" />
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-destructive">
+                  Cannot attest: payload contains unsupported values (undefined).
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {undefinedPaths.length} path{undefinedPaths.length > 1 ? 's' : ''} found. The canonical node rejects payloads with undefined values.
+                </p>
+              </div>
+            </div>
+            <div className="bg-muted rounded-lg p-2 max-h-32 overflow-auto">
+              <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                {undefinedPaths.join('\n')}
+              </pre>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() => {
+                navigator.clipboard.writeText(
+                  `Undefined paths in attestation payload:\n${undefinedPaths.join('\n')}`
+                );
+                toast.success('Diagnostics copied');
+              }}
+            >
+              <Copy className="w-3 h-3 mr-1" />
+              Copy diagnostics
+            </Button>
+          </div>
         )}
 
         {/* Attestation Details — always available when there's data */}

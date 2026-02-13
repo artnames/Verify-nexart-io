@@ -47,6 +47,7 @@ import { toast } from 'sonner';
 import { getAuditRecordByHash } from '@/api/auditRecords';
 import { recertifyBundle, getLatestRecertificationRun, type RecertifyResponse, type RecertificationRun } from '@/api/recertification';
 import { recertifyAICER } from '@/api/aiCerRecertification';
+import { stripSensitiveForAttestation, findUndefinedPaths } from '@/lib/attestationSanitize';
 import { verifyCertificateHash, canonicalize } from '@/lib/canonicalize';
 import { 
   resolveExpectedImageHash, 
@@ -606,6 +607,52 @@ export function AuditPage() {
                       </pre>
                     </div>
                   </div>
+                </AccordionContent>
+              </AccordionItem>
+              {/* Payload Sent to Node — diagnostics */}
+              <AccordionItem value="payload-diagnostics">
+                <AccordionTrigger className="text-sm">Payload Sent to Node</AccordionTrigger>
+                <AccordionContent>
+                  {(() => {
+                    const sanitized = stripSensitiveForAttestation(aiBundle);
+                    const paths = findUndefinedPaths(sanitized);
+                    return (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-muted-foreground">Undefined path count:</span>
+                          <Badge variant={paths.length === 0 ? 'outline' : 'destructive'}>
+                            {paths.length}
+                          </Badge>
+                        </div>
+                        {paths.length > 0 && (
+                          <div className="p-2 rounded border border-destructive/30 bg-destructive/5 text-xs font-mono">
+                            {paths.join(', ')}
+                          </div>
+                        )}
+                        <div className="relative">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-2 right-2 z-10"
+                            onClick={() => {
+                              navigator.clipboard.writeText(JSON.stringify(sanitized, null, 2));
+                              toast.success('Sanitized payload copied');
+                            }}
+                          >
+                            <Copy className="w-3.5 h-3.5 mr-1" /> Copy
+                          </Button>
+                          <div className="bg-muted rounded-lg p-3 max-h-64 overflow-auto">
+                            <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                              {JSON.stringify(sanitized, null, 2)}
+                            </pre>
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Sensitive fields (input, output, prompt) are stripped. Hashes and parameters are preserved.
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="metadata">
