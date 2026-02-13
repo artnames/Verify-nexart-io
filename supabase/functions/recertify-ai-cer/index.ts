@@ -151,30 +151,23 @@ serve(async (req) => {
     );
   }
 
-  console.log(`[recertify-ai-cer] Starting attestation for record ${recordId || 'direct'}, cert: ${certificateHash.substring(0, 16)}...`);
+  console.log(`[recertify-ai-cer] ${requestId} Starting attestation for record ${recordId || 'direct'}, cert: ${certificateHash.substring(0, 16)}...`);
 
-  // ---- Prepare payload: strip sensitive fields via delete, then removeUndefinedDeep ----
-  const attestPayload: Record<string, unknown> = structuredClone(bundle);
-  if (attestPayload.snapshot && typeof attestPayload.snapshot === 'object') {
-    const snap = attestPayload.snapshot as Record<string, unknown>;
+  // ---- Sanitize: clone → removeUndefinedDeep → delete sensitive keys ----
+  const clean = removeUndefinedDeep(structuredClone(bundle)) as Record<string, unknown>;
+  if (clean.snapshot && typeof clean.snapshot === 'object') {
+    const snap = clean.snapshot as Record<string, unknown>;
     delete snap.input;
     delete snap.output;
     delete snap.prompt;
   }
 
-  // Log if we found undefined paths before cleaning (server-side diagnostics only)
-  const undefinedBefore = findUndefinedPaths(attestPayload);
-  if (undefinedBefore.length > 0) {
-    console.warn(`[recertify-ai-cer] Found ${undefinedBefore.length} undefined paths before sanitization: ${undefinedBefore.join(', ')}`);
-  }
+  // Validate: reject if any undefined survived
+  const undefinedPaths = findUndefinedPaths(clean);
+  console.log(`[recertify-ai-cer] ${requestId} undefinedPaths=${undefinedPaths.length}, payloadLen=${JSON.stringify(clean).length}`);
 
-  // Safety net: remove any remaining undefined values
-  const cleanPayload = removeUndefinedDeep(attestPayload);
-
-  // Final check: reject if any undefined survived (should never happen after removeUndefinedDeep)
-  const undefinedAfter = findUndefinedPaths(cleanPayload);
-  if (undefinedAfter.length > 0) {
-    console.error(`[recertify-ai-cer] FATAL: undefined paths survived sanitization: ${undefinedAfter.join(', ')}`);
+  if (undefinedPaths.length > 0) {
+    console.error(`[recertify-ai-cer] ${requestId} INVALID_PAYLOAD: ${undefinedPaths.join(', ')}`);
 
     if (recordId) {
       await supabase.from('recertification_runs').insert({
@@ -182,7 +175,7 @@ serve(async (req) => {
         node_endpoint: CANONICAL_RENDERER_URL,
         status: 'error',
         error_code: 'INVALID_PAYLOAD',
-        error_message: `Payload contains undefined values at: ${undefinedAfter.slice(0, 20).join(', ')}`,
+        error_message: `Payload contains undefined values at: ${undefinedPaths.slice(0, 20).join(', ')}`,
         duration_ms: Date.now() - startTime,
       } as never);
     }
@@ -193,7 +186,7 @@ serve(async (req) => {
         status: 'error',
         error: 'INVALID_PAYLOAD',
         message: 'Attestation payload contains unsupported values (undefined)',
-        details: undefinedAfter.slice(0, 20),
+        details: undefinedPaths.slice(0, 20),
         requestId,
       }),
       {
@@ -225,7 +218,7 @@ serve(async (req) => {
         'Cache-Control': 'no-store',
         'X-Request-Id': requestId,
       },
-      body: JSON.stringify(cleanPayload),
+      body: JSON.stringify(clean),
       signal: controller.signal,
     });
 
