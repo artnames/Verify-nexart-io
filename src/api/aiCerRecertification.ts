@@ -55,7 +55,8 @@ export async function recertifyAICER(
       ok: false,
       status: 'error',
       errorCode: 'INVALID_PAYLOAD',
-      errorMessage: `Attestation payload contains unsupported fields (undefined): ${undefinedPaths.join(', ')}`,
+      errorMessage: `Cannot attest: payload contains unsupported values (undefined).`,
+      undefinedPaths: undefinedPaths.slice(0, 20),
     };
   }
 
@@ -81,7 +82,7 @@ export async function recertifyAICER(
     );
 
     const result = await response.json();
-    return result as AICERRecertifyResponse;
+    return { ...result, sanitizedPayload: sanitizedBundle } as AICERRecertifyResponse;
   } catch (error) {
     console.error('[AIRecertifyAPI] Error:', error);
     return {
