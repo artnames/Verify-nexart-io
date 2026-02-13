@@ -23,6 +23,7 @@ import {
   extractClaimType,
   extractSubject 
 } from '@/types/auditRecord';
+import { isAICERBundle, extractAICERTitle, extractAICERSubject } from '@/types/aiCerBundle';
 
 // Re-export normalizeHash for backwards compatibility
 export { normalizeHash } from '@/lib/hashResolver';
@@ -140,20 +141,23 @@ export async function importAuditRecord(
   const expectedImageHash = wrapperMetadata?.expectedImageHash || resolveExpectedImageHash(bundle);
   const expectedAnimationHash = resolveExpectedAnimationHash(bundle);
   
+  // Handle AI CER bundles with dedicated metadata extraction
+  const isAiCer = isAICERBundle(bundle);
+  
   // Prepare record
   const record: Record<string, unknown> = {
     certificate_hash: certificateHash,
-    bundle_version: bundle.bundleVersion || 'unknown',
-    mode: validation.mode || 'static',
+    bundle_version: isAiCer ? (bundle as Record<string, unknown>).bundleType as string : bundle.bundleVersion || 'unknown',
+    mode: isAiCer ? 'attestation' : validation.mode || 'static',
     bundle_created_at: bundle.createdAt || null,
-    claim_type: extractClaimType(bundle),
-    title: extractTitle(bundle)?.slice(0, 500) || null,
-    statement: extractStatement(bundle)?.slice(0, 2000) || null,
-    subject: extractSubject(bundle)?.slice(0, 200) || null,
+    claim_type: isAiCer ? 'ai.execution' : extractClaimType(bundle),
+    title: (isAiCer ? extractAICERTitle(bundle as any) : extractTitle(bundle))?.slice(0, 500) || null,
+    statement: (isAiCer ? null : extractStatement(bundle))?.slice(0, 2000) || null,
+    subject: (isAiCer ? extractAICERSubject(bundle as any) : extractSubject(bundle))?.slice(0, 200) || null,
     expected_image_hash: expectedImageHash,
     expected_animation_hash: expectedAnimationHash,
     certificate_verified: true,
-    render_status: validation.hasSnapshot && expectedImageHash ? 'PENDING' : 'SKIPPED',
+    render_status: isAiCer ? 'SKIPPED' : (validation.hasSnapshot && expectedImageHash ? 'PENDING' : 'SKIPPED'),
     bundle_json: bundle as unknown,
     canonical_json: canonicalJson,
     import_source: source,

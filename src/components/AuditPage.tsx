@@ -6,6 +6,7 @@
  * - Policy Explanation
  * - 4-layer evidence (numbered, with subtitles)
  * - Technical Appendix
+ * - AI Execution Record detection and dedicated view
  */
 
 import { useState, useEffect } from 'react';
@@ -45,6 +46,7 @@ import {
 import { toast } from 'sonner';
 import { getAuditRecordByHash } from '@/api/auditRecords';
 import { recertifyBundle, getLatestRecertificationRun, type RecertifyResponse, type RecertificationRun } from '@/api/recertification';
+import { recertifyAICER } from '@/api/aiCerRecertification';
 import { verifyCertificateHash, canonicalize } from '@/lib/canonicalize';
 import { 
   resolveExpectedImageHash, 
@@ -56,6 +58,9 @@ import {
 } from '@/lib/hashResolver';
 import { getProxyUrl } from '@/certified/canonicalConfig';
 import { RecertificationStatus } from '@/components/RecertificationStatus';
+import { AIExecutionRecordView } from '@/components/AIExecutionRecordView';
+import { AICERRecertificationStatus, type AICERRecertifyResponse } from '@/components/AICERRecertificationStatus';
+import { isAICERBundle, type AICERBundle } from '@/types/aiCerBundle';
 import type { AuditRecordRow, CERBundle, AuditSnapshot } from '@/types/auditRecord';
 
 // Render verification result with detailed error info
@@ -186,6 +191,10 @@ export function AuditPage() {
   const [showCode, setShowCode] = useState(false);
   const [showWhyMatters, setShowWhyMatters] = useState(false);
 
+  // AI CER attestation state
+  const [aiCerRecertifyResult, setAiCerRecertifyResult] = useState<AICERRecertifyResponse | null>(null);
+  const [isAiCerRecertifying, setIsAiCerRecertifying] = useState(false);
+
   useEffect(() => {
     async function loadRecord() {
       if (!hash) {
@@ -253,6 +262,38 @@ export function AuditPage() {
       toast.error('Re-certification failed');
     } finally {
       setIsRecertifying(false);
+    }
+  };
+
+  const handleAiCerRecertify = async () => {
+    if (!record) return;
+    const bundle = record.bundle_json as unknown as AICERBundle;
+    
+    setIsAiCerRecertifying(true);
+    setAiCerRecertifyResult(null);
+    
+    try {
+      const result = await recertifyAICER(record.id, bundle);
+      setAiCerRecertifyResult(result);
+      
+      // Refresh the run from DB
+      const latestRun = await getLatestRecertificationRun(record.id);
+      if (latestRun) {
+        setRecertificationRun(latestRun);
+      }
+      
+      if (result.status === 'pass') {
+        toast.success('Canonical attestation confirmed');
+      } else if (result.status === 'fail') {
+        toast.error('Attestation mismatch detected');
+      } else if (result.status === 'error') {
+        toast.error(`Attestation error: ${result.errorCode || 'Unknown'}`);
+      }
+    } catch (err) {
+      console.error('[AuditPage] AI CER recertify error:', err);
+      toast.error('Attestation request failed');
+    } finally {
+      setIsAiCerRecertifying(false);
     }
   };
 
@@ -455,6 +496,7 @@ export function AuditPage() {
   if (!record) return null;
 
   const bundle = record.bundle_json as CERBundle;
+  const isAiCer = isAICERBundle(record.bundle_json);
   const hasSnapshot = !!bundle.snapshot;
   const snapshot = bundle.snapshot as AuditSnapshot | undefined;
   const expectedImageHash = resolveExpectedImageHash(bundle);
@@ -473,6 +515,113 @@ export function AuditPage() {
     typeof snapshot?.seed === 'number' &&
     Array.isArray(snapshot?.vars);
 
+  // AI CER bundle: render dedicated view
+  if (isAiCer) {
+    const aiBundle = record.bundle_json as unknown as AICERBundle;
+    return (
+      <div className="max-w-4xl mx-auto space-y-6 px-4 pb-12">
+        {/* Header */}
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/audit-log')} className="self-start">
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Audit Log
+            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={handleDownloadBundle}>
+                <Download className="w-4 h-4 mr-1" />
+                <span className="hidden sm:inline">Download</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => handleCopyHash(record.certificate_hash, 'Certificate hash')}
+              >
+                <Hash className="w-4 h-4 mr-1" />
+                <span className="hidden sm:inline">Copy Hash</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* AI Execution Record View */}
+        <AIExecutionRecordView
+          bundle={aiBundle}
+          storedCertificateHash={record.certificate_hash}
+        />
+
+        {/* Canonical Attestation */}
+        <AICERRecertificationStatus
+          result={aiCerRecertifyResult}
+          latestRun={recertificationRun}
+          isLoading={isAiCerRecertifying}
+          onRecertify={handleAiCerRecertify}
+          enabled={true}
+        />
+
+        {/* Technical Appendix */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Fingerprint className="w-5 h-5 text-muted-foreground" />
+              <CardTitle className="text-base text-muted-foreground">Technical Appendix</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="canonical">
+                <AccordionTrigger className="text-sm">Canonical JSON (used for hashing)</AccordionTrigger>
+                <AccordionContent>
+                  <div className="relative">
+                    <Button variant="ghost" size="sm" className="absolute top-2 right-2 z-10" onClick={handleCopyCanonical}>
+                      <Copy className="w-3.5 h-3.5 mr-1" /> Copy
+                    </Button>
+                    <div className="bg-muted rounded-lg p-3 max-h-64 overflow-auto">
+                      <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                        {certVerification?.canonicalJson || record.canonical_json}
+                      </pre>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="full-bundle">
+                <AccordionTrigger className="text-sm">Full Bundle JSON</AccordionTrigger>
+                <AccordionContent>
+                  <div className="relative">
+                    <Button variant="ghost" size="sm" className="absolute top-2 right-2 z-10" onClick={handleDownloadBundle}>
+                      <Download className="w-3.5 h-3.5 mr-1" /> Download
+                    </Button>
+                    <div className="bg-muted rounded-lg p-3 max-h-64 overflow-auto">
+                      <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                        {JSON.stringify(record.bundle_json, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="metadata">
+                <AccordionTrigger className="text-sm">Fetch Source & Metadata</AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-2 text-sm">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                      <div className="text-muted-foreground">Bundle type:</div>
+                      <div className="font-mono">{aiBundle.bundleType}</div>
+                      <div className="text-muted-foreground">Import source:</div>
+                      <div className="font-mono">{record.import_source || 'unknown'}</div>
+                      <div className="text-muted-foreground">Imported at:</div>
+                      <div className="font-mono">{new Date(record.created_at).toISOString()}</div>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Standard CER bundle view
   return (
     <div className="max-w-4xl mx-auto space-y-6 px-4 pb-12">
       {/* Header */}

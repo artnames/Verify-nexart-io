@@ -553,7 +553,7 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
               />
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              When enabled, this record is independently re-executed against the NexArt Canonical Renderer to confirm that the certified output can be reproduced exactly under the current canonical runtime. This verification is performed server-side using a secured credential and does not modify the original record.
+              When enabled, this record is independently re-executed against the NexArt Canonical Renderer to confirm that the certified output can be reproduced exactly under the current canonical runtime. For AI execution records, an attestation request is sent to the canonical node instead. This verification is performed server-side using a secured credential and does not modify the original record.
             </p>
           </div>
           
