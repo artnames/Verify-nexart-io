@@ -215,6 +215,26 @@ export function validateCERBundle(bundle: unknown): BundleValidationResult {
   }
   
   const b = bundle as CERBundle;
+
+  // Detect AI CER bundles — they use a different validation path
+  if ((b as Record<string, unknown>).bundleType === 'cer.ai.execution.v1') {
+    // Minimal validation here; full validation in aiCerBundle.ts
+    const snap = (b as Record<string, unknown>).snapshot as Record<string, unknown> | undefined;
+    if (!snap || snap.type !== 'ai.execution.v1') {
+      errors.push('AI CER bundle must have snapshot.type = "ai.execution.v1"');
+    }
+    return {
+      valid: errors.length === 0,
+      errors,
+      warnings,
+      normalizedBundle: b,
+      mode: 'attestation',
+      expectedImageHash: null,
+      expectedAnimationHash: null,
+      hasSnapshot: !!snap,
+      hasRenderableSnapshot: false,
+    };
+  }
   
   // Check for at least some identifying information
   if (!b.bundleVersion && !b.createdAt && !b.mode) {
