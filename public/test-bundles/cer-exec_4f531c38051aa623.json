@@ -1,0 +1,35 @@
+{
+  "bundleType": "cer.ai.execution.v1",
+  "certificateHash": "sha256:abffbfb4eb92384372372cbc3236e46cd1d2a834f2dd307077bad5590c64455d",
+  "createdAt": "2026-02-13T17:48:38.582Z",
+  "version": "0.1",
+  "snapshot": {
+    "type": "ai.execution.v1",
+    "protocolVersion": "1.2.0",
+    "executionSurface": "ai",
+    "executionId": "exec_4f531c38051aa623",
+    "timestamp": "2026-02-13T17:48:38.581Z",
+    "provider": "openai",
+    "model": "gpt-4o",
+    "modelVersion": null,
+    "prompt": "You are a helpful assistant.",
+    "input": "Summarize the key risks in Q4 earnings.",
+    "inputHash": "sha256:92404e9f72809c9b7f81aaa976825e71d17e70da2633a7258d72e54ba46bd60e",
+    "parameters": {
+      "temperature": 0,
+      "maxTokens": 1024,
+      "topP": null,
+      "seed": null
+    },
+    "output": "Key risks identified: (1) Revenue contraction of 12% YoY, (2) Margin pressure from increased operating costs, (3) Regulatory uncertainty in EU markets.",
+    "outputHash": "sha256:fb45b106fcf36c557672c39eecffd44e77e55176a92756429d341ac571211293",
+    "sdkVersion": "0.1.0",
+    "appId": "nexart.io-demo"
+  },
+  "meta": {
+    "source": "nexart.io",
+    "tags": [
+      "demo"
+    ]
+  }
+}
