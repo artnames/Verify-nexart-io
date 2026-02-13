@@ -111,14 +111,15 @@ serve(async (req) => {
   console.log(`[recertify-ai-cer] Starting attestation for record ${recordId || 'direct'}, cert: ${certificateHash.substring(0, 16)}...`);
 
   // Call canonical node attestation endpoint
-  let attestResponse: Response;
   let status: 'pass' | 'fail' | 'error' = 'error';
   let attestationHash: string | null = null;
   let canonicalRuntimeHash: string | null = null;
   let canonicalProtocolVersion: string | null = null;
-  let httpStatus: number;
+  let httpStatus: number = 0;
   let errorCode: string | null = null;
   let errorMessage: string | null = null;
+  let upstreamBody: string | null = null;
+  let nodeRequestId: string | null = null;
 
   try {
     const controller = new AbortController();
@@ -143,7 +144,7 @@ serve(async (req) => {
       createdAt: bundle.createdAt,
     };
 
-    attestResponse = await fetch(`${CANONICAL_RENDERER_URL}/api/attest`, {
+    const attestResponse = await fetch(`${CANONICAL_RENDERER_URL}/api/attest`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -158,11 +159,21 @@ serve(async (req) => {
     clearTimeout(timeoutId);
     httpStatus = attestResponse.status;
 
+    // Capture node request ID from response headers
+    nodeRequestId = attestResponse.headers.get('x-railway-request-id')
+      || attestResponse.headers.get('x-request-id')
+      || null;
+
+    // Always read body as text first
+    const rawBody = await attestResponse.text();
+    // Truncate to 2000 chars for storage
+    upstreamBody = rawBody.length > 2000 ? rawBody.substring(0, 2000) : rawBody;
+
     console.log(`[recertify-ai-cer] Canonical node response: ${httpStatus}`);
 
     if (!attestResponse.ok) {
-      const errorText = await attestResponse.text();
-
+      // Non-200: always an ERROR, never a "mismatch"
+      // Mismatch requires a 200 response with ok:false from the node
       if (httpStatus === 429) {
         errorCode = 'QUOTA_EXCEEDED';
         errorMessage = 'Canonical node quota exceeded';
@@ -170,32 +181,54 @@ serve(async (req) => {
         errorCode = 'UNAUTHORIZED';
         errorMessage = 'Invalid credentials for canonical node';
       } else if (httpStatus === 400) {
-        errorCode = 'VALIDATION_FAILED';
-        errorMessage = errorText.substring(0, 500);
-        // A 400 from the canonical node means schema/hash mismatch
-        status = 'fail';
+        errorCode = 'INVALID_BUNDLE';
+        errorMessage = 'Canonical node rejected the request payload';
+      } else if (httpStatus >= 500) {
+        errorCode = 'NODE_ERROR';
+        errorMessage = 'Canonical node returned a server error';
       } else {
         errorCode = 'ATTEST_FAILED';
-        errorMessage = errorText.substring(0, 500);
+        errorMessage = `Canonical node returned status ${httpStatus}`;
       }
 
-      if (status !== 'fail') {
-        status = 'error';
+      // All non-200 responses are errors, not mismatches
+      status = 'error';
+
+      // Try to extract structured error details from body
+      try {
+        const parsed = JSON.parse(rawBody);
+        if (parsed.error) {
+          errorMessage = `${errorMessage}: ${parsed.error}`;
+        }
+        if (parsed.message) {
+          errorMessage = `${errorMessage} — ${parsed.message}`;
+        }
+      } catch {
+        // Body is not JSON, that's fine
       }
 
       console.error(`[recertify-ai-cer] Attestation error: ${httpStatus} - ${errorCode}`);
     } else {
-      const result = await attestResponse.json();
+      // 200 response — parse JSON for attestation result
+      let result: Record<string, unknown> = {};
+      try {
+        result = JSON.parse(rawBody);
+      } catch {
+        status = 'error';
+        errorCode = 'INVALID_RESPONSE';
+        errorMessage = 'Canonical node returned non-JSON 200 response';
+      }
 
       if (result.ok) {
         status = 'pass';
-        attestationHash = result.attestationHash || null;
-        canonicalRuntimeHash = result.canonicalRuntimeHash || null;
-        canonicalProtocolVersion = result.canonicalProtocolVersion || null;
+        attestationHash = (result.attestationHash as string) || null;
+        canonicalRuntimeHash = (result.canonicalRuntimeHash as string) || null;
+        canonicalProtocolVersion = (result.canonicalProtocolVersion as string) || null;
         console.log(`[recertify-ai-cer] PASS: attestation confirmed`);
-      } else {
+      } else if (errorCode !== 'INVALID_RESPONSE') {
+        // 200 with ok:false means a genuine mismatch
         status = 'fail';
-        errorMessage = result.reason || result.message || 'Attestation rejected';
+        errorMessage = (result.reason as string) || (result.message as string) || 'Attestation rejected';
         console.log(`[recertify-ai-cer] FAIL: ${errorMessage}`);
       }
     }
@@ -230,6 +263,8 @@ serve(async (req) => {
       error_message: errorMessage,
       duration_ms: durationMs,
       request_fingerprint: requestId,
+      upstream_body: upstreamBody,
+      node_request_id: nodeRequestId,
     };
 
     const { error: insertError } = await supabase
@@ -253,6 +288,8 @@ serve(async (req) => {
       errorMessage,
       durationMs,
       requestId,
+      upstreamBody,
+      nodeRequestId,
       reason: status === 'fail' ? errorMessage : undefined,
     }),
     {

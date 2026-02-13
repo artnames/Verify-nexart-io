@@ -85,6 +85,7 @@ export type Database = {
       }
       recertification_runs: {
         Row: {
+          attempted_at: string | null
           created_at: string
           duration_ms: number | null
           error_code: string | null
@@ -93,6 +94,7 @@ export type Database = {
           http_status: number | null
           id: string
           node_endpoint: string
+          node_request_id: string | null
           output_hash: string | null
           protocol_defaulted: boolean | null
           protocol_version: string | null
@@ -100,8 +102,10 @@ export type Database = {
           request_fingerprint: string | null
           runtime_hash: string | null
           status: string
+          upstream_body: string | null
         }
         Insert: {
+          attempted_at?: string | null
           created_at?: string
           duration_ms?: number | null
           error_code?: string | null
@@ -110,6 +114,7 @@ export type Database = {
           http_status?: number | null
           id?: string
           node_endpoint: string
+          node_request_id?: string | null
           output_hash?: string | null
           protocol_defaulted?: boolean | null
           protocol_version?: string | null
@@ -117,8 +122,10 @@ export type Database = {
           request_fingerprint?: string | null
           runtime_hash?: string | null
           status: string
+          upstream_body?: string | null
         }
         Update: {
+          attempted_at?: string | null
           created_at?: string
           duration_ms?: number | null
           error_code?: string | null
@@ -127,6 +134,7 @@ export type Database = {
           http_status?: number | null
           id?: string
           node_endpoint?: string
+          node_request_id?: string | null
           output_hash?: string | null
           protocol_defaulted?: boolean | null
           protocol_version?: string | null
@@ -134,6 +142,7 @@ export type Database = {
           request_fingerprint?: string | null
           runtime_hash?: string | null
           status?: string
+          upstream_body?: string | null
         }
         Relationships: [
           {
