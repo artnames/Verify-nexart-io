@@ -1,11 +1,15 @@
 /**
  * AI CER Recertification API - Client-side functions for AI execution attestation
+ *
+ * IMPORTANT: The canonical node needs the FULL bundle (including snapshot.input,
+ * snapshot.output, snapshot.prompt) to recompute hashes. We must NOT strip those
+ * fields before sending to the edge function.
  */
 
 import type { AICERBundle } from '@/types/aiCerBundle';
 import { validateAICERForAttestation } from '@/types/aiCerBundle';
 import type { AICERRecertifyResponse } from '@/components/AICERRecertificationStatus';
-import { removeUndefinedDeep, findUndefinedPaths } from '@/lib/attestationSanitize';
+import { sanitizeForNode } from '@/lib/attestationSanitize';
 import { getNodeApiKey } from '@/storage/nodeApiKey';
 
 /**
@@ -25,9 +29,10 @@ export function preflightAttestationCheck(bundle: unknown): AttestationPreflight
 
 /**
  * Request canonical attestation for an AI CER bundle.
- * 
- * Strips sensitive fields (input/output/prompt) via delete (not undefined assignment),
- * then runs removeUndefinedDeep to guarantee no undefined values reach the node.
+ *
+ * Sends the FULL bundle to the edge function — removeUndefinedDeep only,
+ * NO sensitive-field stripping. The canonical node needs input/output/prompt
+ * to recompute hashes for verification.
  */
 export async function recertifyAICER(
   recordId: string,
@@ -44,10 +49,8 @@ export async function recertifyAICER(
     };
   }
 
-  // Send full bundle to edge function (node needs input/output to recompute hashes).
-  // Only removeUndefinedDeep — do NOT strip sensitive fields (node needs them).
-  const sanitizedBundle = removeUndefinedDeep(structuredClone(bundle));
-  const undefinedPaths = findUndefinedPaths(sanitizedBundle);
+  // sanitizeForNode: deep-clone + removeUndefinedDeep (keeps input/output/prompt)
+  const { payload: payloadToNode, undefinedPaths } = sanitizeForNode(bundle);
 
   if (undefinedPaths.length > 0) {
     console.error('[AIRecertifyAPI] Payload contains undefined paths:', undefinedPaths);
@@ -57,7 +60,7 @@ export async function recertifyAICER(
       errorCode: 'INVALID_PAYLOAD',
       errorMessage: `Cannot attest: payload contains unsupported values (undefined).`,
       undefinedPaths: undefinedPaths.slice(0, 20),
-      sanitizedPayload: sanitizedBundle,
+      sanitizedPayload: payloadToNode,
     };
   }
 
@@ -78,12 +81,12 @@ export async function recertifyAICER(
       {
         method: 'POST',
         headers,
-        body: JSON.stringify({ recordId, bundle: sanitizedBundle }),
+        body: JSON.stringify({ recordId, bundle: payloadToNode }),
       }
     );
 
     const result = await response.json();
-    return { ...result, sanitizedPayload: sanitizedBundle } as AICERRecertifyResponse;
+    return { ...result, sanitizedPayload: payloadToNode } as AICERRecertifyResponse;
   } catch (error) {
     console.error('[AIRecertifyAPI] Error:', error);
     return {

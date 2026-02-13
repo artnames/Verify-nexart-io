@@ -3,6 +3,16 @@
  *
  * These ensure no `undefined` values leak into JSON payloads sent to the
  * canonical node, which rejects them with "Unsupported type for canonical JSON: undefined".
+ *
+ * IMPORTANT: For AI CER attestation, the canonical node needs the FULL bundle
+ * (including snapshot.input, snapshot.output, snapshot.prompt) to recompute hashes.
+ * Stripping those fields causes attestation to fail.
+ *
+ * Use `sanitizeForNode()` when preparing payloads for the canonical node — it does
+ * NOT strip sensitive fields.
+ *
+ * Use `redactForDisplay()` or `redactForStorage()` when showing payloads to auditors
+ * or persisting to the database — these DO strip sensitive fields.
  */
 
 /**
@@ -33,38 +43,63 @@ export function removeUndefinedDeep<T>(value: T): T {
 }
 
 /**
- * Deep-clone a bundle and strip sensitive fields for attestation.
- * Uses `delete` (not assignment to `undefined`) so keys are truly absent.
- * Preserves hashes, parameters, and all other metadata.
+ * Redact sensitive fields for DISPLAY purposes only.
+ * Deep-clones, deletes snapshot.input/output/prompt, then removes undefined.
+ *
+ * ⚠️ DO NOT use this for payloads sent to the canonical node — the node
+ * needs these fields to recompute hashes.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function stripSensitiveForAttestation(bundle: any): any {
+export function redactForDisplay(bundle: any): any {
   const clone = structuredClone(bundle);
 
   if (clone.snapshot && typeof clone.snapshot === 'object') {
     delete clone.snapshot.input;
     delete clone.snapshot.output;
     delete clone.snapshot.prompt;
-    // inputHash, outputHash, parameters, etc. are preserved
   }
 
   return removeUndefinedDeep(clone);
 }
 
 /**
+ * Redact sensitive fields for STORAGE purposes (e.g. upstream_body in DB).
+ * Same as redactForDisplay — strips input/output/prompt.
+ *
+ * ⚠️ DO NOT use this for payloads sent to the canonical node.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function redactForStorage(bundle: any): any {
+  return redactForDisplay(bundle);
+}
+
+/**
+ * @deprecated Use `redactForDisplay()` instead. This function strips sensitive
+ * fields which breaks canonical node attestation.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function stripSensitiveForAttestation(bundle: any): any {
+  return redactForDisplay(bundle);
+}
+
+/**
  * Full sanitization pipeline for canonical node attestation.
- * 1. Deep-clone & strip sensitive fields (input/output/prompt)
+ *
+ * 1. Deep-clone the bundle (preserving ALL fields including input/output/prompt)
  * 2. removeUndefinedDeep
  * 3. Validate zero undefined paths remain
  *
  * Returns { payload, undefinedPaths }.  If undefinedPaths.length > 0 the
  * payload MUST NOT be sent to the node.
+ *
+ * ⚠️ This does NOT strip sensitive fields — the canonical node needs them
+ * to recompute hashes for attestation.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function sanitizeForNode(bundle: any): { payload: any; undefinedPaths: string[] } {
-  const stripped = stripSensitiveForAttestation(bundle); // clone + delete + removeUndefinedDeep
-  const paths = findUndefinedPaths(stripped);
-  return { payload: stripped, undefinedPaths: paths };
+  const cleaned = removeUndefinedDeep(structuredClone(bundle));
+  const paths = findUndefinedPaths(cleaned);
+  return { payload: cleaned, undefinedPaths: paths };
 }
 
 /**

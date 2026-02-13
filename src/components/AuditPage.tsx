@@ -47,7 +47,7 @@ import { toast } from 'sonner';
 import { getAuditRecordByHash } from '@/api/auditRecords';
 import { recertifyBundle, getLatestRecertificationRun, type RecertifyResponse, type RecertificationRun } from '@/api/recertification';
 import { recertifyAICER } from '@/api/aiCerRecertification';
-import { sanitizeForNode, removeUndefinedDeep, findUndefinedPaths } from '@/lib/attestationSanitize';
+import { sanitizeForNode, redactForDisplay, findUndefinedPaths } from '@/lib/attestationSanitize';
 import { verifyCertificateHash, canonicalize } from '@/lib/canonicalize';
 import { 
   resolveExpectedImageHash, 
@@ -191,6 +191,7 @@ export function AuditPage() {
   const [showRawInput, setShowRawInput] = useState(false);
   const [showCode, setShowCode] = useState(false);
   const [showWhyMatters, setShowWhyMatters] = useState(false);
+  const [showTransmittedSensitive, setShowTransmittedSensitive] = useState(false);
 
   // AI CER attestation state
   const [aiCerRecertifyResult, setAiCerRecertifyResult] = useState<AICERRecertifyResponse | null>(null);
@@ -614,17 +615,13 @@ export function AuditPage() {
                 <AccordionTrigger className="text-sm">Payload Sent to Node</AccordionTrigger>
                 <AccordionContent>
                   {(() => {
-                    // Show what's actually sent: full bundle with undefined removed (no sensitive stripping)
-                    const fullClean = removeUndefinedDeep(structuredClone(aiBundle));
-                    const paths = findUndefinedPaths(fullClean);
-                    // For display, strip sensitive fields so auditors don't see raw prompts
-                    const displayPayload = structuredClone(fullClean) as Record<string, unknown>;
-                    if (displayPayload.snapshot && typeof displayPayload.snapshot === 'object') {
-                      const snap = displayPayload.snapshot as Record<string, unknown>;
-                      delete snap.input;
-                      delete snap.output;
-                      delete snap.prompt;
-                    }
+                    // Compute the EXACT payload that is sent to the canonical node
+                    const { payload: payloadToNode, undefinedPaths: paths } = sanitizeForNode(aiBundle);
+                    // Redacted version for safe display
+                    const displayPayload = redactForDisplay(aiBundle);
+                    // Check if sensitive fields exist in the transmitted payload
+                    const snap = payloadToNode?.snapshot as Record<string, unknown> | undefined;
+                    const hasSensitive = !!(snap?.input || snap?.output || snap?.prompt);
                     return (
                       <div className="space-y-3">
                         <div className="flex items-center gap-2 text-xs">
@@ -632,37 +629,97 @@ export function AuditPage() {
                           <Badge variant={paths.length === 0 ? 'outline' : 'destructive'}>
                             {paths.length}
                           </Badge>
+                          {hasSensitive && (
+                            <Badge variant="outline" className="text-xs border-verified/40 text-verified">
+                              Sensitive fields included in transmission
+                            </Badge>
+                          )}
                         </div>
-                        <p className="text-xs text-muted-foreground italic">
-                          The full bundle (including sensitive fields) is sent to the canonical node for hash verification.
-                          Sensitive fields are hidden below but are transmitted securely and never stored by Recânon.
-                        </p>
+
                         {paths.length > 0 && (
                           <div className="p-2 rounded border border-destructive/30 bg-destructive/5 text-xs font-mono">
                             {paths.join(', ')}
                           </div>
                         )}
-                        <div className="relative">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="absolute top-2 right-2 z-10"
-                            onClick={() => {
-                              navigator.clipboard.writeText(JSON.stringify(displayPayload, null, 2));
-                              toast.success('Payload copied (sensitive fields redacted for display)');
-                            }}
-                          >
-                            <Copy className="w-3.5 h-3.5 mr-1" /> Copy
-                          </Button>
-                          <div className="bg-muted rounded-lg p-3 max-h-64 overflow-auto">
-                            <pre className="text-xs font-mono whitespace-pre-wrap break-all">
-                              {JSON.stringify(displayPayload, null, 2)}
-                            </pre>
+
+                        {/* a) Displayed Payload (redacted) */}
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-muted-foreground">Displayed Payload (redacted)</p>
+                          <p className="text-xs text-muted-foreground italic">
+                            Sensitive fields (input, output, prompt) hidden. Hashes and parameters preserved.
+                          </p>
+                          <div className="relative">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="absolute top-2 right-2 z-10"
+                              onClick={() => {
+                                navigator.clipboard.writeText(JSON.stringify(displayPayload, null, 2));
+                                toast.success('Redacted payload copied');
+                              }}
+                            >
+                              <Copy className="w-3.5 h-3.5 mr-1" /> Copy
+                            </Button>
+                            <div className="bg-muted rounded-lg p-3 max-h-48 overflow-auto">
+                              <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                                {JSON.stringify(displayPayload, null, 2)}
+                              </pre>
+                            </div>
                           </div>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          Display redacted: input, output, prompt hidden. Hashes and parameters preserved.
-                        </p>
+
+                        {/* b) Payload Transmitted to Node (full) */}
+                        <div className="space-y-1 border-t border-border pt-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-medium text-muted-foreground">Payload Transmitted to Node (full)</p>
+                            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={showTransmittedSensitive}
+                                onChange={(e) => setShowTransmittedSensitive(e.target.checked)}
+                                className="rounded"
+                              />
+                              Show transmitted sensitive fields
+                            </label>
+                          </div>
+                          {!showTransmittedSensitive ? (
+                            <div className="p-3 rounded-lg border border-warning/30 bg-warning/5">
+                              <p className="text-xs text-warning flex items-center gap-1.5">
+                                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                The full bundle (including input/output/prompt) is sent to the canonical node for hash verification.
+                                Sensitive fields are not rendered here by default. Toggle above to inspect.
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1 italic">
+                                Sensitive fields are never stored by Recânon.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <div className="p-2 rounded border border-warning/30 bg-warning/5 text-xs text-warning flex items-center gap-1.5">
+                                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                Showing full payload including sensitive fields. Do not share publicly.
+                              </div>
+                              <div className="relative">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="absolute top-2 right-2 z-10"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(JSON.stringify(payloadToNode, null, 2));
+                                    toast.success('Full payload copied (contains sensitive fields)');
+                                  }}
+                                >
+                                  <Copy className="w-3.5 h-3.5 mr-1" /> Copy
+                                </Button>
+                                <div className="bg-muted rounded-lg p-3 max-h-48 overflow-auto">
+                                  <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                                    {JSON.stringify(payloadToNode, null, 2)}
+                                  </pre>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   })()}
