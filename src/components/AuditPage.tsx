@@ -60,7 +60,7 @@ import { getProxyUrl } from '@/certified/canonicalConfig';
 import { RecertificationStatus } from '@/components/RecertificationStatus';
 import { AIExecutionRecordView } from '@/components/AIExecutionRecordView';
 import { AICERRecertificationStatus, type AICERRecertifyResponse } from '@/components/AICERRecertificationStatus';
-import { isAICERBundle, type AICERBundle } from '@/types/aiCerBundle';
+import { isAICERBundle, validateAICERForAttestation, type AICERBundle } from '@/types/aiCerBundle';
 import type { AuditRecordRow, CERBundle, AuditSnapshot } from '@/types/auditRecord';
 
 // Render verification result with detailed error info
@@ -283,11 +283,13 @@ export function AuditPage() {
       }
       
       if (result.status === 'pass') {
-        toast.success('Canonical attestation confirmed');
+        toast.success('Canonical node attested this record');
       } else if (result.status === 'fail') {
-        toast.error('Attestation mismatch detected');
+        toast.error('Attestation rejected — discrepancy detected');
       } else if (result.status === 'error') {
-        toast.error(`Attestation error: ${result.errorCode || 'Unknown'}`);
+        toast.error('Attestation unavailable — review details');
+      } else if (result.status === 'skipped') {
+        toast.info(result.errorMessage || 'Attestation skipped');
       }
     } catch (err) {
       console.error('[AuditPage] AI CER recertify error:', err);
@@ -551,13 +553,20 @@ export function AuditPage() {
         />
 
         {/* Canonical Attestation */}
-        <AICERRecertificationStatus
-          result={aiCerRecertifyResult}
-          latestRun={recertificationRun}
-          isLoading={isAiCerRecertifying}
-          onRecertify={handleAiCerRecertify}
-          enabled={true}
-        />
+        {(() => {
+          const preflight = validateAICERForAttestation(aiBundle);
+          return (
+            <AICERRecertificationStatus
+              result={aiCerRecertifyResult}
+              latestRun={recertificationRun}
+              isLoading={isAiCerRecertifying}
+              onRecertify={handleAiCerRecertify}
+              enabled={true}
+              attestable={preflight.attestable}
+              missingFields={preflight.missingFields}
+            />
+          );
+        })()}
 
         {/* Technical Appendix */}
         <Card>

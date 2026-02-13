@@ -1,11 +1,12 @@
 /**
  * AI CER Recertification Status - Badge display for AI execution attestation
  * 
- * Status taxonomy:
+ * Status taxonomy (auditor-grade):
  * - Attested (green): 200 + ok:true from canonical node
- * - Attestation Mismatch (amber): 200 + ok:false (genuine hash mismatch)
- * - Attestation Failed (red): non-200 / network error / timeout
- * - Not Attested (neutral): no attempt made
+ * - Attestation rejected (amber): 200 + ok:false (genuine hash mismatch)
+ * - Attestation unavailable (red): non-200 / network error / timeout
+ * - Not attestable (muted): missing required fields
+ * - Not attested (neutral): no attempt made
  */
 
 import { useState } from 'react';
@@ -22,6 +23,7 @@ import {
   ShieldCheck,
   ShieldX,
   ShieldAlert,
+  ShieldOff,
   Loader2,
   ChevronDown,
   RefreshCw,
@@ -31,6 +33,7 @@ import {
   AlertCircle,
   Fingerprint,
   FileText,
+  Info,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { RecertificationRun } from '@/api/recertification';
@@ -57,6 +60,10 @@ interface AICERRecertificationStatusProps {
   isLoading?: boolean;
   onRecertify?: () => void;
   enabled?: boolean;
+  /** If false, the bundle is missing required fields for attestation */
+  attestable?: boolean;
+  /** List of missing fields if not attestable */
+  missingFields?: string[];
 }
 
 /** Map error codes to short reason chips */
@@ -94,6 +101,8 @@ export function AICERRecertificationStatus({
   isLoading,
   onRecertify,
   enabled = true,
+  attestable = true,
+  missingFields = [],
 }: AICERRecertificationStatusProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showUpstreamBody, setShowUpstreamBody] = useState(false);
@@ -116,6 +125,7 @@ export function AICERRecertificationStatus({
 
   const getStatusIcon = () => {
     if (isLoading) return <Loader2 className="w-4 h-4 animate-spin" />;
+    if (!attestable) return <ShieldOff className="w-4 h-4 text-muted-foreground" />;
     if (!status) return <Shield className="w-4 h-4 text-muted-foreground" />;
     switch (status) {
       case 'pass': return <ShieldCheck className="w-4 h-4 text-verified" />;
@@ -127,17 +137,18 @@ export function AICERRecertificationStatus({
   };
 
   const getStatusBadge = () => {
-    if (isLoading) return <Badge variant="outline">Requesting attestation...</Badge>;
-    if (!status) return <Badge variant="outline">Not Attested</Badge>;
+    if (isLoading) return <Badge variant="outline">Requesting…</Badge>;
+    if (!attestable) return <Badge variant="secondary">Not attestable</Badge>;
+    if (!status) return <Badge variant="outline">Not attested</Badge>;
     switch (status) {
       case 'pass':
         return <Badge className="bg-verified text-verified-foreground">Attested</Badge>;
       case 'fail':
-        return <Badge className="bg-warning text-warning-foreground">Attestation Mismatch</Badge>;
+        return <Badge className="bg-warning text-warning-foreground">Attestation rejected</Badge>;
       case 'error':
         return (
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
-            <Badge variant="destructive">Attestation Failed</Badge>
+            <Badge variant="destructive">Attestation unavailable</Badge>
             {reasonChip && (
               <Badge variant="outline" className="text-destructive border-destructive/40 text-xs">
                 {reasonChip}
@@ -146,7 +157,7 @@ export function AICERRecertificationStatus({
           </div>
         );
       case 'skipped':
-        return <Badge variant="secondary">Not Attested</Badge>;
+        return <Badge variant="secondary">Not attested</Badge>;
     }
   };
 
@@ -167,26 +178,46 @@ export function AICERRecertificationStatus({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* Explainer paragraph — always visible */}
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Canonical attestation confirms this record's hashes and certificate are internally consistent
+          when checked by the NexArt canonical node. It does not re-run the model or claim the output is correct.
+        </p>
+
+        {/* Not attestable — missing fields */}
+        {!attestable && missingFields.length > 0 && (
+          <div className="flex items-start gap-2 text-sm">
+            <Info className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
+            <div>
+              <p className="font-medium text-muted-foreground">Missing required fields for attestation</p>
+              <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground list-disc list-inside">
+                {missingFields.map((f, i) => <li key={i}>{f}</li>)}
+              </ul>
+            </div>
+          </div>
+        )}
+
         {status === 'pass' && (
           <p className="text-sm text-verified">
             Canonical node attested to the integrity of this record.
-            The certificate hash and snapshot integrity have been confirmed.
           </p>
         )}
         {status === 'fail' && (
           <p className="text-sm text-warning">
-            Canonical node evaluated the record and detected a discrepancy.
-            The resulting output does not match the original certified result. This requires review.
+            Canonical node evaluated the record and detected a discrepancy. This requires review.
           </p>
         )}
         {status === 'error' && (
           <div className="flex items-start gap-2 text-sm">
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-destructive" />
             <div>
-              <p className="font-medium text-destructive">Canonical attestation could not be completed</p>
-              <p className="text-muted-foreground mt-1">
-                {errorMessage || 'Review details below for more information.'}
-              </p>
+              <p className="font-medium text-destructive">Canonical node could not attest this record.</p>
+              {/* Show sanitized reason — not raw stack traces */}
+              {errorCode && errorCode !== 'NETWORK_ERROR' && errorCode !== 'TIMEOUT' && (
+                <p className="text-xs text-muted-foreground mt-1 font-mono">
+                  {errorCode}
+                </p>
+              )}
 
               {/* Structured upstream error */}
               {parsedError?.error && (
@@ -202,10 +233,9 @@ export function AICERRecertificationStatus({
             </div>
           </div>
         )}
-        {status === 'skipped' && (
+        {status === 'skipped' && !result?.errorCode?.startsWith('PREFLIGHT') && (
           <p className="text-sm text-muted-foreground">
-            This record was reviewed as provided and has not been submitted for canonical attestation.
-            {errorMessage && ` (${errorMessage})`}
+            This record has not been submitted for canonical attestation.
           </p>
         )}
 
@@ -214,7 +244,7 @@ export function AICERRecertificationStatus({
           <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
             <CollapsibleTrigger asChild>
               <Button variant="ghost" size="sm" className="w-full justify-between h-8">
-                <span className="text-xs">Attestation Details</span>
+                <span className="text-xs">Attestation details</span>
                 <ChevronDown className={cn("w-4 h-4 transition-transform", isExpanded && "rotate-180")} />
               </Button>
             </CollapsibleTrigger>
@@ -283,7 +313,7 @@ export function AICERRecertificationStatus({
               {httpStatus != null && httpStatus > 0 && (
                 <div className="flex items-center gap-2 text-xs">
                   <AlertCircle className="w-3 h-3 text-muted-foreground shrink-0" />
-                  <span className="text-muted-foreground">Upstream Status: </span>
+                  <span className="text-muted-foreground">Upstream status: </span>
                   <span className="font-mono">{httpStatus}</span>
                 </div>
               )}
@@ -319,18 +349,23 @@ export function AICERRecertificationStatus({
             variant="outline"
             size="sm"
             onClick={onRecertify}
-            disabled={isLoading}
+            disabled={isLoading || !attestable}
             className="w-full"
           >
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Requesting attestation...
+                Requesting…
+              </>
+            ) : !attestable ? (
+              <>
+                <ShieldOff className="w-4 h-4 mr-2" />
+                Missing required fields for attestation
               </>
             ) : (
               <>
                 <RefreshCw className="w-4 h-4 mr-2" />
-                {status ? 'Request Attestation Again' : 'Request Canonical Attestation'}
+                {status ? 'Request canonical attestation' : 'Request canonical attestation'}
               </>
             )}
           </Button>

@@ -84,7 +84,6 @@ serve(async (req) => {
 
   const certificateHash = bundle.certificateHash as string;
   if (!certificateHash) {
-    // Store skip result
     if (recordId) {
       await supabase.from('recertification_runs').insert({
         record_id: recordId,
@@ -110,7 +109,6 @@ serve(async (req) => {
 
   console.log(`[recertify-ai-cer] Starting attestation for record ${recordId || 'direct'}, cert: ${certificateHash.substring(0, 16)}...`);
 
-  // Call canonical node attestation endpoint
   let status: 'pass' | 'fail' | 'error' = 'error';
   let attestationHash: string | null = null;
   let canonicalRuntimeHash: string | null = null;
@@ -125,24 +123,18 @@ serve(async (req) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), ATTEST_TIMEOUT_MS);
 
-    // Prepare attestation payload — strip sensitive input/output
-    const attestPayload = {
-      bundleType: bundle.bundleType,
-      certificateHash,
-      snapshot: {
-        type: snapshot.type,
-        provider: snapshot.provider,
-        model: snapshot.model,
-        modelVersion: snapshot.modelVersion,
-        executionId: snapshot.executionId,
-        timestamp: snapshot.timestamp,
-        appId: snapshot.appId,
-        parameters: snapshot.parameters,
-        inputHash: snapshot.inputHash,
-        outputHash: snapshot.outputHash,
-      },
-      createdAt: bundle.createdAt,
+    // Send the FULL bundle as-is to /api/attest (strip only sensitive input/output).
+    // The node expects: { bundleType, version, createdAt, certificateHash, snapshot, meta? }
+    const attestPayload: Record<string, unknown> = {
+      ...bundle,
     };
+    // Strip sensitive fields from snapshot
+    if (attestPayload.snapshot && typeof attestPayload.snapshot === 'object') {
+      const snapshotCopy = { ...(attestPayload.snapshot as Record<string, unknown>) };
+      delete snapshotCopy.input;
+      delete snapshotCopy.output;
+      attestPayload.snapshot = snapshotCopy;
+    }
 
     const attestResponse = await fetch(`${CANONICAL_RENDERER_URL}/api/attest`, {
       method: 'POST',
@@ -166,14 +158,12 @@ serve(async (req) => {
 
     // Always read body as text first
     const rawBody = await attestResponse.text();
-    // Truncate to 2000 chars for storage
     upstreamBody = rawBody.length > 2000 ? rawBody.substring(0, 2000) : rawBody;
 
     console.log(`[recertify-ai-cer] Canonical node response: ${httpStatus}`);
 
     if (!attestResponse.ok) {
-      // Non-200: always an ERROR, never a "mismatch"
-      // Mismatch requires a 200 response with ok:false from the node
+      // Non-200: always ERROR (attestation unavailable), never "mismatch"
       if (httpStatus === 429) {
         errorCode = 'QUOTA_EXCEEDED';
         errorMessage = 'Canonical node quota exceeded';
@@ -191,17 +181,13 @@ serve(async (req) => {
         errorMessage = `Canonical node returned status ${httpStatus}`;
       }
 
-      // All non-200 responses are errors, not mismatches
       status = 'error';
 
-      // Try to extract structured error details from body
+      // Try to extract structured error details from body (for display, not as primary message)
       try {
         const parsed = JSON.parse(rawBody);
-        if (parsed.error) {
+        if (parsed.error && typeof parsed.error === 'string') {
           errorMessage = `${errorMessage}: ${parsed.error}`;
-        }
-        if (parsed.message) {
-          errorMessage = `${errorMessage} — ${parsed.message}`;
         }
       } catch {
         // Body is not JSON, that's fine
@@ -226,10 +212,10 @@ serve(async (req) => {
         canonicalProtocolVersion = (result.canonicalProtocolVersion as string) || null;
         console.log(`[recertify-ai-cer] PASS: attestation confirmed`);
       } else if (errorCode !== 'INVALID_RESPONSE') {
-        // 200 with ok:false means a genuine mismatch
+        // 200 with ok:false → genuine mismatch ("Attestation rejected")
         status = 'fail';
         errorMessage = (result.reason as string) || (result.message as string) || 'Attestation rejected';
-        console.log(`[recertify-ai-cer] FAIL: ${errorMessage}`);
+        console.log(`[recertify-ai-cer] FAIL (mismatch): ${errorMessage}`);
       }
     }
   } catch (error) {
@@ -265,6 +251,7 @@ serve(async (req) => {
       request_fingerprint: requestId,
       upstream_body: upstreamBody,
       node_request_id: nodeRequestId,
+      attempted_at: new Date().toISOString(),
     };
 
     const { error: insertError } = await supabase
