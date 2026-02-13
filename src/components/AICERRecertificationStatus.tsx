@@ -7,11 +7,14 @@
  * - Attestation unavailable (red): non-200 / network error / timeout
  * - Not attestable (muted): missing required fields
  * - Not attested (neutral): no attempt made
+ * 
+ * Attestation is gated behind a user-supplied API key (sessionStorage).
  */
 
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Collapsible,
@@ -34,8 +37,12 @@ import {
   Fingerprint,
   FileText,
   Info,
+  Lock,
+  KeyRound,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { hasNodeApiKey, getNodeApiKey, setNodeApiKey } from '@/storage/nodeApiKey';
 import type { RecertificationRun } from '@/api/recertification';
 
 interface AICERRecertifyResponse {
@@ -108,6 +115,8 @@ export function AICERRecertificationStatus({
 }: AICERRecertificationStatusProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showUpstreamBody, setShowUpstreamBody] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [hasKey, setHasKey] = useState(hasNodeApiKey());
 
   const status = result?.status || latestRun?.status;
   const attestationHash = result?.attestationHash;
@@ -125,9 +134,18 @@ export function AICERRecertificationStatus({
   const reasonChip = status === 'error' ? getReasonChip(errorCode, httpStatus, errorMessage) : null;
   const parsedError = parseUpstreamError(upstreamBody);
 
+  const handleSaveKey = () => {
+    if (apiKeyInput.trim()) {
+      setNodeApiKey(apiKeyInput.trim());
+      setHasKey(true);
+      setApiKeyInput('');
+    }
+  };
+
   const getStatusIcon = () => {
     if (isLoading) return <Loader2 className="w-4 h-4 animate-spin" />;
     if (!attestable) return <ShieldOff className="w-4 h-4 text-muted-foreground" />;
+    if (!hasKey && !status) return <Lock className="w-4 h-4 text-muted-foreground" />;
     if (!status) return <Shield className="w-4 h-4 text-muted-foreground" />;
     switch (status) {
       case 'pass': return <ShieldCheck className="w-4 h-4 text-verified" />;
@@ -199,6 +217,53 @@ export function AICERRecertificationStatus({
           </div>
         )}
 
+        {/* API Key gating for anonymous users */}
+        {!hasKey && attestable && !status && (
+          <div className="space-y-3 p-3 rounded-md border border-border bg-muted/30">
+            <div className="flex items-start gap-2 text-sm">
+              <Lock className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
+              <div>
+                <p className="font-medium text-muted-foreground">
+                  Attestation requires an API key
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  You can still verify integrity locally. Attestation is optional and requires a key because it consumes canonical node quota.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Paste NexArt Node API key"
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSaveKey()}
+                  className="pl-9 text-sm font-mono"
+                  type="password"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSaveKey}
+                disabled={!apiKeyInput.trim()}
+              >
+                Unlock
+              </Button>
+            </div>
+            <a
+              href="https://nexart.io"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              Get an API key on nexart.io
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        )}
+
         {status === 'pass' && (
           <p className="text-sm text-verified">
             Canonical node attested to the integrity of this record.
@@ -214,7 +279,6 @@ export function AICERRecertificationStatus({
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-destructive" />
             <div>
               <p className="font-medium text-destructive">Canonical node could not attest this record.</p>
-              {/* Show sanitized reason — not raw stack traces */}
               {errorCode && errorCode !== 'NETWORK_ERROR' && errorCode !== 'TIMEOUT' && (
                 <p className="text-xs text-muted-foreground mt-1 font-mono">
                   {errorCode}
@@ -358,7 +422,7 @@ export function AICERRecertificationStatus({
             variant="outline"
             size="sm"
             onClick={onRecertify}
-            disabled={isLoading || !attestable}
+            disabled={isLoading || !attestable || !hasKey}
             className="w-full"
           >
             {isLoading ? (
@@ -371,10 +435,15 @@ export function AICERRecertificationStatus({
                 <ShieldOff className="w-4 h-4 mr-2" />
                 Missing required fields for attestation
               </>
+            ) : !hasKey ? (
+              <>
+                <Lock className="w-4 h-4 mr-2" />
+                Provide API key to unlock attestation
+              </>
             ) : (
               <>
                 <RefreshCw className="w-4 h-4 mr-2" />
-                {status ? 'Request canonical attestation' : 'Request canonical attestation'}
+                Request canonical attestation
               </>
             )}
           </Button>

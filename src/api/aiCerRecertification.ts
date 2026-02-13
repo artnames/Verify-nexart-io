@@ -6,6 +6,7 @@ import type { AICERBundle } from '@/types/aiCerBundle';
 import { validateAICERForAttestation } from '@/types/aiCerBundle';
 import type { AICERRecertifyResponse } from '@/components/AICERRecertificationStatus';
 import { stripSensitiveForAttestation, findUndefinedPaths } from '@/lib/attestationSanitize';
+import { getNodeApiKey } from '@/storage/nodeApiKey';
 
 /**
  * Pre-flight validation result
@@ -59,15 +60,22 @@ export async function recertifyAICER(
   }
 
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    };
+    
+    const nodeKey = getNodeApiKey();
+    if (nodeKey) {
+      headers['X-Node-Api-Key'] = nodeKey;
+    }
+    
     const response = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/recertify-ai-cer`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        },
+        headers,
         body: JSON.stringify({ recordId, bundle: sanitizedBundle }),
       }
     );

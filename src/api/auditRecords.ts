@@ -1,5 +1,10 @@
 /**
  * Audit Records API - Storage and retrieval for Certified Execution Records
+ * 
+ * Hybrid approach:
+ * - Reads from BOTH local storage and Supabase (merges, deduplicates by hash)
+ * - Writes to local storage (no auth required)
+ * - Supabase read is best-effort (may fail for anonymous users on some tables)
  */
 
 import { supabase } from '@/integrations/supabase/client';
@@ -24,33 +29,49 @@ import {
   extractSubject 
 } from '@/types/auditRecord';
 import { isAICERBundle, extractAICERTitle, extractAICERSubject } from '@/types/aiCerBundle';
+import {
+  listLocalRecords,
+  getLocalRecordByHash,
+  importLocalRecord,
+  toAuditRecordRow,
+} from '@/storage/localAuditLog';
 
 // Re-export normalizeHash for backwards compatibility
 export { normalizeHash } from '@/lib/hashResolver';
 
 /**
- * Get an audit record by its certificate hash
+ * Get an audit record by its certificate hash.
+ * Checks local storage first, then Supabase.
  */
 export async function getAuditRecordByHash(hash: string): Promise<AuditRecordRow | null> {
   const normalizedHash = normalizeHash(hash);
   if (!normalizedHash) return null;
   
-  const { data, error } = await supabase
-    .from('audit_records')
-    .select('*')
-    .eq('certificate_hash', normalizedHash)
-    .maybeSingle();
+  // Check local storage first
+  const local = getLocalRecordByHash(normalizedHash);
+  if (local) return toAuditRecordRow(local);
+  
+  // Fall back to Supabase (public read)
+  try {
+    const { data, error } = await supabase
+      .from('audit_records')
+      .select('*')
+      .eq('certificate_hash', normalizedHash)
+      .maybeSingle();
+      
+    if (error) {
+      console.error('[AuditAPI] Error fetching record:', error);
+      return null;
+    }
     
-  if (error) {
-    console.error('[AuditAPI] Error fetching record:', error);
+    return data as AuditRecordRow | null;
+  } catch {
     return null;
   }
-  
-  return data as AuditRecordRow | null;
 }
 
 /**
- * List audit records with optional filters
+ * List audit records — merges local + Supabase, deduplicates by hash.
  */
 export async function listAuditRecords(options?: {
   limit?: number;
@@ -58,39 +79,50 @@ export async function listAuditRecords(options?: {
   renderStatus?: RenderStatus;
   claimType?: string;
 }): Promise<AuditRecordRow[]> {
-  let query = supabase
-    .from('audit_records')
-    .select('*')
-    .order('created_at', { ascending: false });
+  const limit = options?.limit || 100;
+  
+  // Get local records
+  const localRecords = listLocalRecords(limit).map(toAuditRecordRow);
+  
+  // Try Supabase (best-effort)
+  let supabaseRecords: AuditRecordRow[] = [];
+  try {
+    let query = supabase
+      .from('audit_records')
+      .select('*')
+      .order('created_at', { ascending: false });
+      
+    if (limit) query = query.limit(limit);
+    if (options?.offset) query = query.range(options.offset, options.offset + limit - 1);
+    if (options?.renderStatus) query = query.eq('render_status', options.renderStatus);
+    if (options?.claimType) query = query.eq('claim_type', options.claimType);
     
-  if (options?.limit) {
-    query = query.limit(options.limit);
+    const { data, error } = await query;
+    if (!error && data) {
+      supabaseRecords = data as AuditRecordRow[];
+    }
+  } catch {
+    // Supabase unavailable — use local only
   }
   
-  if (options?.offset) {
-    query = query.range(options.offset, options.offset + (options.limit || 50) - 1);
+  // Merge and deduplicate by certificate_hash (local wins)
+  const seenHashes = new Set(localRecords.map(r => r.certificate_hash));
+  const merged = [...localRecords];
+  for (const r of supabaseRecords) {
+    if (!seenHashes.has(r.certificate_hash)) {
+      seenHashes.add(r.certificate_hash);
+      merged.push(r);
+    }
   }
   
-  if (options?.renderStatus) {
-    query = query.eq('render_status', options.renderStatus);
-  }
+  // Sort by created_at descending
+  merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   
-  if (options?.claimType) {
-    query = query.eq('claim_type', options.claimType);
-  }
-  
-  const { data, error } = await query;
-  
-  if (error) {
-    console.error('[AuditAPI] Error listing records:', error);
-    return [];
-  }
-  
-  return (data || []) as AuditRecordRow[];
+  return merged.slice(0, limit);
 }
 
 /**
- * Import a bundle and store as an audit record
+ * Import a bundle — saves to local storage (no auth required).
  */
 export async function importAuditRecord(
   bundle: CERBundle,
@@ -102,82 +134,7 @@ export async function importAuditRecord(
   error?: string;
   authRequired?: boolean;
 }> {
-  // Validate bundle
-  const validation = validateCERBundle(bundle);
-  if (!validation.valid) {
-    return { 
-      success: false, 
-      error: `Invalid bundle: ${validation.errors.join(', ')}` 
-    };
-  }
-  
-  // Compute canonical JSON and certificate hash
-  const canonicalJson = canonicalize(bundle);
-  const certificateHash = await computeCertificateHash(bundle);
-  
-  // Check if record already exists
-  const existing = await getAuditRecordByHash(certificateHash);
-  if (existing) {
-    return { 
-      success: true, 
-      certificateHash,
-      error: 'Record already exists'
-    };
-  }
-  
-  // Check authentication
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return {
-      success: false,
-      certificateHash,
-      error: 'Authentication required to import records',
-      authRequired: true,
-    };
-  }
-  
-  // Use shared hash resolver for consistent hash extraction
-  // Prefer wrapper metadata's expectedImageHash if available (from public-certificate)
-  const expectedImageHash = wrapperMetadata?.expectedImageHash || resolveExpectedImageHash(bundle);
-  const expectedAnimationHash = resolveExpectedAnimationHash(bundle);
-  
-  // Handle AI CER bundles with dedicated metadata extraction
-  const isAiCer = isAICERBundle(bundle);
-  
-  // Prepare record
-  const record: Record<string, unknown> = {
-    certificate_hash: certificateHash,
-    bundle_version: isAiCer ? (bundle as Record<string, unknown>).bundleType as string : bundle.bundleVersion || 'unknown',
-    mode: isAiCer ? 'attestation' : validation.mode || 'static',
-    bundle_created_at: bundle.createdAt || null,
-    claim_type: isAiCer ? 'ai.execution' : extractClaimType(bundle),
-    title: (isAiCer ? extractAICERTitle(bundle as any) : extractTitle(bundle))?.slice(0, 500) || null,
-    statement: (isAiCer ? null : extractStatement(bundle))?.slice(0, 2000) || null,
-    subject: (isAiCer ? extractAICERSubject(bundle as any) : extractSubject(bundle))?.slice(0, 200) || null,
-    expected_image_hash: expectedImageHash,
-    expected_animation_hash: expectedAnimationHash,
-    certificate_verified: true,
-    render_status: isAiCer ? 'SKIPPED' : (validation.hasSnapshot && expectedImageHash ? 'PENDING' : 'SKIPPED'),
-    bundle_json: bundle as unknown,
-    canonical_json: canonicalJson,
-    import_source: source,
-    imported_by: user.id,
-  };
-  
-  const { error } = await supabase
-    .from('audit_records')
-    .insert(record as never);
-    
-  if (error) {
-    console.error('[AuditAPI] Error inserting record:', error);
-    return { 
-      success: false, 
-      certificateHash,
-      error: `Database error: ${error.message}` 
-    };
-  }
-  
-  return { success: true, certificateHash };
+  return importLocalRecord(bundle, source, wrapperMetadata);
 }
 
 /**
@@ -188,9 +145,6 @@ export async function updateRenderStatus(
   status: RenderStatus,
   renderVerified?: boolean
 ): Promise<boolean> {
-  // Note: This will fail due to RLS (no updates allowed)
-  // This is intentional - audit records are immutable
-  // For status updates, we'd need a separate verification_logs table
   console.warn('[AuditAPI] Render status updates are not allowed - records are immutable');
   return false;
 }
@@ -230,18 +184,13 @@ interface FetchBundleProxyResponse {
  */
 export function looksLikeHash(input: string): boolean {
   const trimmed = input.trim().toLowerCase();
-  
-  // Check for sha256: prefix
   if (trimmed.startsWith('sha256:')) {
     const hex = trimmed.slice(7);
     return /^[a-f0-9]{64}$/.test(hex);
   }
-  
-  // Check for raw 64-char hex
   if (/^[a-f0-9]{64}$/.test(trimmed)) {
     return true;
   }
-  
   return false;
 }
 
@@ -283,17 +232,14 @@ export async function fetchBundleFromUrl(urlOrHash: string): Promise<{
     let queryParam: string;
     let constructedUrl: string | undefined;
     
-    // Check if input is a hash - if so, use the hash parameter
     if (looksLikeHash(urlOrHash)) {
-      // Use the edge function's hash parameter to auto-construct URL
       queryParam = `hash=${encodeURIComponent(urlOrHash)}`;
       try {
         constructedUrl = buildPublicCertificateUrl(urlOrHash);
       } catch {
-        // If URL construction fails, continue anyway
+        // continue
       }
     } else {
-      // Use the URL parameter directly
       queryParam = `url=${encodeURIComponent(urlOrHash)}`;
     }
     
@@ -323,7 +269,6 @@ export async function fetchBundleFromUrl(urlOrHash: string): Promise<{
       };
     }
     
-    // Validate the fetched bundle
     const validation = validateCERBundle(result.bundle as CERBundle);
     if (!validation.valid) {
       return { 
