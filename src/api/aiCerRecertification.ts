@@ -3,15 +3,45 @@
  */
 
 import type { AICERBundle } from '@/types/aiCerBundle';
+import { validateAICERForAttestation } from '@/types/aiCerBundle';
 import type { AICERRecertifyResponse } from '@/components/AICERRecertificationStatus';
 
 /**
- * Request canonical attestation for an AI CER bundle
+ * Pre-flight validation result
+ */
+export interface AttestationPreflightResult {
+  attestable: boolean;
+  missingFields: string[];
+}
+
+/**
+ * Validate an AI CER bundle for attestation (client-side preflight).
+ */
+export function preflightAttestationCheck(bundle: unknown): AttestationPreflightResult {
+  return validateAICERForAttestation(bundle);
+}
+
+/**
+ * Request canonical attestation for an AI CER bundle.
+ * 
+ * Sends the full bundle object (minus sensitive input/output) to the edge function,
+ * which forwards it to the canonical node's /api/attest endpoint.
  */
 export async function recertifyAICER(
   recordId: string,
   bundle: AICERBundle,
 ): Promise<AICERRecertifyResponse> {
+  // Client-side preflight
+  const preflight = validateAICERForAttestation(bundle);
+  if (!preflight.attestable) {
+    return {
+      ok: false,
+      status: 'skipped',
+      errorCode: 'PREFLIGHT_FAILED',
+      errorMessage: `Missing required fields: ${preflight.missingFields.join(', ')}`,
+    };
+  }
+
   try {
     const response = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/recertify-ai-cer`,

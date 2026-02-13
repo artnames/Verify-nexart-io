@@ -31,10 +31,12 @@ export interface AIExecutionSnapshot {
  */
 export interface AICERBundle {
   bundleType: 'cer.ai.execution.v1';
+  version?: string;
   bundleVersion?: string;
   createdAt: string;
   certificateHash: string;
   snapshot: AIExecutionSnapshot;
+  meta?: Record<string, unknown>;
   /** Allow additional fields */
   [key: string]: unknown;
 }
@@ -54,7 +56,7 @@ export function isAICERBundle(bundle: unknown): bundle is AICERBundle {
 }
 
 /**
- * Validate an AI CER bundle
+ * Validate an AI CER bundle for general import
  */
 export function validateAICERBundle(bundle: unknown): {
   valid: boolean;
@@ -111,6 +113,59 @@ export function validateAICERBundle(bundle: unknown): {
   }
 
   return { valid: errors.length === 0, errors, warnings };
+}
+
+const CERT_HASH_RE = /^sha256:[a-f0-9]{64}$/;
+
+/**
+ * Validate that an AI CER bundle has all fields required for canonical attestation.
+ * Returns { attestable: true } or { attestable: false, missingFields: [...] }.
+ */
+export function validateAICERForAttestation(bundle: unknown): {
+  attestable: boolean;
+  missingFields: string[];
+} {
+  const missing: string[] = [];
+
+  if (!bundle || typeof bundle !== 'object') {
+    return { attestable: false, missingFields: ['bundle (not an object)'] };
+  }
+
+  const b = bundle as Record<string, unknown>;
+
+  if (b.bundleType !== 'cer.ai.execution.v1') {
+    missing.push('bundleType (must be cer.ai.execution.v1)');
+  }
+
+  // version: non-empty string
+  const version = b.version ?? b.bundleVersion;
+  if (!version || typeof version !== 'string' || (version as string).trim().length === 0) {
+    missing.push('version');
+  }
+
+  // createdAt: ISO string
+  if (!b.createdAt || typeof b.createdAt !== 'string') {
+    missing.push('createdAt');
+  } else {
+    const d = new Date(b.createdAt as string);
+    if (isNaN(d.getTime())) {
+      missing.push('createdAt (invalid ISO date)');
+    }
+  }
+
+  // certificateHash: sha256:<64 hex>
+  if (!b.certificateHash || typeof b.certificateHash !== 'string') {
+    missing.push('certificateHash');
+  } else if (!CERT_HASH_RE.test((b.certificateHash as string).toLowerCase())) {
+    missing.push('certificateHash (must match sha256:<64 hex>)');
+  }
+
+  // snapshot: non-null object
+  if (!b.snapshot || typeof b.snapshot !== 'object') {
+    missing.push('snapshot');
+  }
+
+  return { attestable: missing.length === 0, missingFields: missing };
 }
 
 /**
