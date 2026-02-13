@@ -8,6 +8,50 @@ const corsHeaders = {
 
 const ATTEST_TIMEOUT_MS = 30000;
 
+// ---------------------------------------------------------------------------
+// Helpers: remove undefined values from payloads before JSON.stringify
+// ---------------------------------------------------------------------------
+
+/** Recursively remove keys with undefined values; convert undefined array items to null. */
+function removeUndefinedDeep<T>(value: T): T {
+  if (value === null || value === undefined || typeof value !== 'object') {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => (item === undefined ? null : removeUndefinedDeep(item))) as T;
+  }
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(value as Record<string, unknown>)) {
+    const v = (value as Record<string, unknown>)[key];
+    if (v !== undefined) {
+      result[key] = removeUndefinedDeep(v);
+    }
+  }
+  return result as T;
+}
+
+/** Return dot-paths where a value is undefined (for logging). */
+function findUndefinedPaths(obj: unknown, prefix = '', paths: string[] = []): string[] {
+  if (obj === null || obj === undefined || typeof obj !== 'object') return paths;
+  if (Array.isArray(obj)) {
+    obj.forEach((item, idx) => {
+      const p = prefix ? `${prefix}[${idx}]` : `[${idx}]`;
+      if (item === undefined) paths.push(p);
+      else findUndefinedPaths(item, p, paths);
+    });
+    return paths;
+  }
+  for (const key of Object.keys(obj as Record<string, unknown>)) {
+    const p = prefix ? `${prefix}.${key}` : key;
+    const val = (obj as Record<string, unknown>)[key];
+    if (val === undefined) paths.push(p);
+    else findUndefinedPaths(val, p, paths);
+  }
+  return paths;
+}
+
+// ---------------------------------------------------------------------------
+
 function createErrorResponse(
   status: number,
   error: string,
@@ -109,6 +153,24 @@ serve(async (req) => {
 
   console.log(`[recertify-ai-cer] Starting attestation for record ${recordId || 'direct'}, cert: ${certificateHash.substring(0, 16)}...`);
 
+  // ---- Prepare payload: strip sensitive fields via delete, then removeUndefinedDeep ----
+  const attestPayload: Record<string, unknown> = structuredClone(bundle);
+  if (attestPayload.snapshot && typeof attestPayload.snapshot === 'object') {
+    const snap = attestPayload.snapshot as Record<string, unknown>;
+    delete snap.input;
+    delete snap.output;
+    delete snap.prompt;
+  }
+
+  // Safety net: remove any remaining undefined values
+  const cleanPayload = removeUndefinedDeep(attestPayload);
+
+  // Log if we found undefined paths (server-side diagnostics only)
+  const undefinedBefore = findUndefinedPaths(attestPayload);
+  if (undefinedBefore.length > 0) {
+    console.warn(`[recertify-ai-cer] Stripped ${undefinedBefore.length} undefined paths from payload: ${undefinedBefore.join(', ')}`);
+  }
+
   let status: 'pass' | 'fail' | 'error' = 'error';
   let attestationHash: string | null = null;
   let canonicalRuntimeHash: string | null = null;
@@ -123,19 +185,6 @@ serve(async (req) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), ATTEST_TIMEOUT_MS);
 
-    // Send the FULL bundle as-is to /api/attest (strip only sensitive input/output).
-    // The node expects: { bundleType, version, createdAt, certificateHash, snapshot, meta? }
-    const attestPayload: Record<string, unknown> = {
-      ...bundle,
-    };
-    // Strip sensitive fields from snapshot
-    if (attestPayload.snapshot && typeof attestPayload.snapshot === 'object') {
-      const snapshotCopy = { ...(attestPayload.snapshot as Record<string, unknown>) };
-      delete snapshotCopy.input;
-      delete snapshotCopy.output;
-      attestPayload.snapshot = snapshotCopy;
-    }
-
     const attestResponse = await fetch(`${CANONICAL_RENDERER_URL}/api/attest`, {
       method: 'POST',
       headers: {
@@ -144,26 +193,23 @@ serve(async (req) => {
         'Cache-Control': 'no-store',
         'X-Request-Id': requestId,
       },
-      body: JSON.stringify(attestPayload),
+      body: JSON.stringify(cleanPayload),
       signal: controller.signal,
     });
 
     clearTimeout(timeoutId);
     httpStatus = attestResponse.status;
 
-    // Capture node request ID from response headers
     nodeRequestId = attestResponse.headers.get('x-railway-request-id')
       || attestResponse.headers.get('x-request-id')
       || null;
 
-    // Always read body as text first
     const rawBody = await attestResponse.text();
     upstreamBody = rawBody.length > 2000 ? rawBody.substring(0, 2000) : rawBody;
 
     console.log(`[recertify-ai-cer] Canonical node response: ${httpStatus}`);
 
     if (!attestResponse.ok) {
-      // Non-200: always ERROR (attestation unavailable), never "mismatch"
       if (httpStatus === 429) {
         errorCode = 'QUOTA_EXCEEDED';
         errorMessage = 'Canonical node quota exceeded';
@@ -183,19 +229,17 @@ serve(async (req) => {
 
       status = 'error';
 
-      // Try to extract structured error details from body (for display, not as primary message)
       try {
         const parsed = JSON.parse(rawBody);
         if (parsed.error && typeof parsed.error === 'string') {
           errorMessage = `${errorMessage}: ${parsed.error}`;
         }
       } catch {
-        // Body is not JSON, that's fine
+        // Body is not JSON
       }
 
       console.error(`[recertify-ai-cer] Attestation error: ${httpStatus} - ${errorCode}`);
     } else {
-      // 200 response — parse JSON for attestation result
       let result: Record<string, unknown> = {};
       try {
         result = JSON.parse(rawBody);
@@ -212,7 +256,6 @@ serve(async (req) => {
         canonicalProtocolVersion = (result.canonicalProtocolVersion as string) || null;
         console.log(`[recertify-ai-cer] PASS: attestation confirmed`);
       } else if (errorCode !== 'INVALID_RESPONSE') {
-        // 200 with ok:false → genuine mismatch ("Attestation rejected")
         status = 'fail';
         errorMessage = (result.reason as string) || (result.message as string) || 'Attestation rejected';
         console.log(`[recertify-ai-cer] FAIL (mismatch): ${errorMessage}`);

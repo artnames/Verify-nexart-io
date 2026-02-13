@@ -67,7 +67,9 @@ interface AICERRecertificationStatusProps {
 }
 
 /** Map error codes to short reason chips */
-function getReasonChip(errorCode?: string | null, httpStatus?: number | null): string | null {
+function getReasonChip(errorCode?: string | null, httpStatus?: number | null, errorMsg?: string | null): string | null {
+  if (errorCode === 'INVALID_PAYLOAD') return 'Invalid payload (undefined fields)';
+  if ((errorCode === 'INVALID_BUNDLE' || httpStatus === 400) && errorMsg?.toLowerCase().includes('undefined')) return 'Invalid payload (undefined fields)';
   if (errorCode === 'INVALID_BUNDLE' || httpStatus === 400) return 'Invalid bundle';
   if (errorCode === 'UNAUTHORIZED' || httpStatus === 401 || httpStatus === 403) return 'Unauthorized';
   if (errorCode === 'QUOTA_EXCEEDED' || httpStatus === 429) return 'Quota exceeded';
@@ -120,7 +122,7 @@ export function AICERRecertificationStatus({
   const upstreamBody = result?.upstreamBody || latestRun?.upstream_body;
   const nodeRequestId = result?.nodeRequestId || latestRun?.node_request_id;
 
-  const reasonChip = status === 'error' ? getReasonChip(errorCode, httpStatus) : null;
+  const reasonChip = status === 'error' ? getReasonChip(errorCode, httpStatus, errorMessage) : null;
   const parsedError = parseUpstreamError(upstreamBody);
 
   const getStatusIcon = () => {
@@ -216,6 +218,13 @@ export function AICERRecertificationStatus({
               {errorCode && errorCode !== 'NETWORK_ERROR' && errorCode !== 'TIMEOUT' && (
                 <p className="text-xs text-muted-foreground mt-1 font-mono">
                   {errorCode}
+                </p>
+              )}
+
+              {/* Specific guidance for undefined-field errors */}
+              {(errorCode === 'INVALID_PAYLOAD' || (errorMessage && errorMessage.toLowerCase().includes('undefined'))) && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Re-import the record or contact support if persistent.
                 </p>
               )}
 

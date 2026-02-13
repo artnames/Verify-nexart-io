@@ -5,6 +5,7 @@
 import type { AICERBundle } from '@/types/aiCerBundle';
 import { validateAICERForAttestation } from '@/types/aiCerBundle';
 import type { AICERRecertifyResponse } from '@/components/AICERRecertificationStatus';
+import { stripSensitiveForAttestation, findUndefinedPaths } from '@/lib/attestationSanitize';
 
 /**
  * Pre-flight validation result
@@ -24,14 +25,14 @@ export function preflightAttestationCheck(bundle: unknown): AttestationPreflight
 /**
  * Request canonical attestation for an AI CER bundle.
  * 
- * Sends the full bundle object (minus sensitive input/output) to the edge function,
- * which forwards it to the canonical node's /api/attest endpoint.
+ * Strips sensitive fields (input/output/prompt) via delete (not undefined assignment),
+ * then runs removeUndefinedDeep to guarantee no undefined values reach the node.
  */
 export async function recertifyAICER(
   recordId: string,
   bundle: AICERBundle,
 ): Promise<AICERRecertifyResponse> {
-  // Client-side preflight
+  // Client-side preflight — schema validation
   const preflight = validateAICERForAttestation(bundle);
   if (!preflight.attestable) {
     return {
@@ -39,6 +40,21 @@ export async function recertifyAICER(
       status: 'skipped',
       errorCode: 'PREFLIGHT_FAILED',
       errorMessage: `Missing required fields: ${preflight.missingFields.join(', ')}`,
+    };
+  }
+
+  // Sanitize: deep-clone, delete sensitive keys, strip any remaining undefined
+  const sanitizedBundle = stripSensitiveForAttestation(bundle);
+
+  // Preflight: check for any remaining undefined paths
+  const undefinedPaths = findUndefinedPaths(sanitizedBundle);
+  if (undefinedPaths.length > 0) {
+    console.error('[AIRecertifyAPI] Payload contains undefined paths:', undefinedPaths);
+    return {
+      ok: false,
+      status: 'error',
+      errorCode: 'INVALID_PAYLOAD',
+      errorMessage: `Attestation payload contains unsupported fields (undefined): ${undefinedPaths.join(', ')}`,
     };
   }
 
@@ -52,7 +68,7 @@ export async function recertifyAICER(
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
-        body: JSON.stringify({ recordId, bundle }),
+        body: JSON.stringify({ recordId, bundle: sanitizedBundle }),
       }
     );
 
