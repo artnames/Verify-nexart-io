@@ -160,6 +160,48 @@ function formatInputAsTable(bundle: CERBundle): Array<{ label: string; value: st
   return rows;
 }
 
+function extractExistingAICERAttestation(bundle: AICERBundle): {
+  attestationHash?: string;
+  runtimeHash?: string;
+  protocolVersion?: string;
+  requestId?: string;
+  nodeRequestId?: string;
+} | null {
+  const b = bundle as Record<string, unknown>;
+  const att = (b.attestation && typeof b.attestation === 'object')
+    ? (b.attestation as Record<string, unknown>)
+    : undefined;
+
+  const attestationHash = (
+    (att?.attestationId as string | undefined)
+    || (att?.attestationHash as string | undefined)
+    || (b.attestationId as string | undefined)
+    || (b.attestationHash as string | undefined)
+  );
+
+  const runtimeHash = (
+    (att?.nodeRuntimeHash as string | undefined)
+    || (b.nodeRuntimeHash as string | undefined)
+    || (b.canonicalRuntimeHash as string | undefined)
+    || (b.runtimeHash as string | undefined)
+  );
+
+  const protocolVersion = (
+    (att?.protocolVersion as string | undefined)
+    || (b.canonicalProtocolVersion as string | undefined)
+    || (b.protocolVersion as string | undefined)
+  );
+
+  const requestId = (b.requestId as string | undefined) || (att?.requestId as string | undefined);
+  const nodeRequestId = (b.nodeRequestId as string | undefined) || (att?.nodeRequestId as string | undefined);
+
+  if (!attestationHash && !runtimeHash && !att) {
+    return null;
+  }
+
+  return { attestationHash, runtimeHash, protocolVersion, requestId, nodeRequestId };
+}
+
 export function AuditPage() {
   const { hash } = useParams<{ hash: string }>();
   const navigate = useNavigate();
@@ -270,20 +312,36 @@ export function AuditPage() {
   const handleAiCerRecertify = async () => {
     if (!record) return;
     const bundle = record.bundle_json as unknown as AICERBundle;
-    
+
+    // If imported bundle already carries node proof, do not re-attest.
+    const existingAttestation = extractExistingAICERAttestation(bundle);
+    if (existingAttestation) {
+      setAiCerRecertifyResult({
+        ok: true,
+        status: 'pass',
+        attestationHash: existingAttestation.attestationHash,
+        canonicalRuntimeHash: existingAttestation.runtimeHash,
+        canonicalProtocolVersion: existingAttestation.protocolVersion,
+        requestId: existingAttestation.requestId,
+        nodeRequestId: existingAttestation.nodeRequestId,
+      });
+      toast.info('Canonical Attestation: Present (from imported bundle)');
+      return;
+    }
+
     setIsAiCerRecertifying(true);
     setAiCerRecertifyResult(null);
-    
+
     try {
       const result = await recertifyAICER(record.id, bundle);
       setAiCerRecertifyResult(result);
-      
+
       // Refresh the run from DB
       const latestRun = await getLatestRecertificationRun(record.id);
       if (latestRun) {
         setRecertificationRun(latestRun);
       }
-      
+
       if (result.status === 'pass') {
         toast.success('Canonical node attested this record');
       } else if (result.status === 'fail') {
@@ -522,6 +580,22 @@ export function AuditPage() {
   // AI CER bundle: render dedicated view
   if (isAiCer) {
     const aiBundle = record.bundle_json as unknown as AICERBundle;
+    const existingAttestation = extractExistingAICERAttestation(aiBundle);
+    const preflight = validateAICERForAttestation(aiBundle);
+    const effectiveAiCerResult: AICERRecertifyResponse | null = aiCerRecertifyResult || (
+      existingAttestation
+        ? {
+            ok: true,
+            status: 'pass',
+            attestationHash: existingAttestation.attestationHash,
+            canonicalRuntimeHash: existingAttestation.runtimeHash,
+            canonicalProtocolVersion: existingAttestation.protocolVersion,
+            requestId: existingAttestation.requestId,
+            nodeRequestId: existingAttestation.nodeRequestId,
+          }
+        : null
+    );
+
     return (
       <div className="max-w-4xl mx-auto space-y-6 px-4 pb-12">
         {/* Header */}
@@ -555,20 +629,16 @@ export function AuditPage() {
         />
 
         {/* Canonical Attestation */}
-        {(() => {
-          const preflight = validateAICERForAttestation(aiBundle);
-          return (
-            <AICERRecertificationStatus
-              result={aiCerRecertifyResult}
-              latestRun={recertificationRun}
-              isLoading={isAiCerRecertifying}
-              onRecertify={handleAiCerRecertify}
-              enabled={true}
-              attestable={preflight.attestable}
-              missingFields={preflight.missingFields}
-            />
-          );
-        })()}
+        <AICERRecertificationStatus
+          result={effectiveAiCerResult}
+          latestRun={recertificationRun}
+          isLoading={isAiCerRecertifying}
+          onRecertify={handleAiCerRecertify}
+          enabled={!existingAttestation}
+          attestable={preflight.attestable}
+          missingFields={preflight.missingFields}
+          existingAttestationPresent={!!existingAttestation}
+        />
 
         {/* Technical Appendix */}
         <Card>

@@ -77,6 +77,8 @@ interface AICERRecertificationStatusProps {
   attestable?: boolean;
   /** List of missing fields if not attestable */
   missingFields?: string[];
+  /** Imported bundle already contains canonical proof */
+  existingAttestationPresent?: boolean;
 }
 
 /** Map error codes to short reason chips */
@@ -94,13 +96,14 @@ function getReasonChip(errorCode?: string | null, httpStatus?: number | null, er
 }
 
 /** Try to parse upstream body as structured error */
-function parseUpstreamError(body?: string | null): { error?: string; details?: string[] } | null {
+function parseUpstreamError(body?: string | null): { code?: string; message?: string; details?: string[] } | null {
   if (!body) return null;
   try {
-    const parsed = JSON.parse(body);
+    const parsed = JSON.parse(body) as Record<string, unknown>;
     if (parsed && typeof parsed === 'object') {
       return {
-        error: parsed.error || parsed.message || undefined,
+        code: typeof parsed.error === 'string' ? parsed.error : undefined,
+        message: typeof parsed.message === 'string' ? parsed.message : undefined,
         details: Array.isArray(parsed.details) ? parsed.details.map(String) : undefined,
       };
     }
@@ -118,14 +121,15 @@ export function AICERRecertificationStatus({
   enabled = true,
   attestable = true,
   missingFields = [],
+  existingAttestationPresent = false,
 }: AICERRecertificationStatusProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showUpstreamBody, setShowUpstreamBody] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [hasKey, setHasKey] = useState(hasNodeApiKey());
 
-  const status = result?.status || latestRun?.status;
-  const attestationHash = result?.attestationHash;
+  const status = result?.status || latestRun?.status || (existingAttestationPresent ? 'pass' : undefined);
+  const attestationHash = result?.attestationHash || latestRun?.output_hash;
   const runtimeHash = result?.canonicalRuntimeHash || latestRun?.runtime_hash;
   const protocolVersion = result?.canonicalProtocolVersion || latestRun?.protocol_version;
   const requestId = result?.requestId || latestRun?.request_fingerprint;
@@ -170,7 +174,11 @@ export function AICERRecertificationStatus({
     if (!status) return <Badge variant="outline">Not attested</Badge>;
     switch (status) {
       case 'pass':
-        return <Badge className="bg-verified text-verified-foreground">Attested</Badge>;
+        return (
+          <Badge className="bg-verified text-verified-foreground">
+            {existingAttestationPresent ? 'Node Attested' : 'Attested'}
+          </Badge>
+        );
       case 'fail':
         return <Badge className="bg-warning text-warning-foreground">Attestation rejected</Badge>;
       case 'error':
@@ -277,7 +285,9 @@ export function AICERRecertificationStatus({
 
         {status === 'pass' && (
           <p className="text-sm text-verified">
-            Canonical node attested to the integrity of this record.
+            {existingAttestationPresent
+              ? 'Canonical Attestation: Present (Node Attested).'
+              : "Canonical node attested to the integrity of this record."}
           </p>
         )}
         {status === 'fail' && (
@@ -290,24 +300,28 @@ export function AICERRecertificationStatus({
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-destructive" />
             <div>
               <p className="font-medium text-destructive">Canonical node could not attest this record.</p>
-              {errorCode && errorCode !== 'NETWORK_ERROR' && errorCode !== 'TIMEOUT' && (
-                <p className="text-xs text-muted-foreground mt-1 font-mono">
-                  {errorCode}
-                </p>
-              )}
+              <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                {httpStatus != null && httpStatus > 0 && <p>Upstream status: <span className="font-mono">{httpStatus}</span></p>}
+                {(parsedError?.code || errorCode) && <p>Node error code: <span className="font-mono">{parsedError?.code || errorCode}</span></p>}
+                {(parsedError?.message || errorMessage) && <p>Node message: {parsedError?.message || errorMessage}</p>}
+                {requestId && <p>Request ID: <span className="font-mono">{requestId}</span></p>}
+                {nodeRequestId && <p>Node Request ID: <span className="font-mono">{nodeRequestId}</span></p>}
+              </div>
 
-              {/* Specific guidance for undefined-field errors */}
-              {(errorCode === 'INVALID_PAYLOAD' || (errorMessage && errorMessage.toLowerCase().includes('undefined'))) && (
+              {(() => {
+                const joined = `${errorMessage || ''} ${parsedError?.message || ''} ${parsedError?.code || ''} ${upstreamBody || ''}`.toLowerCase();
+                return joined.includes('undefined');
+              })() && (
                 <p className="text-xs text-muted-foreground mt-2">
-                  Re-export the CER using @nexart/ai-execution v0.1.0+ or re-download from demo.
+                  Recânon attempted to send a non-JSON value (undefined) to the canonical node. This is a client serialization issue.
                 </p>
               )}
 
-              {/* Structured upstream error */}
-              {parsedError?.error && (
+              {(parsedError?.code || parsedError?.message) && (
                 <div className="mt-2 p-2 bg-destructive/5 rounded border border-destructive/20 text-xs">
-                  <p className="font-medium text-destructive">{parsedError.error}</p>
-                  {parsedError.details && parsedError.details.length > 0 && (
+                  <p className="font-medium text-destructive">{parsedError?.code || 'Node error'}</p>
+                  {parsedError?.message && <p className="text-muted-foreground mt-1">{parsedError.message}</p>}
+                  {parsedError?.details && parsedError.details.length > 0 && (
                     <ul className="mt-1 space-y-0.5 text-muted-foreground list-disc list-inside">
                       {parsedError.details.map((d, i) => <li key={i}>{d}</li>)}
                     </ul>
@@ -464,7 +478,7 @@ export function AICERRecertificationStatus({
         )}
 
         {/* Action button */}
-        {onRecertify && enabled && (
+        {onRecertify && enabled && !existingAttestationPresent && (
           <Button
             variant="outline"
             size="sm"

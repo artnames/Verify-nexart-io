@@ -49,7 +49,7 @@ export async function recertifyAICER(
     };
   }
 
-  // sanitizeForNode: deep-clone + removeUndefinedDeep (keeps input/output/prompt)
+  // sanitizeForNode: deep-clone + removeUndefinedDeep + JSON-safe roundtrip
   const { payload: payloadToNode, undefinedPaths } = sanitizeForNode(bundle);
 
   if (undefinedPaths.length > 0) {
@@ -63,6 +63,9 @@ export async function recertifyAICER(
       sanitizedPayload: payloadToNode,
     };
   }
+
+  // Final guard: force JSON-safe payload for transport
+  const cleanBundle = JSON.parse(JSON.stringify(payloadToNode));
 
   try {
     const headers: Record<string, string> = {
@@ -81,12 +84,12 @@ export async function recertifyAICER(
       {
         method: 'POST',
         headers,
-        body: JSON.stringify({ recordId, bundle: payloadToNode }),
+        body: JSON.stringify({ recordId, bundle: cleanBundle }),
       }
     );
 
     const result = await response.json();
-    return { ...result, sanitizedPayload: payloadToNode } as AICERRecertifyResponse;
+    return { ...result, sanitizedPayload: cleanBundle } as AICERRecertifyResponse;
   } catch (error) {
     console.error('[AIRecertifyAPI] Error:', error);
     return {
