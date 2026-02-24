@@ -97,7 +97,10 @@ export function stripSensitiveForAttestation(bundle: any): any {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function sanitizeForNode(bundle: any): { payload: any; undefinedPaths: string[] } {
-  const cleaned = removeUndefinedDeep(structuredClone(bundle));
+  // JSON-safe roundtrip guarantees no non-JSON values survive serialization.
+  // This also mirrors exactly what will be sent over the wire.
+  const jsonSafe = JSON.parse(JSON.stringify(bundle));
+  const cleaned = removeUndefinedDeep(jsonSafe);
   const paths = findUndefinedPaths(cleaned);
   return { payload: cleaned, undefinedPaths: paths };
 }

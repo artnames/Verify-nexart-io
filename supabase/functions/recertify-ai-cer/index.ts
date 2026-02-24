@@ -154,7 +154,10 @@ serve(async (req) => {
   console.log(`[recertify-ai-cer] ${requestId} Starting attestation for record ${recordId || 'direct'}, cert: ${certificateHash.substring(0, 16)}...`);
 
   // ---- Send the FULL bundle to the canonical node (it needs input/output to recompute hashes) ----
-  const clean = removeUndefinedDeep(structuredClone(bundle)) as Record<string, unknown>;
+  // Step 1: remove undefined recursively
+  const cleanedObject = removeUndefinedDeep(structuredClone(bundle)) as Record<string, unknown>;
+  // Step 2: force JSON-safe serialization roundtrip (guarantees transport-safe payload)
+  const clean = JSON.parse(JSON.stringify(cleanedObject)) as Record<string, unknown>;
 
   // Validate: reject if any undefined survived
   const undefinedPaths = findUndefinedPaths(clean);
