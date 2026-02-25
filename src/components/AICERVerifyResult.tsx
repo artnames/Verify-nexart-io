@@ -20,6 +20,11 @@ import { cn } from '@/lib/utils';
 import { hasNodeApiKey, getNodeApiKey, setNodeApiKey } from '@/storage/nodeApiKey';
 import { NodeAttestationSignature } from './NodeAttestationSignature';
 import type { CerVerifyCode, VerificationResult, AttestationResult } from '@nexart/ai-execution';
+import {
+  verifyBundleAttestation as verifyAICERBundleAttestation,
+  getAttestationReceipt as getAICERAttestationReceipt,
+  hasAttestation as hasAICERAttestation,
+} from '@nexart/ai-execution';
 
 interface AICERVerifyResultProps {
   verifyResult: VerificationResult;
@@ -340,7 +345,14 @@ export function AICERVerifyResult({
       </Card>
 
       {/* Node Attestation Signature (offline verification) */}
-      <NodeAttestationSignature bundle={bundle} />
+      <NodeAttestationSignature
+        bundle={bundle}
+        verifiers={{
+          hasAttestation: hasAICERAttestation,
+          getAttestationReceipt: getAICERAttestationReceipt,
+          verifyBundleAttestation: verifyAICERBundleAttestation,
+        }}
+      />
     </div>
   );
 }
