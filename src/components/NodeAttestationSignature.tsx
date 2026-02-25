@@ -1,28 +1,22 @@
 /**
- * Node Attestation Signature — Offline verification of node-signed receipts
+ * Independent Stamp — Node Attestation Signature with professional audit language.
  *
- * Accepts injected verifier functions so callers can provide the correct SDK:
- *  - @nexart/codemode-sdk/core for Code Mode bundles
- *  - @nexart/ai-execution for AI Execution CER bundles
+ * Uses plain English: "stamp" instead of "attestation signature".
+ * Includes "Integrity simulation" (tamper demo) with professional labeling.
  *
- * Steps:
- *  1. Fetch node keys from /.well-known/nexart-node.json
- *  2. Verify receipt signature offline (Ed25519)
- *  3. Cross-check receipt.certificateHash vs bundle.certificateHash
- *
- * Includes a "Tamper (demo)" toggle that flips a character in the receipt
- * to prove tamper resistance — without mutating the original bundle.
+ * Accepts injected verifier functions so callers can provide the correct SDK.
  */
 
 import { useState, useCallback } from 'react';
 import {
-  ShieldCheck, ShieldAlert, Info, ChevronDown, Key, Globe, ToggleLeft, ToggleRight,
-  Loader2, AlertTriangle, Search,
+  ShieldCheck, ShieldAlert, Info, ChevronDown, Key, Globe,
+  Loader2, AlertTriangle, Search, FlaskConical,
 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
 import { probeReceiptFields, type ReceiptFieldProbe } from '@/lib/extractSignedReceipt';
 
@@ -49,20 +43,14 @@ export interface AttestationReceiptCompat {
 
 /** Injected verifier functions — caller provides the correct SDK impl */
 export interface AttestationVerifiers {
-  /** Returns true if the bundle carries any attestation data */
   hasAttestation: (bundle: unknown) => boolean;
-  /** Extracts normalised receipt from any bundle layout */
   getAttestationReceipt: (bundle: unknown) => AttestationReceiptCompat | null;
-  /** Fully verifies node receipt signature offline */
   verifyBundleAttestation: (bundle: unknown, options: { nodeUrl: string; kid?: string }) => Promise<NodeReceiptVerifyResultCompat>;
 }
 
 interface NodeAttestationSignatureProps {
-  /** The full bundle object (Code Mode or AI CER) */
   bundle: unknown;
-  /** Injected verifier functions from the correct SDK */
   verifiers: AttestationVerifiers;
-  /** Optional custom node URL */
   nodeUrl?: string;
   className?: string;
 }
@@ -81,7 +69,6 @@ export function NodeAttestationSignature({ bundle, verifiers, nodeUrl, className
   const [state, setState] = useState<VerifyState>({ status: 'idle' });
   const [tamperActive, setTamperActive] = useState(false);
   const [tamperState, setTamperState] = useState<VerifyState | null>(null);
-  const [showDetails, setShowDetails] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
 
   const receipt = verifiers.getAttestationReceipt(bundle);
@@ -90,7 +77,6 @@ export function NodeAttestationSignature({ bundle, verifiers, nodeUrl, className
   // ── Run verification (original) ──
   const runVerify = useCallback(async () => {
     if (!hasReceipt) {
-      // Probe for partial fields to give helpful diagnostics
       const probe = probeReceiptFields(bundle);
       if (probe.hasAttestationId || probe.hasReceipt || probe.hasSignature || probe.hasKid) {
         setState({ status: 'missing-fields', probe });
@@ -107,7 +93,6 @@ export function NodeAttestationSignature({ bundle, verifiers, nodeUrl, className
       if (result.ok) {
         setState({ status: 'verified', result, receipt: receipt! });
       } else {
-        // Check if the SDK returned a missing-receipt code even though hasAttestation was true
         if (result.code === 'NODE_RECEIPT_MISSING') {
           const probe = probeReceiptFields(bundle);
           setState({ status: 'missing-fields', probe });
@@ -120,7 +105,7 @@ export function NodeAttestationSignature({ bundle, verifiers, nodeUrl, className
     }
   }, [bundle, hasReceipt, receipt, resolvedNodeUrl, verifiers]);
 
-  // ── Tamper demo ──
+  // ── Integrity simulation (tamper demo) ──
   const runTamper = useCallback(async () => {
     if (!hasReceipt || !receipt) return;
 
@@ -167,16 +152,9 @@ export function NodeAttestationSignature({ bundle, verifiers, nodeUrl, className
     }
   };
 
-  // Auto-verify on first render if receipt is present
-  const handleAutoVerify = useCallback(() => {
-    if (state.status === 'idle') {
-      runVerify();
-    }
-  }, [state.status, runVerify]);
-
-  // Trigger auto-verify
+  // Auto-verify
   if (state.status === 'idle' && hasReceipt) {
-    handleAutoVerify();
+    runVerify();
   } else if (state.status === 'idle' && !hasReceipt) {
     setTimeout(() => {
       const probe = probeReceiptFields(bundle);
@@ -191,252 +169,219 @@ export function NodeAttestationSignature({ bundle, verifiers, nodeUrl, className
   const displayState = tamperActive && tamperState ? tamperState : state;
 
   return (
-    <Card className={cn("border", className,
-      displayState.status === 'verified' && "border-verified/30 bg-verified/5",
-      displayState.status === 'failed' && "border-destructive/30 bg-destructive/5",
-    )}>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            {displayState.status === 'verified' ? (
-              <ShieldCheck className="w-4 h-4 text-verified" />
-            ) : displayState.status === 'failed' ? (
-              <ShieldAlert className="w-4 h-4 text-destructive" />
-            ) : (
-              <Key className="w-4 h-4 text-muted-foreground" />
-            )}
-            <span>Node Attestation Signature</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {displayState.status === 'verified' && (
-              <Badge className="bg-verified text-verified-foreground text-xs">
-                ✅ Signature Verified (Offline)
-              </Badge>
-            )}
-            {displayState.status === 'failed' && (
-              <Badge variant="destructive" className="text-xs">
-                ❌ Invalid Signature
-              </Badge>
-            )}
-            {displayState.status === 'no-receipt' && (
-              <Badge variant="secondary" className="text-xs">Not present</Badge>
-            )}
-            {displayState.status === 'missing-fields' && (
-              <Badge variant="secondary" className="text-xs">Missing fields</Badge>
-            )}
-          </div>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {/* Loading */}
-        {displayState.status === 'loading' && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span>Verifying signature offline…</span>
-          </div>
-        )}
+    <div className={cn("space-y-4", className)}>
+      <div className="flex items-center gap-2">
+        <h3 className="text-sm font-semibold">Independent stamp (Node)</h3>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger>
+              <Info className="w-3.5 h-3.5 text-muted-foreground" />
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[240px] text-xs">
+              A stamp is a signed receipt from an independent node. If the record changes after stamping, the stamp will no longer match.
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
 
-        {/* No receipt at all */}
-        {displayState.status === 'no-receipt' && (
-          <p className="text-xs text-muted-foreground">
-            This bundle has no signed receipt fields (receipt/signature/kid). It may have been attested before signed receipts were enabled, or the producer did not persist the receipt.
-          </p>
-        )}
+      <Card className={cn(
+        "border",
+        displayState.status === 'verified' && "border-verified/30",
+        displayState.status === 'failed' && "border-destructive/30",
+      )}>
+        <CardContent className="pt-4 pb-4 space-y-3">
+          {/* Loading */}
+          {displayState.status === 'loading' && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Checking stamp…</span>
+            </div>
+          )}
 
-        {/* Missing fields — partial attestation data found */}
-        {displayState.status === 'missing-fields' && 'probe' in displayState && (
-          <MissingFieldsPanel probe={displayState.probe} />
-        )}
+          {/* No receipt */}
+          {displayState.status === 'no-receipt' && (
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center shrink-0 mt-0.5">
+                <AlertTriangle className="w-4 h-4 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Stamp missing</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  This record can still be checked locally, but it has no node stamp.
+                </p>
+              </div>
+            </div>
+          )}
 
-        {/* Verified */}
-        {displayState.status === 'verified' && (
-          <VerifiedDetails receipt={receipt} resolvedNodeUrl={resolvedNodeUrl} />
-        )}
+          {/* Missing fields */}
+          {displayState.status === 'missing-fields' && 'probe' in displayState && (
+            <div className="space-y-2">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center shrink-0 mt-0.5">
+                  <AlertTriangle className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Stamp incomplete</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Some stamp fields were found but not enough to verify offline.
+                    This record may have been stamped before signed receipts were available.
+                  </p>
+                </div>
+              </div>
+              <Collapsible open={showDebug} onOpenChange={setShowDebug}>
+                <CollapsibleTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                  <Search className="w-3 h-3" />
+                  <span>Field check</span>
+                  <ChevronDown className={cn("w-3 h-3 transition-transform ml-1", showDebug && "rotate-180")} />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2 text-xs font-mono bg-muted/20 p-3 rounded-md border border-border space-y-1">
+                  {displayState.probe.foundIn && (
+                    <div className="text-muted-foreground mb-1.5">
+                      Searched: <code className="text-foreground">{displayState.probe.foundIn}</code>
+                    </div>
+                  )}
+                  <FieldCheck label="attestationId" found={displayState.probe.hasAttestationId} />
+                  <FieldCheck label="receipt" found={displayState.probe.hasReceipt} />
+                  <FieldCheck label="signature" found={displayState.probe.hasSignature} />
+                  <FieldCheck label="kid" found={displayState.probe.hasKid} />
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          )}
 
-        {/* Failed */}
-        {displayState.status === 'failed' && 'result' in displayState && (
-          <FailedDetails result={displayState.result} receipt={receipt} />
-        )}
+          {/* Verified */}
+          {displayState.status === 'verified' && (
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-verified/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <ShieldCheck className="w-4 h-4 text-verified" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-verified">Stamp verified</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    The node signed a receipt for this record. The signature matches the public key.
+                  </p>
+                </div>
+              </div>
+              <StampDetails receipt={receipt} nodeUrl={resolvedNodeUrl} />
+            </div>
+          )}
 
-        {/* Error */}
-        {displayState.status === 'error' && 'message' in displayState && (
-          <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
-            <p className="text-sm font-medium text-destructive">Signature verification error</p>
-            <p className="text-xs text-muted-foreground mt-1">{displayState.message}</p>
-          </div>
-        )}
+          {/* Failed */}
+          {displayState.status === 'failed' && 'result' in displayState && (
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-destructive/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <ShieldAlert className="w-4 h-4 text-destructive" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-destructive">Stamp invalid</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    The receipt signature does not match.
+                  </p>
+                  <p className="text-xs font-mono text-destructive mt-1">{displayState.result.code}</p>
+                  {displayState.result.details && displayState.result.details.length > 0 && (
+                    <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground list-disc list-inside">
+                      {displayState.result.details.map((d, i) => <li key={i}>{d}</li>)}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
-        {/* Details collapsible */}
-        {displayState.status === 'verified' && 'result' in displayState && displayState.result.details && displayState.result.details.length > 0 && (
-          <Collapsible open={showDetails} onOpenChange={setShowDetails}>
-            <CollapsibleTrigger className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full">
-              <ChevronDown className={cn("w-3 h-3 transition-transform", showDetails && "rotate-180")} />
-              <span>Details ({displayState.result.details.length})</span>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-2 space-y-1 text-xs font-mono bg-muted/50 p-3 rounded">
-              {displayState.result.details.map((d, i) => (
-                <div key={i} className="text-muted-foreground">{d}</div>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
-        )}
+          {/* Error */}
+          {displayState.status === 'error' && 'message' in displayState && (
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-destructive/10 flex items-center justify-center shrink-0 mt-0.5">
+                <ShieldAlert className="w-4 h-4 text-destructive" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-destructive">Stamp check failed</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{displayState.message}</p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-        {/* Tamper demo toggle */}
-        {hasReceipt && (state.status === 'verified' || state.status === 'failed') && (
-          <div className="mt-3 pt-3 border-t border-border">
+      {/* Integrity simulation */}
+      {hasReceipt && (state.status === 'verified' || state.status === 'failed') && (
+        <div className="border border-border rounded-lg p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Integrity simulation</p>
+              <p className="text-[11px] text-muted-foreground">
+                Show what happens if a record is edited.
+              </p>
+            </div>
             <Button
               variant={tamperActive ? "destructive" : "outline"}
               size="sm"
               onClick={handleTamperToggle}
-              className="gap-2"
+              className="gap-1.5 text-xs h-7"
             >
-              {tamperActive ? (
-                <>
-                  <ToggleRight className="w-4 h-4" />
-                  Tamper (demo) — ON
-                </>
-              ) : (
-                <>
-                  <ToggleLeft className="w-4 h-4" />
-                  Tamper (demo)
-                </>
-              )}
+              <FlaskConical className="w-3 h-3" />
+              {tamperActive ? 'Reset' : 'Simulate'}
             </Button>
-            <p className="text-xs text-muted-foreground mt-2">
-              {tamperActive
-                ? "Viewing tampered copy — flipped receipt hash to prove detection. Original bundle is unchanged."
-                : "Flip a character in the receipt to prove tamper resistance."}
-            </p>
-            {tamperActive && tamperState?.status === 'failed' && 'result' in tamperState && (
-              <div className="mt-2 flex items-center gap-2 text-xs">
-                <AlertTriangle className="w-3 h-3 text-destructive" />
-                <span className="text-destructive font-mono">{tamperState.result.code}</span>
-                <span className="text-muted-foreground">— tamper detected as expected</span>
-              </div>
-            )}
           </div>
-        )}
+          {tamperActive && tamperState?.status === 'failed' && 'result' in tamperState && (
+            <div className="p-3 rounded-md bg-destructive/5 border border-destructive/20">
+              <p className="text-xs text-destructive">
+                We changed one character. Verification failed.
+              </p>
+              <p className="text-[11px] font-mono text-muted-foreground mt-1">
+                {tamperState.result.code}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
-        {/* Retry button for errors */}
-        {state.status === 'error' && (
-          <Button variant="outline" size="sm" onClick={runVerify} className="mt-2">
-            Retry verification
-          </Button>
-        )}
-      </CardContent>
-    </Card>
+      {/* Retry */}
+      {state.status === 'error' && (
+        <Button variant="outline" size="sm" onClick={runVerify} className="text-xs h-7">
+          Retry
+        </Button>
+      )}
+    </div>
   );
 }
 
 // ── Sub-components ──
 
-function MissingFieldsPanel({ probe }: { probe: ReceiptFieldProbe }) {
-  const [showDebug, setShowDebug] = useState(false);
-
-  return (
-    <div className="space-y-2">
-      <div className="p-3 rounded-md bg-muted/50 border border-border">
-        <div className="flex items-start gap-2">
-          <Info className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-foreground">
-              Attestation present, but signed receipt fields are missing.
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Expected <code className="font-mono">receipt</code> + <code className="font-mono">signature</code> + <code className="font-mono">kid</code> to verify offline.
-              This bundle may have been attested before signed receipts were enabled, or the producer did not persist the full receipt envelope.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <Collapsible open={showDebug} onOpenChange={setShowDebug}>
-        <CollapsibleTrigger className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full">
-          <Search className="w-3 h-3" />
-          <span>Debug: Field Probe</span>
-          <ChevronDown className={cn("w-3 h-3 transition-transform ml-auto", showDebug && "rotate-180")} />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="mt-2 text-xs font-mono bg-muted/50 p-3 rounded space-y-1">
-          {probe.foundIn && (
-            <div className="text-muted-foreground mb-2">
-              Searched in: <code className="text-foreground">{probe.foundIn}</code>
-            </div>
-          )}
-          <FieldStatus label="attestationId" found={probe.hasAttestationId} />
-          <FieldStatus label="receipt" found={probe.hasReceipt} />
-          <FieldStatus label="signature" found={probe.hasSignature} />
-          <FieldStatus label="kid (attestorKeyId)" found={probe.hasKid} />
-        </CollapsibleContent>
-      </Collapsible>
-    </div>
-  );
-}
-
-function FieldStatus({ label, found }: { label: string; found: boolean }) {
+function FieldCheck({ label, found }: { label: string; found: boolean }) {
   return (
     <div className="flex items-center gap-2">
-      <span className={found ? 'text-verified' : 'text-destructive'}>
-        {found ? '✓' : '✗'}
-      </span>
-      <span className="text-muted-foreground">{label}:</span>
-      <span className={found ? 'text-verified' : 'text-muted-foreground'}>
-        {found ? 'found' : 'missing'}
-      </span>
+      <span className={found ? 'text-verified' : 'text-destructive'}>{found ? '✓' : '✗'}</span>
+      <span className="text-muted-foreground">{label}</span>
     </div>
   );
 }
 
-function VerifiedDetails({ receipt, resolvedNodeUrl }: { receipt: AttestationReceiptCompat | null; resolvedNodeUrl: string }) {
+function StampDetails({ receipt, nodeUrl }: { receipt: AttestationReceiptCompat | null; nodeUrl: string }) {
   return (
-    <div className="space-y-2 text-xs">
-      {receipt?.nodeId && (
-        <div className="flex items-start gap-2">
-          <Globe className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
-          <div className="min-w-0">
-            <span className="text-muted-foreground">nodeId: </span>
-            <code className="font-mono break-all">{receipt.nodeId}</code>
-          </div>
-        </div>
-      )}
-      {receipt?.attestorKeyId && (
-        <div className="flex items-start gap-2">
-          <Key className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
-          <div className="min-w-0">
-            <span className="text-muted-foreground">kid: </span>
-            <code className="font-mono break-all">{receipt.attestorKeyId}</code>
-          </div>
-        </div>
-      )}
-      <div className="flex items-start gap-2">
-        <Info className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
-        <div className="min-w-0">
-          <span className="text-muted-foreground">Keys source: </span>
-          <code className="font-mono text-xs break-all">
-            {resolvedNodeUrl}/.well-known/nexart-node.json
-          </code>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function FailedDetails({ result, receipt }: { result: NodeReceiptVerifyResultCompat; receipt: AttestationReceiptCompat | null }) {
-  return (
-    <div className="space-y-2">
-      <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
-        <p className="text-sm font-medium text-destructive font-mono">{result.code}</p>
-        {result.details && result.details.length > 0 && (
-          <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground list-disc list-inside">
-            {result.details.map((d, i) => <li key={i}>{d}</li>)}
-          </ul>
+    <table className="w-full text-xs">
+      <tbody>
+        {receipt?.nodeId && (
+          <tr className="border-b border-border/40">
+            <td className="py-1.5 text-muted-foreground pr-3">nodeId</td>
+            <td className="py-1.5 font-mono text-right break-all">{receipt.nodeId}</td>
+          </tr>
         )}
-      </div>
-      {receipt?.nodeId && (
-        <div className="flex items-start gap-2 text-xs">
-          <Globe className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
-          <span className="text-muted-foreground">nodeId: <code className="font-mono">{receipt.nodeId}</code></span>
-        </div>
-      )}
-    </div>
+        {receipt?.attestorKeyId && (
+          <tr className="border-b border-border/40">
+            <td className="py-1.5 text-muted-foreground pr-3">kid</td>
+            <td className="py-1.5 font-mono text-right break-all">{receipt.attestorKeyId}</td>
+          </tr>
+        )}
+        <tr>
+          <td className="py-1.5 text-muted-foreground pr-3">Keys source</td>
+          <td className="py-1.5 font-mono text-[11px] text-right break-all">
+            {nodeUrl}/.well-known/nexart-node.json
+          </td>
+        </tr>
+      </tbody>
+    </table>
   );
 }

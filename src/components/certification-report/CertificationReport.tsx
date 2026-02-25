@@ -1,21 +1,19 @@
 /**
- * CertificationReport — Human-readable certification report.
+ * CertificationReport — Professional audit-style certification report.
  *
- * Composed of:
- *  1. CertificationSummary (status, type, metadata, actions)
- *  2. WhatWasCertified (tabbed: Inputs, Conditions, Outputs, Metadata)
- *  3. EvidenceSection (hashes, failure codes)
- *  4. Children slot (Node Attestation, Attestation actions, etc.)
- *  5. RawJsonViewer (collapsed)
+ * Layout:
+ *  1. Audit Summary (status + key facts)
+ *  2. What was recorded (Input / Conditions / Output panels)
+ *  3. Children slot (Independent stamp, Attestation actions, etc.)
+ *  4. Technical details (accordion: hashes, raw JSON)
  *
  * Does NOT change any verification logic.
  */
 
 import { useMemo } from 'react';
-import { CertificationSummary } from './CertificationSummary';
-import { WhatWasCertified } from './WhatWasCertified';
-import { EvidenceSection } from './EvidenceSection';
-import { RawJsonViewer } from './RawJsonViewer';
+import { AuditSummary } from './AuditSummary';
+import { WhatWasRecorded } from './WhatWasRecorded';
+import { TechnicalDetails } from './TechnicalDetails';
 import {
   extractSummary,
   extractInputs,
@@ -44,12 +42,17 @@ export function CertificationReport({
   const evidence = useMemo(() => extractEvidence(bundle, bundleKind), [bundle, bundleKind]);
 
   return (
-    <div className="space-y-5">
-      {/* 1. Summary */}
-      <CertificationSummary summary={summary} bundleJson={bundleJson} />
+    <div className="space-y-6">
+      {/* 1. Audit Summary */}
+      <AuditSummary
+        summary={summary}
+        bundleJson={bundleJson}
+        verifyCode={verifyCode}
+        verifyDetails={verifyDetails}
+      />
 
-      {/* 2. What was certified */}
-      <WhatWasCertified
+      {/* 2. What was recorded */}
+      <WhatWasRecorded
         kind={bundleKind}
         inputs={inputs}
         conditions={conditions}
@@ -57,19 +60,16 @@ export function CertificationReport({
         metadata={metadata}
       />
 
-      {/* 3. Evidence */}
-      <EvidenceSection
-        evidence={evidence}
-        verifyCode={verifyCode}
-        verifyDetails={verifyDetails}
-        verifyStatus={verifyStatus}
-      />
-
-      {/* 4. Children (Node Attestation, Attestation actions, etc.) */}
+      {/* 3. Children (Independent stamp, Attestation actions, etc.) */}
       {children}
 
-      {/* 5. Raw JSON */}
-      <RawJsonViewer bundleJson={bundleJson} />
+      {/* 4. Technical details */}
+      <TechnicalDetails
+        evidence={evidence}
+        bundleJson={bundleJson}
+        verifyCode={verifyCode}
+        verifyDetails={verifyDetails}
+      />
     </div>
   );
 }

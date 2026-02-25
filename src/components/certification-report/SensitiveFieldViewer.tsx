@@ -1,6 +1,7 @@
 /**
  * Reusable viewer for potentially sensitive fields.
- * Shows a placeholder when hidden, formatted content when revealed.
+ * Shows "Hidden (may contain private data)" when hidden.
+ * Clean, professional styling.
  */
 
 import { useState } from 'react';
@@ -25,42 +26,42 @@ export function SensitiveFieldViewer({ label, value, defaultHidden = true, class
   const isLong = rendered.length > 500;
 
   return (
-    <div className={cn("space-y-1", className)}>
+    <div className={cn("space-y-1.5", className)}>
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <span className="text-xs text-muted-foreground">{label}</span>
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setRevealed(!revealed)}
-          className="h-6 px-2 gap-1 text-xs text-muted-foreground"
+          className="h-6 px-2 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
         >
           {revealed ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-          {revealed ? 'Hide' : 'Show'}
+          {revealed ? 'Hide' : 'Reveal'}
         </Button>
       </div>
       {!revealed ? (
-        <div className="p-3 rounded-md bg-muted/30 border border-border text-xs text-muted-foreground italic">
-          Hidden (may contain confidential data).
+        <div className="py-3 px-4 rounded-md bg-muted/20 border border-border/50 text-xs text-muted-foreground">
+          Hidden (may contain private data).
         </div>
       ) : isLong ? (
         <Collapsible>
-          <div className="bg-muted rounded-md border border-border">
-            <pre className="text-xs font-mono whitespace-pre-wrap break-all p-3 max-h-48 overflow-auto">
+          <div className="rounded-md border border-border overflow-hidden">
+            <pre className="text-xs font-mono whitespace-pre-wrap break-all p-3 max-h-48 overflow-auto bg-muted/20">
               {rendered.slice(0, 500)}…
             </pre>
             <CollapsibleContent>
-              <pre className="text-xs font-mono whitespace-pre-wrap break-all px-3 pb-3">
+              <pre className="text-xs font-mono whitespace-pre-wrap break-all px-3 pb-3 bg-muted/20">
                 {rendered.slice(500)}
               </pre>
             </CollapsibleContent>
-            <CollapsibleTrigger className="w-full flex items-center justify-center gap-1 py-1.5 text-xs text-muted-foreground hover:text-foreground border-t border-border">
+            <CollapsibleTrigger className="w-full flex items-center justify-center gap-1 py-1.5 text-xs text-muted-foreground hover:text-foreground border-t border-border bg-muted/10">
               <ChevronDown className="w-3 h-3" />
-              Expand full content
+              Show full content
             </CollapsibleTrigger>
           </div>
         </Collapsible>
       ) : (
-        <div className="bg-muted rounded-md border border-border p-3 max-h-48 overflow-auto">
+        <div className="rounded-md border border-border bg-muted/20 p-3 max-h-48 overflow-auto">
           <pre className="text-xs font-mono whitespace-pre-wrap break-all">{rendered}</pre>
         </div>
       )}
