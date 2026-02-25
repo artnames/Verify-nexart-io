@@ -2,12 +2,13 @@
  * AI CER Verification Result Display
  * 
  * Wraps CertificationReport for AI Execution CER bundles.
- * Shows attestation controls and Node Attestation Signature.
+ * Shows attestation controls, attestation block details, and Node Attestation Signature.
  */
 
 import { useState } from 'react';
 import { 
-  ShieldCheck, Fingerprint, Hash, Info, Lock, KeyRound, ExternalLink, Loader2
+  ShieldCheck, Fingerprint, Hash, Info, Lock, KeyRound, ExternalLink, Loader2,
+  CheckCircle2, Clock, FileText,
 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -240,6 +241,104 @@ export function AICERVerifyResult({
           )}
         </CardContent>
       </Card>
+
+      {/* Attestation Block Details (from bundle.attestation object) */}
+      {(() => {
+        const att = bundle?.attestation && typeof bundle.attestation === 'object' ? bundle.attestation : null;
+        if (!att) return null;
+        const hasReceipt = !!(att.receipt || att.signature);
+        return (
+          <Card className="border">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <FileText className="w-4 h-4 text-muted-foreground" />
+                <span>Node Attestation Details</span>
+                {att.verified && (
+                  <Badge className="bg-verified text-verified-foreground ml-auto">Attested</Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <table className="w-full text-xs">
+                <tbody>
+                  {att.verified !== undefined && (
+                    <tr className="border-b border-border/40">
+                      <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Verified</td>
+                      <td className="py-1.5 text-right font-mono">
+                        {att.verified ? (
+                          <span className="text-verified flex items-center justify-end gap-1"><CheckCircle2 className="w-3 h-3" /> true</span>
+                        ) : 'false'}
+                      </td>
+                    </tr>
+                  )}
+                  {att.attestationId && (
+                    <tr className="border-b border-border/40">
+                      <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Attestation ID</td>
+                      <td className="py-1.5 text-right font-mono text-[11px] break-all">{att.attestationId}</td>
+                    </tr>
+                  )}
+                  {att.requestId && (
+                    <tr className="border-b border-border/40">
+                      <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Request ID</td>
+                      <td className="py-1.5 text-right font-mono text-[11px] break-all">{att.requestId}</td>
+                    </tr>
+                  )}
+                  {att.attestedAt && (
+                    <tr className="border-b border-border/40">
+                      <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Attested at</td>
+                      <td className="py-1.5 text-right font-mono text-[11px]">
+                        {new Date(att.attestedAt).toLocaleString()}
+                      </td>
+                    </tr>
+                  )}
+                  {att.nodeRuntimeHash && (
+                    <tr className="border-b border-border/40">
+                      <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Node runtime hash</td>
+                      <td className="py-1.5 text-right font-mono text-[11px] break-all">{att.nodeRuntimeHash}</td>
+                    </tr>
+                  )}
+                  {att.protocolVersion && (
+                    <tr className="border-b border-border/40">
+                      <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Protocol version</td>
+                      <td className="py-1.5 text-right font-mono">{att.protocolVersion}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              {/* Checks array */}
+              {Array.isArray(att.checks) && att.checks.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground font-medium">Checks</p>
+                  <div className="space-y-1">
+                    {att.checks.map((c: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 text-xs font-mono p-1.5 rounded bg-muted/30 border border-border/50">
+                        {c.result === 'pass' ? (
+                          <CheckCircle2 className="w-3 h-3 text-verified shrink-0" />
+                        ) : (
+                          <Info className="w-3 h-3 text-muted-foreground shrink-0" />
+                        )}
+                        <span className="text-muted-foreground">{c.check}:</span>
+                        <span className={c.result === 'pass' ? 'text-verified' : ''}>{c.result}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* No signed receipt message */}
+              {!hasReceipt && (
+                <div className="flex items-start gap-2 text-xs text-muted-foreground p-2.5 rounded-md bg-muted/20 border border-border/50">
+                  <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  <span>
+                    Attested (no signed receipt fields in this bundle). Offline signature verification is not available, but the attestation record above confirms node verification.
+                  </span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Node Attestation Signature (offline verification) */}
       <NodeAttestationSignature

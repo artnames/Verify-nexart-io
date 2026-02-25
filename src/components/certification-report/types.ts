@@ -29,6 +29,13 @@ export interface CertSummary {
   sdkVersion: string | null;
   bundleSizeBytes: number;
   certificateHash: string | null;
+  /** AI CER extras for summary */
+  provider?: string;
+  model?: string;
+  workflowId?: string;
+  conversationId?: string;
+  executionId?: string;
+  attestation?: AttestationFields;
 }
 
 /** Fields for the "Inputs" panel */
@@ -62,7 +69,20 @@ export interface ExecutionConditions {
   stepIndex?: number;
   prevStepHash?: string;
   executionId?: string;
+  executionSurface?: string;
   parameters?: Record<string, unknown>;
+}
+
+/** Attestation block fields (AI CER attestation object) */
+export interface AttestationFields {
+  verified?: boolean;
+  attestationId?: string;
+  nodeRuntimeHash?: string;
+  protocolVersion?: string;
+  attestedAt?: string;
+  requestId?: string;
+  checks?: Array<{ check: string; result: string; [key: string]: unknown }>;
+  hasSignedReceipt?: boolean;
 }
 
 /** Fields for the "Outputs" panel */

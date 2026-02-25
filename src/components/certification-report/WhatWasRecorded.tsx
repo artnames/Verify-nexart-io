@@ -106,6 +106,9 @@ export function WhatWasRecorded({ kind, inputs, conditions, outputs, metadata }:
                       <KVRow label="Top P" value={conditions.topP} />
                       <KVRow label="Seed" value={conditions.seed} />
                       <KVRow label="Execution ID" value={conditions.executionId} />
+                      <KVRow label="Execution surface" value={conditions.executionSurface} />
+                      <KVRow label="Step index" value={conditions.stepIndex} />
+                      <KVRow label="Workflow ID" value={conditions.workflowId} />
                       {conditions.parameters && Object.entries(conditions.parameters)
                         .filter(([k]) => !['temperature', 'maxTokens', 'max_tokens', 'topP', 'top_p', 'seed'].includes(k))
                         .map(([k, v]) => (
