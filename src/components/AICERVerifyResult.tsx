@@ -1,25 +1,23 @@
 /**
  * AI CER Verification Result Display
  * 
- * Shows verification result from @nexart/ai-execution verify(),
- * attestation status, and allows requesting canonical attestation.
+ * Wraps CertificationReport for AI Execution CER bundles.
+ * Shows attestation controls and Node Attestation Signature.
  */
 
 import { useState } from 'react';
 import { 
-  ShieldCheck, AlertTriangle, CheckCircle2, Info, ChevronDown,
-  Lock, KeyRound, ExternalLink, Loader2, Fingerprint, Hash
+  ShieldCheck, Fingerprint, Hash, Info, Lock, KeyRound, ExternalLink, Loader2
 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
-import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { hasNodeApiKey, getNodeApiKey, setNodeApiKey } from '@/storage/nodeApiKey';
 import { NodeAttestationSignature } from './NodeAttestationSignature';
-import type { CerVerifyCode, VerificationResult, AttestationResult } from '@nexart/ai-execution';
+import { CertificationReport } from './certification-report/CertificationReport';
+import type { VerificationResult, AttestationResult } from '@nexart/ai-execution';
 import {
   verifyBundleAttestation as verifyAICERBundleAttestation,
   getAttestationReceipt as getAICERAttestationReceipt,
@@ -52,8 +50,6 @@ export function AICERVerifyResult({
   attestResult,
   attestError,
 }: AICERVerifyResultProps) {
-  const [showDetails, setShowDetails] = useState(false);
-  const [showAttestation, setShowAttestation] = useState(true);
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [hasKey, setHasKey] = useState(hasNodeApiKey());
 
@@ -68,107 +64,13 @@ export function AICERVerifyResult({
   const passed = verifyResult.ok;
 
   return (
-    <div className="space-y-4">
-      {/* Main result card */}
-      <div className={cn(
-        "p-6 rounded-md border-2",
-        passed ? "border-verified/40 bg-verified/5" : "border-destructive/40 bg-destructive/5"
-      )}>
-        <div className="flex items-center gap-3 mb-4">
-          {passed ? (
-            <>
-              <ShieldCheck className="w-8 h-8 text-verified" />
-              <div>
-                <div className="text-lg font-semibold text-verified font-mono">PASSED</div>
-                <div className="text-sm text-muted-foreground">
-                  Record integrity verified via @nexart/ai-execution
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <AlertTriangle className="w-8 h-8 text-destructive" />
-              <div>
-                <div className="text-lg font-semibold text-destructive font-mono">FAILED</div>
-                <div className="text-sm text-muted-foreground">Record integrity check failed</div>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Bundle type badge */}
-        <div className="mb-4 flex flex-wrap gap-2">
-          <span className="text-xs font-mono px-2 py-1 rounded bg-muted">
-            type: AI Execution CER
-          </span>
-          <Badge variant={passed ? "default" : "destructive"} className={cn(
-            "font-mono text-xs",
-            passed && "bg-verified text-verified-foreground"
-          )}>
-            code: {verifyResult.code}
-          </Badge>
-        </div>
-
-        {/* Verification code explanation */}
-        {!passed && verifyResult.code && (
-          <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20 mb-4">
-            <p className="text-sm font-medium text-destructive">{verifyResult.code}</p>
-            {verifyResult.errors.length > 0 && (
-              <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground list-disc list-inside">
-                {verifyResult.errors.map((e, i) => <li key={i}>{e}</li>)}
-              </ul>
-            )}
-          </div>
-        )}
-
-        {/* Cryptographic hashes */}
-        <div className="space-y-2 mt-4 pt-4 border-t border-border">
-          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Cryptographic Evidence</h4>
-          {bundle.certificateHash && (
-            <div className="flex items-start gap-2 text-xs">
-              <Hash className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
-              <div className="min-w-0">
-                <span className="text-muted-foreground">certificateHash: </span>
-                <code className="font-mono break-all">{bundle.certificateHash}</code>
-              </div>
-            </div>
-          )}
-          {bundle.snapshot?.inputHash && (
-            <div className="flex items-start gap-2 text-xs">
-              <Hash className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
-              <div className="min-w-0">
-                <span className="text-muted-foreground">inputHash: </span>
-                <code className="font-mono break-all">{bundle.snapshot.inputHash}</code>
-              </div>
-            </div>
-          )}
-          {bundle.snapshot?.outputHash && (
-            <div className="flex items-start gap-2 text-xs">
-              <Hash className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
-              <div className="min-w-0">
-                <span className="text-muted-foreground">outputHash: </span>
-                <code className="font-mono break-all">{bundle.snapshot.outputHash}</code>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Expandable details */}
-        {verifyResult.details && verifyResult.details.length > 0 && (
-          <Collapsible open={showDetails} onOpenChange={setShowDetails} className="mt-4 pt-4 border-t border-border">
-            <CollapsibleTrigger className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full">
-              <ChevronDown className={cn("w-3 h-3 transition-transform", showDetails && "rotate-180")} />
-              <span>Verification Details ({verifyResult.details.length})</span>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-2 space-y-1 text-xs font-mono bg-muted/50 p-3 rounded">
-              {verifyResult.details.map((d, i) => (
-                <div key={i} className="text-muted-foreground">{d}</div>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
-        )}
-      </div>
-
+    <CertificationReport
+      bundle={bundle}
+      bundleKind="ai-execution"
+      verifyStatus={passed ? 'pass' : 'fail'}
+      verifyCode={!passed ? verifyResult.code : undefined}
+      verifyDetails={!passed ? verifyResult.errors : undefined}
+    >
       {/* Canonical Attestation Section */}
       <Card className={cn(
         "border",
@@ -263,11 +165,6 @@ export function AICERVerifyResult({
             <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
               <p className="text-sm font-medium text-destructive">Attestation failed</p>
               <p className="text-xs text-muted-foreground mt-1">{attestError}</p>
-              {attestError.toLowerCase().includes('undefined') && (
-                <p className="text-xs text-muted-foreground mt-2 italic">
-                  Recânon attempted to send a non-JSON value (undefined) to the canonical node. This is a client serialization issue.
-                </p>
-              )}
             </div>
           )}
 
@@ -353,6 +250,6 @@ export function AICERVerifyResult({
           verifyBundleAttestation: verifyAICERBundleAttestation,
         }}
       />
-    </div>
+    </CertificationReport>
   );
 }
