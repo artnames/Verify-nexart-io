@@ -10,6 +10,7 @@ import { StartHereCard } from "./StartHereCard";
 import { BundleValidator, validateBundle, detectBundleKind, EXAMPLE_STATIC_BUNDLE, resolveExpectedHash, resolveExpectedAnimationHash, formatHashForDisplay } from "./BundleValidator";
 import { RendererErrorDisplay } from "./RendererErrorDisplay";
 import { AICERVerifyResult } from "./AICERVerifyResult";
+import { NodeAttestationSignature } from "./NodeAttestationSignature";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { toast } from "sonner";
@@ -655,6 +656,11 @@ export function VerifyPanel() {
                     </Collapsible>
                   )}
                 </div>
+              )}
+
+              {/* Node Attestation Signature for Code Mode bundles */}
+              {result.status !== 'error' && (
+                <NodeAttestationSignature bundle={JSON.parse(bundleJson)} />
               )}
             </>
           )}
