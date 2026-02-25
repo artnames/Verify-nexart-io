@@ -7,10 +7,12 @@ import { QuickGuide } from "./QuickGuide";
 import { CLIExamples } from "./CLIExamples";
 import { LiveVerifier } from "./LiveVerifier";
 import { StartHereCard } from "./StartHereCard";
-import { BundleValidator, validateBundle, EXAMPLE_STATIC_BUNDLE, resolveExpectedHash, resolveExpectedAnimationHash, formatHashForDisplay } from "./BundleValidator";
+import { BundleValidator, validateBundle, detectBundleKind, EXAMPLE_STATIC_BUNDLE, resolveExpectedHash, resolveExpectedAnimationHash, formatHashForDisplay } from "./BundleValidator";
 import { RendererErrorDisplay } from "./RendererErrorDisplay";
+import { AICERVerifyResult } from "./AICERVerifyResult";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
+import { toast } from "sonner";
 import { 
   verifyCertifiedStatic,
   verifyCertifiedLoop,
@@ -18,14 +20,23 @@ import {
   type CanonicalSnapshot,
   type CanonicalVerifyResponse,
 } from "@/certified/canonicalClient";
+import {
+  verify as verifyAICER,
+  hasAttestation,
+  attest,
+  sanitizeForAttestation,
+  type VerificationResult as AICERVerificationResult,
+  type AttestationResult,
+} from "@nexart/ai-execution";
+import { getNodeApiKey } from "@/storage/nodeApiKey";
 
-interface VerificationState {
+// ── Code Mode verification state ──
+interface CodeModeVerificationState {
+  kind: 'code-mode';
   status: 'verified' | 'mismatch' | 'error';
   mode: 'static' | 'loop';
-  // Static mode fields
   originalHash?: string;
   computedHash?: string;
-  // Loop mode fields
   posterVerified?: boolean;
   expectedPosterHash?: string;
   computedPosterHash?: string;
@@ -33,7 +44,6 @@ interface VerificationState {
   expectedAnimationHash?: string;
   computedAnimationHash?: string;
   hashMatchType?: string;
-  // Common fields
   matchDetails?: {
     codeMatch: boolean;
     seedMatch: boolean;
@@ -44,9 +54,39 @@ interface VerificationState {
   rendererVersion?: string;
   nodeVersion?: string;
   httpStatus?: number;
-  // Debug info
   hashSource?: string;
   animationHashSource?: string;
+}
+
+// ── AI Execution CER verification state ──
+interface AICERVerificationState {
+  kind: 'ai-execution';
+  verifyResult: AICERVerificationResult;
+  bundle: any;
+  attestationPresent: boolean;
+  attestationFields?: {
+    attestationId?: string;
+    nodeRuntimeHash?: string;
+    protocolVersion?: string;
+    certificateHash?: string;
+  };
+}
+
+type VerificationState = CodeModeVerificationState | AICERVerificationState;
+
+/**
+ * Extract existing attestation fields from an AI CER bundle.
+ */
+function extractAttestationFields(bundle: any): AICERVerificationState['attestationFields'] | null {
+  const att = bundle?.attestation && typeof bundle.attestation === 'object'
+    ? bundle.attestation : null;
+
+  const attestationId = att?.attestationId || att?.attestationHash || bundle?.attestationId || bundle?.attestationHash;
+  const nodeRuntimeHash = att?.nodeRuntimeHash || bundle?.nodeRuntimeHash || bundle?.canonicalRuntimeHash;
+  const protocolVersion = att?.protocolVersion || bundle?.canonicalProtocolVersion;
+
+  if (!attestationId && !nodeRuntimeHash && !att) return null;
+  return { attestationId, nodeRuntimeHash, protocolVersion, certificateHash: bundle?.certificateHash };
 }
 
 export function VerifyPanel() {
@@ -55,6 +95,11 @@ export function VerifyPanel() {
   const [result, setResult] = useState<VerificationState | null>(null);
   const [activeTab, setActiveTab] = useState('verify');
 
+  // AI CER attestation state
+  const [isAttesting, setIsAttesting] = useState(false);
+  const [attestResult, setAttestResult] = useState<AttestationResult | null>(null);
+  const [attestError, setAttestError] = useState<string | null>(null);
+
   // Validation state
   const validation = useMemo(() => validateBundle(bundleJson), [bundleJson]);
   const canVerify = validation.isValid && !isVerifying;
@@ -62,6 +107,8 @@ export function VerifyPanel() {
   const handleBundleGenerated = (json: string, type?: 'static' | 'loop' | 'failed') => {
     setBundleJson(json);
     setResult(null);
+    setAttestResult(null);
+    setAttestError(null);
   };
 
   const handleLoadExample = () => {
@@ -69,29 +116,80 @@ export function VerifyPanel() {
     setResult(null);
   };
 
+  // ── AI CER attestation handler ──
+  const handleAttest = async () => {
+    if (!result || result.kind !== 'ai-execution' || !result.verifyResult.ok) return;
+
+    setIsAttesting(true);
+    setAttestError(null);
+    setAttestResult(null);
+
+    try {
+      const nodeApiKey = getNodeApiKey();
+      if (!nodeApiKey) {
+        setAttestError('No API key configured');
+        return;
+      }
+
+      const proof = await attest(result.bundle, {
+        nodeUrl: 'https://node.nexart.io',
+        apiKey: nodeApiKey,
+        timeoutMs: 15000,
+      });
+
+      setAttestResult(proof);
+      toast.success('Canonical node attested this record');
+    } catch (err: any) {
+      const msg = err?.message || 'Attestation failed';
+      setAttestError(msg);
+      toast.error('Attestation failed', { description: msg });
+    } finally {
+      setIsAttesting(false);
+    }
+  };
+
   const handleVerifyBundle = async () => {
-    // Double-check validation before proceeding
     if (!validation.isValid) return;
     
     setIsVerifying(true);
     setResult(null);
+    setAttestResult(null);
+    setAttestError(null);
 
     try {
       const bundle = JSON.parse(bundleJson);
-      
+      const bundleKind = detectBundleKind(bundle);
+
+      // ── AI Execution CER path ──
+      if (bundleKind === 'ai-execution') {
+        const verifyResult = verifyAICER(bundle);
+        const isAttested = hasAttestation(bundle);
+        const fields = extractAttestationFields(bundle);
+
+        setResult({
+          kind: 'ai-execution',
+          verifyResult,
+          bundle,
+          attestationPresent: isAttested,
+          attestationFields: fields || undefined,
+        });
+        setIsVerifying(false);
+        return;
+      }
+
+      // ── Code Mode path (existing logic) ──
       const snapshot: CanonicalSnapshot = bundle.snapshot;
       const isLoop = isLoopMode(snapshot);
 
-      // Use multi-source hash resolution
       const resolvedHash = resolveExpectedHash(bundle);
       const resolvedAnimationHash = resolveExpectedAnimationHash(bundle);
 
       let verifyResult: CanonicalVerifyResponse;
 
       if (isLoop) {
-        // Loop mode: MUST use both hashes
         if (!resolvedHash || !resolvedAnimationHash) {
           setResult({
+            kind: 'code-mode',
             status: 'error',
             mode: 'loop',
             error: `Loop verification requires both poster and animation hashes. Missing: ${!resolvedHash ? 'posterHash' : ''} ${!resolvedAnimationHash ? 'animationHash' : ''}`.trim(),
@@ -99,12 +197,11 @@ export function VerifyPanel() {
           setIsVerifying(false);
           return;
         }
-
         verifyResult = await verifyCertifiedLoop(snapshot, resolvedHash.normalized, resolvedAnimationHash.normalized);
       } else {
-        // Static mode: use single hash from multi-source resolution
         if (!resolvedHash) {
           setResult({
+            kind: 'code-mode',
             status: 'error',
             mode: 'static',
             error: 'Bundle missing expected hash. Looked for: expectedImageHash, baseline.posterHash, baseline.imageHash, poster_hash, posterHash',
@@ -112,7 +209,6 @@ export function VerifyPanel() {
           setIsVerifying(false);
           return;
         }
-
         verifyResult = await verifyCertifiedStatic(snapshot, resolvedHash.normalized);
       }
 
@@ -121,6 +217,7 @@ export function VerifyPanel() {
 
       if (verifyResult.error) {
         setResult({
+          kind: 'code-mode',
           status: 'error',
           mode: verifyResult.mode,
           error: verifyResult.error,
@@ -129,12 +226,11 @@ export function VerifyPanel() {
         });
       } else if (verifyResult.verified) {
         setResult({
+          kind: 'code-mode',
           status: 'verified',
           mode: verifyResult.mode,
-          // Static fields
           originalHash: verifyResult.expectedHash,
           computedHash: verifyResult.computedHash,
-          // Loop fields
           posterVerified: verifyResult.posterVerified,
           expectedPosterHash: verifyResult.expectedPosterHash,
           computedPosterHash: verifyResult.computedPosterHash,
@@ -142,7 +238,6 @@ export function VerifyPanel() {
           expectedAnimationHash: verifyResult.expectedAnimationHash,
           computedAnimationHash: verifyResult.computedAnimationHash,
           hashMatchType: verifyResult.hashMatchType,
-          // Common
           matchDetails: {
             codeMatch: verifyResult.verified,
             seedMatch: verifyResult.verified,
@@ -156,6 +251,7 @@ export function VerifyPanel() {
         });
       } else {
         setResult({
+          kind: 'code-mode',
           status: 'mismatch',
           mode: verifyResult.mode,
           originalHash: verifyResult.expectedHash,
@@ -181,6 +277,7 @@ export function VerifyPanel() {
       }
     } catch (error) {
       setResult({
+        kind: 'code-mode',
         status: 'error',
         mode: 'static',
         error: error instanceof Error ? error.message : 'Failed to parse bundle JSON',
@@ -199,6 +296,8 @@ export function VerifyPanel() {
       const content = e.target?.result as string;
       setBundleJson(content);
       setResult(null);
+      setAttestResult(null);
+      setAttestError(null);
     };
     reader.readAsText(file);
   };
@@ -289,7 +388,7 @@ export function VerifyPanel() {
               {isVerifying ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Checking via Canonical Renderer...
+                  {validation.bundleKind === 'ai-execution' ? 'Verifying AI CER…' : 'Checking via Canonical Renderer...'}
                 </>
               ) : (
                 <>
@@ -308,7 +407,20 @@ export function VerifyPanel() {
           </div>
 
           {/* Result */}
-          {result && (
+          {result && result.kind === 'ai-execution' && (
+            <AICERVerifyResult
+              verifyResult={result.verifyResult}
+              bundle={result.bundle}
+              attestationPresent={result.attestationPresent}
+              attestationFields={result.attestationFields}
+              onAttest={handleAttest}
+              isAttesting={isAttesting}
+              attestResult={attestResult}
+              attestError={attestError}
+            />
+          )}
+
+          {result && result.kind === 'code-mode' && (
             <>
               {result.status === 'error' ? (
                 <RendererErrorDisplay error={result.error || 'Unknown error'} httpStatus={result.httpStatus} />
@@ -555,24 +667,21 @@ export function VerifyPanel() {
             <h4 className="font-medium text-sm mb-2">How Verification Works</h4>
             <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
               <li>Upload or paste a certified artifact bundle JSON</li>
-              <li>Bundle is sent to Canonical Renderer at <code className="font-mono text-xs">/verify</code></li>
-              <li>Renderer re-executes Code Mode program with identical seed &amp; VAR[0-9]</li>
-              <li>Output image hash is computed and compared</li>
-              <li>Any discrepancy = FAILED (no fallback)</li>
+              <li>Recânon auto-detects the bundle type (Code Mode or AI Execution CER)</li>
+              <li><strong>Code Mode:</strong> Bundle is sent to Canonical Renderer for re-execution and hash comparison</li>
+              <li><strong>AI Execution CER:</strong> Verified locally using @nexart/ai-execution SDK (certificate hash + input/output hashes)</li>
+              <li>Any discrepancy = FAILED with reason code</li>
             </ol>
             <div className="mt-3 pt-3 border-t border-border">
               <div className="flex items-start gap-2 text-xs text-muted-foreground">
                 <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
                 <span>
-                  <strong>Loop mode:</strong> Verification requires both poster + animation hashes.
-                  Static mode requires only the image hash.
+                  <strong>AI CER attestation</strong> can optionally be requested to have the NexArt canonical node verify internal consistency. This requires an API key.
                 </span>
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-3 pt-3 border-t border-border">
-              No authentication required. Anyone can verify any certified artifact.
-              <br />
-              No browser SDK. No PRNG mirror. Server-side determinism only.
+              No authentication required for verification. Anyone can verify any certified artifact.
             </p>
           </div>
         </TabsContent>

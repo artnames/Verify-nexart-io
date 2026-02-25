@@ -2,12 +2,16 @@ import { useMemo } from "react";
 import { AlertCircle, CheckCircle2, XCircle, HelpCircle, FileText } from "lucide-react";
 import { Button } from "./ui/button";
 
+export type BundleKind = 'code-mode' | 'ai-execution' | 'unknown';
+
 interface ValidationResult {
   isValid: boolean;
   isEmpty: boolean;
   parseError: string | null;
   missingFields: string[];
   mode: 'static' | 'loop' | 'unknown';
+  /** Detected bundle kind based on bundleType / snapshot structure */
+  bundleKind: BundleKind;
   warnings: string[];
   // Extended info for debug panel
   resolvedHash?: {
@@ -157,6 +161,23 @@ function draw() {
   _note: "Example bundle - create a real result using 'Create Result' buttons above"
 };
 
+/**
+ * Detect bundle kind from parsed JSON
+ */
+export function detectBundleKind(bundle: any): BundleKind {
+  if (
+    bundle?.bundleType === 'cer.ai.execution.v1' ||
+    (bundle?.snapshot && typeof bundle.snapshot === 'object' && bundle.snapshot.type === 'ai.execution.v1')
+  ) {
+    return 'ai-execution';
+  }
+  // Code Mode bundles have snapshot.code
+  if (bundle?.snapshot && typeof bundle.snapshot.code === 'string') {
+    return 'code-mode';
+  }
+  return 'unknown';
+}
+
 export function validateBundle(bundleJson: string): ValidationResult {
   // Check empty
   if (!bundleJson.trim()) {
@@ -166,6 +187,7 @@ export function validateBundle(bundleJson: string): ValidationResult {
       parseError: null,
       missingFields: [],
       mode: 'unknown',
+      bundleKind: 'unknown',
       warnings: [],
     };
   }
@@ -181,10 +203,40 @@ export function validateBundle(bundleJson: string): ValidationResult {
       parseError: e instanceof Error ? e.message : 'Invalid JSON',
       missingFields: [],
       mode: 'unknown',
+      bundleKind: 'unknown',
       warnings: [],
     };
   }
 
+  const bundleKind = detectBundleKind(bundle);
+
+  // ── AI Execution CER: validate with simpler rules ──
+  if (bundleKind === 'ai-execution') {
+    const missingFields: string[] = [];
+    const warnings: string[] = [];
+
+    if (!bundle.certificateHash) missingFields.push('certificateHash');
+    if (!bundle.snapshot) {
+      missingFields.push('snapshot');
+    } else {
+      if (!bundle.snapshot.provider) missingFields.push('snapshot.provider');
+      if (!bundle.snapshot.model) missingFields.push('snapshot.model');
+      if (!bundle.snapshot.executionId) missingFields.push('snapshot.executionId');
+    }
+    if (!bundle.version && !bundle.bundleVersion) warnings.push('Missing version field');
+
+    return {
+      isValid: missingFields.length === 0,
+      isEmpty: false,
+      parseError: null,
+      missingFields,
+      mode: 'static',
+      bundleKind,
+      warnings,
+    };
+  }
+
+  // ── Code Mode validation (existing logic) ──
   const missingFields: string[] = [];
   const warnings: string[] = [];
 
@@ -245,6 +297,7 @@ export function validateBundle(bundleJson: string): ValidationResult {
     parseError: null,
     missingFields,
     mode,
+    bundleKind,
     warnings,
     resolvedHash: resolvedHash || undefined,
     resolvedAnimationHash: resolvedAnimationHash || undefined,
@@ -329,13 +382,16 @@ export function BundleValidator({ bundleJson, onLoadExample }: BundleValidatorPr
 
   // Valid with warnings
   if (validation.warnings.length > 0) {
+    const kindLabel = validation.bundleKind === 'ai-execution' ? 'AI Execution CER' 
+      : validation.bundleKind === 'code-mode' ? `Code Mode (${validation.mode})` 
+      : validation.mode;
     return (
       <div className="p-4 rounded-md border border-verified/30 bg-verified/5">
         <div className="flex items-start gap-3">
           <CheckCircle2 className="w-5 h-5 text-verified mt-0.5 flex-shrink-0" />
           <div className="space-y-2">
             <p className="text-sm font-medium text-verified">
-              Bundle is valid ({validation.mode} mode)
+              Bundle is valid — {kindLabel}
             </p>
             {validation.warnings.map((warning, i) => (
               <p key={i} className="text-xs text-warning flex items-center gap-1">
@@ -357,13 +413,16 @@ export function BundleValidator({ bundleJson, onLoadExample }: BundleValidatorPr
   }
 
   // Fully valid
+  const kindLabel = validation.bundleKind === 'ai-execution' ? 'AI Execution CER' 
+    : validation.bundleKind === 'code-mode' ? `Code Mode (${validation.mode})` 
+    : validation.mode;
   return (
     <div className="p-3 rounded-md border border-verified/30 bg-verified/5">
       <div className="flex items-start gap-2">
         <CheckCircle2 className="w-4 h-4 text-verified mt-0.5" />
         <div className="space-y-1">
           <p className="text-sm text-verified">
-            Bundle is valid ({validation.mode} mode) — ready to check
+            Bundle is valid — {kindLabel} — ready to check
           </p>
           {validation.resolvedHash && (
             <p className="text-xs text-muted-foreground font-mono">
