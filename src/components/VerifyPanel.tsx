@@ -26,9 +26,18 @@ import {
   hasAttestation,
   attest,
   sanitizeForAttestation,
+  verifyBundleAttestation as verifyAICERBundleAttestation,
+  getAttestationReceipt as getAICERAttestationReceipt,
+  hasAttestation as hasAICERAttestation,
   type VerificationResult as AICERVerificationResult,
   type AttestationResult,
 } from "@nexart/ai-execution";
+import {
+  verifyBundleAttestation as verifyCodeModeBundleAttestation,
+  getAttestationReceipt as getCodeModeAttestationReceipt,
+  hasAttestation as hasCodeModeAttestation,
+} from "@nexart/codemode-sdk/core";
+import type { AttestationVerifiers } from "./NodeAttestationSignature";
 import { getNodeApiKey } from "@/storage/nodeApiKey";
 
 // ── Code Mode verification state ──
@@ -660,7 +669,14 @@ export function VerifyPanel() {
 
               {/* Node Attestation Signature for Code Mode bundles */}
               {result.status !== 'error' && (
-                <NodeAttestationSignature bundle={JSON.parse(bundleJson)} />
+                <NodeAttestationSignature
+                  bundle={JSON.parse(bundleJson)}
+                  verifiers={{
+                    hasAttestation: hasCodeModeAttestation,
+                    getAttestationReceipt: getCodeModeAttestationReceipt,
+                    verifyBundleAttestation: verifyCodeModeBundleAttestation,
+                  }}
+                />
               )}
             </>
           )}

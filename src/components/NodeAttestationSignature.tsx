@@ -1,7 +1,11 @@
 /**
  * Node Attestation Signature — Offline verification of node-signed receipts
  *
- * Uses @nexart/ai-execution SDK's verifyBundleAttestation() to:
+ * Accepts injected verifier functions so callers can provide the correct SDK:
+ *  - @nexart/codemode-sdk/core for Code Mode bundles
+ *  - @nexart/ai-execution for AI Execution CER bundles
+ *
+ * Steps:
  *  1. Fetch node keys from /.well-known/nexart-node.json
  *  2. Verify receipt signature offline (Ed25519)
  *  3. Cross-check receipt.certificateHash vs bundle.certificateHash
@@ -20,20 +24,43 @@ import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { cn } from '@/lib/utils';
-import {
-  verifyBundleAttestation,
-  getAttestationReceipt,
-  hasAttestation as hasAttestationFn,
-  type NodeReceiptVerifyResult,
-  type AttestationReceipt,
-} from '@nexart/ai-execution';
 
 // ── Default node URL ──
 const DEFAULT_NODE_URL = 'https://node.nexart.io';
 
+/** Shared result shape — both SDKs use the same interface */
+export interface NodeReceiptVerifyResultCompat {
+  ok: boolean;
+  code: string;
+  details?: string[];
+}
+
+/** Shared receipt shape — common fields across both SDKs */
+export interface AttestationReceiptCompat {
+  attestationId?: string;
+  nodeId?: string;
+  attestorKeyId?: string;
+  certificateHash?: string;
+  nodeRuntimeHash?: string;
+  protocolVersion?: string;
+  attestedAt?: string;
+}
+
+/** Injected verifier functions — caller provides the correct SDK impl */
+export interface AttestationVerifiers {
+  /** Returns true if the bundle carries any attestation data */
+  hasAttestation: (bundle: unknown) => boolean;
+  /** Extracts normalised receipt from any bundle layout */
+  getAttestationReceipt: (bundle: unknown) => AttestationReceiptCompat | null;
+  /** Fully verifies node receipt signature offline */
+  verifyBundleAttestation: (bundle: unknown, options: { nodeUrl: string; kid?: string }) => Promise<NodeReceiptVerifyResultCompat>;
+}
+
 interface NodeAttestationSignatureProps {
   /** The full bundle object (Code Mode or AI CER) */
   bundle: unknown;
+  /** Injected verifier functions from the correct SDK */
+  verifiers: AttestationVerifiers;
   /** Optional custom node URL */
   nodeUrl?: string;
   className?: string;
@@ -43,19 +70,19 @@ type VerifyState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'no-receipt' }
-  | { status: 'verified'; result: NodeReceiptVerifyResult; receipt: AttestationReceipt }
-  | { status: 'failed'; result: NodeReceiptVerifyResult; receipt: AttestationReceipt }
+  | { status: 'verified'; result: NodeReceiptVerifyResultCompat; receipt: AttestationReceiptCompat }
+  | { status: 'failed'; result: NodeReceiptVerifyResultCompat; receipt: AttestationReceiptCompat }
   | { status: 'error'; message: string };
 
-export function NodeAttestationSignature({ bundle, nodeUrl, className }: NodeAttestationSignatureProps) {
+export function NodeAttestationSignature({ bundle, verifiers, nodeUrl, className }: NodeAttestationSignatureProps) {
   const resolvedNodeUrl = nodeUrl || DEFAULT_NODE_URL;
   const [state, setState] = useState<VerifyState>({ status: 'idle' });
   const [tamperActive, setTamperActive] = useState(false);
   const [tamperState, setTamperState] = useState<VerifyState | null>(null);
   const [showDetails, setShowDetails] = useState(false);
 
-  const receipt = getAttestationReceipt(bundle);
-  const hasReceipt = hasAttestationFn(bundle) && receipt !== null;
+  const receipt = verifiers.getAttestationReceipt(bundle);
+  const hasReceipt = verifiers.hasAttestation(bundle) && receipt !== null;
 
   // ── Run verification (original) ──
   const runVerify = useCallback(async () => {
@@ -67,7 +94,7 @@ export function NodeAttestationSignature({ bundle, nodeUrl, className }: NodeAtt
     setState({ status: 'loading' });
 
     try {
-      const result = await verifyBundleAttestation(bundle, { nodeUrl: resolvedNodeUrl });
+      const result = await verifiers.verifyBundleAttestation(bundle, { nodeUrl: resolvedNodeUrl });
       if (result.ok) {
         setState({ status: 'verified', result, receipt: receipt! });
       } else {
@@ -76,7 +103,7 @@ export function NodeAttestationSignature({ bundle, nodeUrl, className }: NodeAtt
     } catch (err: any) {
       setState({ status: 'error', message: err?.message || 'Verification failed' });
     }
-  }, [bundle, hasReceipt, receipt, resolvedNodeUrl]);
+  }, [bundle, hasReceipt, receipt, resolvedNodeUrl, verifiers]);
 
   // ── Tamper demo ──
   const runTamper = useCallback(async () => {
@@ -94,7 +121,6 @@ export function NodeAttestationSignature({ bundle, nodeUrl, className }: NodeAtt
         rct.certificateHash = (ch[0] === 'a' ? 'b' : 'a') + ch.slice(1);
       }
     } else if (att.attestation && typeof att.attestation === 'object') {
-      // Some bundles nest receipt under attestation directly
       const inner = att.attestation;
       if (inner.certificateHash && typeof inner.certificateHash === 'string') {
         const ch = inner.certificateHash;
@@ -108,9 +134,8 @@ export function NodeAttestationSignature({ bundle, nodeUrl, className }: NodeAtt
     }
 
     try {
-      const result = await verifyBundleAttestation(tampered, { nodeUrl: resolvedNodeUrl });
+      const result = await verifiers.verifyBundleAttestation(tampered, { nodeUrl: resolvedNodeUrl });
       if (result.ok) {
-        // Shouldn't happen, but handle gracefully
         setTamperState({ status: 'verified', result, receipt: receipt! });
       } else {
         setTamperState({ status: 'failed', result, receipt: receipt! });
@@ -118,7 +143,7 @@ export function NodeAttestationSignature({ bundle, nodeUrl, className }: NodeAtt
     } catch (err: any) {
       setTamperState({ status: 'error', message: err?.message || 'Tamper verification failed' });
     }
-  }, [bundle, hasReceipt, receipt, resolvedNodeUrl]);
+  }, [bundle, hasReceipt, receipt, resolvedNodeUrl, verifiers]);
 
   const handleTamperToggle = async () => {
     if (!tamperActive) {
@@ -141,10 +166,7 @@ export function NodeAttestationSignature({ bundle, nodeUrl, className }: NodeAtt
   if (state.status === 'idle' && hasReceipt) {
     handleAutoVerify();
   } else if (state.status === 'idle' && !hasReceipt) {
-    // Set no-receipt state without re-render loop
-    if (state.status === 'idle') {
-      setTimeout(() => setState({ status: 'no-receipt' }), 0);
-    }
+    setTimeout(() => setState({ status: 'no-receipt' }), 0);
   }
 
   const displayState = tamperActive && tamperState ? tamperState : state;
