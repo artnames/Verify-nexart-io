@@ -606,29 +606,13 @@ export function AuditPage() {
     );
 
     return (
-      <div className="max-w-4xl mx-auto space-y-6 px-4 pb-12">
-        {/* Header */}
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate('/audit-log')} className="self-start">
-              <ChevronLeft className="w-4 h-4 mr-1" />
-              Audit Log
-            </Button>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={handleDownloadBundle}>
-                <Download className="w-4 h-4 mr-1" />
-                <span className="hidden sm:inline">Download</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => handleCopyHash(record.certificate_hash, 'Certificate hash')}
-              >
-                <Hash className="w-4 h-4 mr-1" />
-                <span className="hidden sm:inline">Copy Hash</span>
-              </Button>
-            </div>
-          </div>
+      <div className="max-w-6xl mx-auto space-y-6 px-6 pb-12">
+        {/* Header — minimal, no duplicate actions */}
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/audit-log')}>
+            <ChevronLeft className="w-4 h-4 mr-1" />
+            Audit Log
+          </Button>
         </div>
 
         {/* AI Execution Record — uses CertificationReport layout */}
@@ -687,29 +671,13 @@ export function AuditPage() {
 
   // Standard CER bundle view
   return (
-    <div className="max-w-4xl mx-auto space-y-6 px-4 pb-12">
-      {/* Header */}
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/audit-log')} className="self-start">
-            <ChevronLeft className="w-4 h-4 mr-1" />
-            Audit Log
-          </Button>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={handleDownloadBundle}>
-              <Download className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">Download</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => handleCopyHash(record.certificate_hash, 'Certificate hash')}
-            >
-              <Hash className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">Copy Hash</span>
-            </Button>
-          </div>
-        </div>
+    <div className="max-w-6xl mx-auto space-y-6 px-6 pb-12">
+      {/* Header — minimal */}
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/audit-log')}>
+          <ChevronLeft className="w-4 h-4 mr-1" />
+          Audit Log
+        </Button>
       </div>
 
       {/* ============================================ */}

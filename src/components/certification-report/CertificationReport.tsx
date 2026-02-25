@@ -1,19 +1,20 @@
 /**
  * CertificationReport — Professional audit-style certification report.
  *
- * Layout:
- *  1. Audit Summary (status + key facts)
- *  2. Sticky mini status bar (integrity + node stamp)
- *  3. Technical details (accordion: hashes, raw JSON) — close to top
- *  4. What was recorded (Input / Conditions / Output panels)
- *  5. Children slot (Independent stamp, Attestation actions, etc.)
+ * Layout (revised for enterprise-grade readability):
+ *  1. Audit Summary (status + key facts, 2-col)
+ *  2. Sticky mini status bar (integrity + node stamp + copy link)
+ *  3. What was recorded (Input / Conditions / Output panels)
+ *  4. Children slot (Independent stamp, Attestation actions, etc.)
+ *  5. Technical details (accordion, visually lighter — for power users)
+ *  6. Dev-only debug block
  *
  * Does NOT change any verification logic.
  */
 
 import { useMemo } from 'react';
 import { VerifyDebugBlock } from '@/components/VerifyDebugBlock';
-import { ShieldCheck, AlertTriangle, Stamp, Link2, Copy } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Stamp, Link2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -70,7 +71,7 @@ export function CertificationReport({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* 1. Audit Summary */}
       <AuditSummary
         summary={summary}
@@ -79,9 +80,9 @@ export function CertificationReport({
         verifyDetails={verifyDetails}
       />
 
-      {/* 2. Sticky mini status bar */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border border-border rounded-lg px-4 py-2 flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-4 text-xs">
+      {/* 2. Sticky mini status bar — same width, compact */}
+      <div className="sticky top-0 z-10 -mt-2 bg-background/95 backdrop-blur-sm border border-border rounded-lg px-4 py-2 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-5 text-xs">
           {/* Integrity */}
           <div className="flex items-center gap-1.5">
             {passed ? (
@@ -104,21 +105,13 @@ export function CertificationReport({
             <span className={cn("font-medium", nodeStampColor)}>{nodeStampLabel}</span>
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={handleCopyLink} className="gap-1.5 text-xs h-7">
+        <Button variant="ghost" size="sm" onClick={handleCopyLink} className="gap-1.5 text-xs h-7 shrink-0">
           <Link2 className="w-3 h-3" />
           Copy link
         </Button>
       </div>
 
-      {/* 3. Technical details — right after status bar, close to top */}
-      <TechnicalDetails
-        evidence={evidence}
-        bundleJson={bundleJson}
-        verifyCode={verifyCode}
-        verifyDetails={verifyDetails}
-      />
-
-      {/* 4. What was recorded */}
+      {/* 3. What was recorded */}
       <WhatWasRecorded
         kind={bundleKind}
         inputs={inputs}
@@ -127,8 +120,16 @@ export function CertificationReport({
         metadata={metadata}
       />
 
-      {/* 5. Children (Independent stamp, Attestation actions, etc.) */}
+      {/* 4. Children (Independent stamp, Attestation actions, etc.) */}
       {children}
+
+      {/* 5. Technical details — bottom, visually lighter */}
+      <TechnicalDetails
+        evidence={evidence}
+        bundleJson={bundleJson}
+        verifyCode={verifyCode}
+        verifyDetails={verifyDetails}
+      />
 
       {/* 6. Dev-only debug block */}
       <VerifyDebugBlock
