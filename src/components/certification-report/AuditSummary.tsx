@@ -111,13 +111,43 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails }:
           </div>
 
           {/* Right: Key facts table */}
-          <div className="sm:w-64 shrink-0">
+          <div className="sm:w-72 shrink-0">
             <table className="w-full text-xs">
               <tbody>
                 <tr className="border-b border-border/50">
                   <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Record type</td>
                   <td className="py-1.5 text-right font-medium">{summary.certType}</td>
                 </tr>
+                {summary.provider && (
+                  <tr className="border-b border-border/50">
+                    <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Provider</td>
+                    <td className="py-1.5 text-right font-mono text-[11px]">{summary.provider}</td>
+                  </tr>
+                )}
+                {summary.model && (
+                  <tr className="border-b border-border/50">
+                    <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Model</td>
+                    <td className="py-1.5 text-right font-mono text-[11px]">{summary.model}</td>
+                  </tr>
+                )}
+                {summary.executionId && (
+                  <tr className="border-b border-border/50">
+                    <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Execution ID</td>
+                    <td className="py-1.5 text-right font-mono text-[11px] truncate max-w-[160px]">{summary.executionId}</td>
+                  </tr>
+                )}
+                {summary.workflowId && (
+                  <tr className="border-b border-border/50">
+                    <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Workflow</td>
+                    <td className="py-1.5 text-right font-mono text-[11px] truncate max-w-[160px]">{summary.workflowId}</td>
+                  </tr>
+                )}
+                {summary.conversationId && (
+                  <tr className="border-b border-border/50">
+                    <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Conversation</td>
+                    <td className="py-1.5 text-right font-mono text-[11px] truncate max-w-[160px]">{summary.conversationId}</td>
+                  </tr>
+                )}
                 {summary.issuedAt && (
                   <tr className="border-b border-border/50">
                     <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Issued</td>
@@ -129,7 +159,7 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails }:
                 {summary.application && (
                   <tr className="border-b border-border/50">
                     <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Application</td>
-                    <td className="py-1.5 text-right font-mono text-[11px] truncate max-w-[140px]">{summary.application}</td>
+                    <td className="py-1.5 text-right font-mono text-[11px] truncate max-w-[160px]">{summary.application}</td>
                   </tr>
                 )}
                 {summary.protocolVersion && (
@@ -155,6 +185,22 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails }:
                       >
                         {truncateHash(summary.certificateHash)}
                       </button>
+                    </td>
+                  </tr>
+                )}
+                {/* Node Attestation status */}
+                {summary.attestation && (
+                  <tr className="border-b border-border/50">
+                    <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Node attestation</td>
+                    <td className="py-1.5 text-right">
+                      {summary.attestation.verified ? (
+                        <span className="text-verified text-[11px] font-medium">Attested</span>
+                      ) : (
+                        <span className="text-muted-foreground text-[11px]">Present</span>
+                      )}
+                      {summary.attestation.hasSignedReceipt && (
+                        <span className="ml-1 text-[10px] text-muted-foreground">(signed receipt)</span>
+                      )}
                     </td>
                   </tr>
                 )}

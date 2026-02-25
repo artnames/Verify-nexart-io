@@ -11,6 +11,7 @@ import type {
   OutputFields,
   MetadataFields,
   HashEvidence,
+  AttestationFields,
 } from './types';
 
 const get = (obj: Record<string, unknown>, path: string): unknown => {
@@ -38,15 +39,27 @@ export function extractSummary(
     || (bundle.subject as string)
     || null;
 
-  const protocolVersion = (bundle.canonicalProtocolVersion as string)
+  const protocolVersion = (snapshot?.protocolVersion as string)
+    || (bundle.canonicalProtocolVersion as string)
     || (get(bundle, 'attestation.protocolVersion') as string)
     || null;
 
-  const sdkVersion = (bundle.version as string)
+  const sdkVersion = (snapshot?.sdkVersion as string)
+    || (bundle.version as string)
     || (bundle.bundleVersion as string)
     || null;
 
   const bundleSizeBytes = new Blob([JSON.stringify(bundle)]).size;
+
+  // AI CER extras
+  const provider = snapshot?.provider as string | undefined;
+  const model = snapshot?.model as string | undefined;
+  const workflowId = (snapshot?.workflowId as string) || (meta?.workflowId as string) || undefined;
+  const conversationId = (snapshot?.conversationId as string) || (meta?.conversationId as string) || undefined;
+  const executionId = snapshot?.executionId as string | undefined;
+
+  // Extract attestation block
+  const attestation = extractAttestationBlock(bundle);
 
   return {
     certType,
@@ -57,6 +70,37 @@ export function extractSummary(
     sdkVersion,
     bundleSizeBytes,
     certificateHash: (bundle.certificateHash as string) || null,
+    provider,
+    model,
+    workflowId,
+    conversationId,
+    executionId,
+    attestation,
+  };
+}
+
+/** Extract attestation block from bundle (read-only) */
+function extractAttestationBlock(bundle: Record<string, unknown>): AttestationFields | undefined {
+  const att = bundle.attestation as Record<string, unknown> | undefined;
+  if (!att || typeof att !== 'object') return undefined;
+
+  // Check for signed receipt
+  const hasSignedReceipt = !!(
+    att.receipt || att.signature ||
+    (bundle.meta as Record<string, unknown>)?.attestation &&
+    typeof (bundle.meta as Record<string, unknown>).attestation === 'object' &&
+    ((bundle.meta as Record<string, unknown>).attestation as Record<string, unknown>).receipt
+  );
+
+  return {
+    verified: att.verified as boolean | undefined,
+    attestationId: (att.attestationId || att.attestationHash) as string | undefined,
+    nodeRuntimeHash: att.nodeRuntimeHash as string | undefined,
+    protocolVersion: att.protocolVersion as string | undefined,
+    attestedAt: att.attestedAt as string | undefined,
+    requestId: att.requestId as string | undefined,
+    checks: att.checks as AttestationFields['checks'] | undefined,
+    hasSignedReceipt,
   };
 }
 
@@ -103,6 +147,9 @@ export function extractConditions(bundle: Record<string, unknown>, kind: BundleK
       topP: (params?.topP ?? params?.top_p) as number | undefined,
       seed: params?.seed as number | undefined,
       executionId: snapshot?.executionId as string | undefined,
+      executionSurface: snapshot?.executionSurface as string | undefined,
+      stepIndex: snapshot?.stepIndex as number | undefined,
+      workflowId: snapshot?.workflowId as string | undefined,
       parameters: params,
     };
   }
