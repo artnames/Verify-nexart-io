@@ -49,7 +49,7 @@ import { recertifyBundle, getLatestRecertificationRun, type RecertifyResponse, t
 import { recertifyAICER } from '@/api/aiCerRecertification';
 import { sanitizeForNode, redactForDisplay, findUndefinedPaths } from '@/lib/attestationSanitize';
 import { verifyCertificateHash, canonicalize } from '@/lib/canonicalize';
-import { verifyUploadedBundle, type BundleVerifyResult } from '@/lib/verifyBundle';
+import { verifyUploadedBundle, verifyUploadedBundleAsync, type BundleVerifyResult } from '@/lib/verifyBundle';
 import { 
   resolveExpectedImageHash, 
   resolveExpectedAnimationHash,
@@ -63,7 +63,7 @@ import { RecertificationStatus } from '@/components/RecertificationStatus';
 import { AICERVerifyResult } from '@/components/AICERVerifyResult';
 import { AICERRecertificationStatus, type AICERRecertifyResponse } from '@/components/AICERRecertificationStatus';
 import { isAICERBundle, validateAICERForAttestation, type AICERBundle } from '@/types/aiCerBundle';
-import { verifyCer as verifyAICERBundle } from '@nexart/ai-execution'; // kept for type re-export only
+// verifyCer import removed — browser-safe WebCrypto used via verifyUploadedBundleAsync
 import type { AuditRecordRow, CERBundle, AuditSnapshot } from '@/types/auditRecord';
 
 // Render verification result with detailed error info
@@ -239,6 +239,7 @@ export function AuditPage() {
   // AI CER attestation state
   const [aiCerRecertifyResult, setAiCerRecertifyResult] = useState<AICERRecertifyResponse | null>(null);
   const [isAiCerRecertifying, setIsAiCerRecertifying] = useState(false);
+  const [aiCerVerifyResult, setAiCerVerifyResult] = useState<BundleVerifyResult | null>(null);
 
   useEffect(() => {
     async function loadRecord() {
@@ -255,6 +256,13 @@ export function AuditPage() {
       if (data) {
         setRecord(data);
         await verifyCertificate(data);
+
+        // AI CER: run async WebCrypto verification
+        if (isAICERBundle(data.bundle_json)) {
+          const vResult = await verifyUploadedBundleAsync(data.bundle_json);
+          setAiCerVerifyResult(vResult);
+        }
+
         // Load latest recertification run
         const latestRun = await getLatestRecertificationRun(data.id);
         if (latestRun) {
@@ -625,8 +633,14 @@ export function AuditPage() {
 
         {/* AI Execution Record — uses CertificationReport layout */}
         {(() => {
-          // Single source of truth: SDK verifier on raw bundle
-          const vResult = verifyUploadedBundle(aiBundle);
+          // Use pre-computed async WebCrypto result (browser-safe)
+          const vResult = aiCerVerifyResult || {
+            ok: false,
+            code: 'PENDING',
+            details: ['Verification in progress…'],
+            errors: [],
+            bundleType: 'cer.ai.execution.v1',
+          };
           const sdkVerifyResult = {
             ok: vResult.ok,
             code: vResult.code as any,
