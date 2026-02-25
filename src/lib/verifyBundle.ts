@@ -2,14 +2,12 @@
  * Canonical bundle verification pipeline.
  *
  * Single source of truth for integrity checks.
- * Uses SDK verifiers on the RAW uploaded bundle — never on extracted/transformed objects.
+ * Uses browser-safe WebCrypto for AI CER bundles.
+ * Code Mode → Recânon's own canonicalize + SHA-256 check.
  *
- * AI bundles  → @nexart/ai-execution  verifyCer()
- * Code Mode   → Recânon's own canonicalize + SHA-256 check
+ * IMPORTANT: No Node.js crypto APIs are used here.
  */
 
-import { verifyCer } from '@nexart/ai-execution';
-import type { CerAiExecutionBundle } from '@nexart/ai-execution';
 import { isAICERBundle } from '@/types/aiCerBundle';
 import { canonicalize, computeCertificateHash } from '@/lib/canonicalize';
 
@@ -26,14 +24,102 @@ export interface BundleVerifyResult {
 }
 
 /* ------------------------------------------------------------------ */
+/*  WebCrypto helpers (browser-safe, no Node crypto)                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * SHA-256 hex via WebCrypto SubtleCrypto.
+ * Returns "sha256:<64hex>"
+ */
+async function sha256HexWebCrypto(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return `sha256:${hex}`;
+}
+
+/**
+ * Canonicalize a value: sorted keys recursively, no whitespace.
+ * Matches the algorithm used by @nexart/ai-execution for certificate hashing.
+ */
+function canonicalizeValue(value: unknown): unknown {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'boolean' || typeof value === 'string') return value;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (Array.isArray(value)) return value.map(v => canonicalizeValue(v));
+  if (typeof value === 'object') {
+    const sorted: Record<string, unknown> = {};
+    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+      const v = (value as Record<string, unknown>)[key];
+      if (v !== undefined) sorted[key] = canonicalizeValue(v);
+    }
+    return sorted;
+  }
+  return undefined;
+}
+
+/**
+ * Browser-safe AI CER verification.
+ * Certificate hash is computed over exactly:
+ *   { bundleType, version, createdAt, snapshot }
+ * meta and attestation are excluded — matching @nexart/ai-execution rules.
+ */
+async function verifyAiCerBrowser(rawBundle: Record<string, unknown>): Promise<BundleVerifyResult> {
+  const bundleType = (rawBundle.bundleType as string) || 'unknown';
+  const storedHash = rawBundle.certificateHash as string | undefined;
+
+  if (!storedHash || typeof storedHash !== 'string') {
+    return {
+      ok: false,
+      code: 'SCHEMA_ERROR',
+      details: ['Missing certificateHash field.'],
+      errors: ['Missing certificateHash'],
+      bundleType,
+    };
+  }
+
+  try {
+    const envelope: Record<string, unknown> = {
+      bundleType: rawBundle.bundleType,
+      version: rawBundle.version ?? rawBundle.bundleVersion,
+      createdAt: rawBundle.createdAt,
+      snapshot: rawBundle.snapshot,
+    };
+
+    const canonicalJson = JSON.stringify(canonicalizeValue(envelope));
+    const computedHash = await sha256HexWebCrypto(canonicalJson);
+    const normalizedExpected = storedHash.toLowerCase();
+    const ok = computedHash === normalizedExpected;
+
+    return {
+      ok,
+      code: ok ? 'OK' : 'CERTIFICATE_HASH_MISMATCH',
+      details: ok
+        ? []
+        : [`Expected ${normalizedExpected}, computed ${computedHash}`],
+      errors: ok ? [] : ['Certificate hash mismatch'],
+      bundleType,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      ok: false,
+      code: 'CANONICALIZATION_ERROR',
+      details: [msg],
+      errors: [msg],
+      bundleType,
+    };
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  Public API                                                        */
 /* ------------------------------------------------------------------ */
 
 /**
- * Verify an uploaded bundle using the appropriate SDK verifier.
- *
- * IMPORTANT: `rawBundle` must be the original parsed JSON — no redaction,
- * no field extraction, no deep-clone mutations.
+ * Sync verify — only works for Code Mode bundles.
+ * AI CER bundles return PENDING; callers must use verifyUploadedBundleAsync.
  */
 export function verifyUploadedBundle(rawBundle: unknown): BundleVerifyResult {
   if (!rawBundle || typeof rawBundle !== 'object') {
@@ -49,31 +135,16 @@ export function verifyUploadedBundle(rawBundle: unknown): BundleVerifyResult {
   const bundle = rawBundle as Record<string, unknown>;
   const bundleType = (bundle.bundleType as string) || 'unknown';
 
-  // ── AI Execution CER ──────────────────────────────────────────────
   if (isAICERBundle(rawBundle)) {
-    try {
-      const sdkResult = verifyCer(rawBundle as unknown as CerAiExecutionBundle);
-      return {
-        ok: sdkResult.ok,
-        code: sdkResult.code,
-        details: sdkResult.details ?? [],
-        errors: sdkResult.errors ?? [],
-        bundleType,
-      };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return {
-        ok: false,
-        code: 'UNKNOWN_ERROR',
-        details: [msg],
-        errors: [msg],
-        bundleType,
-      };
-    }
+    return {
+      ok: false,
+      code: 'PENDING',
+      details: ['Use verifyUploadedBundleAsync for AI CER bundles.'],
+      errors: [],
+      bundleType,
+    };
   }
 
-  // ── Code Mode CER (legacy) ────────────────────────────────────────
-  // Uses Recânon's canonicalize + SHA-256 to check certificateHash.
   const storedHash = bundle.certificateHash as string | undefined;
   if (!storedHash) {
     return {
@@ -85,18 +156,18 @@ export function verifyUploadedBundle(rawBundle: unknown): BundleVerifyResult {
     };
   }
 
-  // computeCertificateHash is async — but Code Mode bundles still use
-  // the synchronous canonicalize path, so we wrap it.
-  // For the sync API surface we use a sync hash comparison instead.
-  // Since computeCertificateHash uses SubtleCrypto (async), we provide
-  // an async variant too. The sync path here returns a "pending" that
-  // callers resolve.
-  return _verifyCodeModeSync(bundle, storedHash, bundleType);
+  return {
+    ok: false,
+    code: 'PENDING',
+    details: ['Use verifyUploadedBundleAsync for Code Mode bundles.'],
+    errors: [],
+    bundleType: bundleType || 'code-mode',
+  };
 }
 
 /**
- * Async variant — required for Code Mode because SubtleCrypto is async.
- * AI CER verification is fully sync, but this works for both.
+ * Async variant — required for both AI CER (WebCrypto) and Code Mode.
+ * This is the preferred entry point.
  */
 export async function verifyUploadedBundleAsync(rawBundle: unknown): Promise<BundleVerifyResult> {
   if (!rawBundle || typeof rawBundle !== 'object') {
@@ -112,30 +183,12 @@ export async function verifyUploadedBundleAsync(rawBundle: unknown): Promise<Bun
   const bundle = rawBundle as Record<string, unknown>;
   const bundleType = (bundle.bundleType as string) || 'unknown';
 
-  // AI CER — synchronous SDK verify
+  // AI CER — browser-safe WebCrypto verification
   if (isAICERBundle(rawBundle)) {
-    try {
-      const sdkResult = verifyCer(rawBundle as unknown as CerAiExecutionBundle);
-      return {
-        ok: sdkResult.ok,
-        code: sdkResult.code,
-        details: sdkResult.details ?? [],
-        errors: sdkResult.errors ?? [],
-        bundleType,
-      };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return {
-        ok: false,
-        code: 'UNKNOWN_ERROR',
-        details: [msg],
-        errors: [msg],
-        bundleType,
-      };
-    }
+    return verifyAiCerBrowser(bundle);
   }
 
-  // Code Mode — async hash
+  // Code Mode — async hash via SubtleCrypto
   const storedHash = bundle.certificateHash as string | undefined;
   if (!storedHash) {
     return {
@@ -158,27 +211,6 @@ export async function verifyUploadedBundleAsync(rawBundle: unknown): Promise<Bun
       ? []
       : [`Expected ${normalizedExpected}, computed ${computedHash}`],
     errors: ok ? [] : ['Certificate hash mismatch'],
-    bundleType: bundleType || 'code-mode',
-  };
-}
-
-/* ------------------------------------------------------------------ */
-/*  Internal                                                          */
-/* ------------------------------------------------------------------ */
-
-function _verifyCodeModeSync(
-  bundle: Record<string, unknown>,
-  storedHash: string,
-  bundleType: string,
-): BundleVerifyResult {
-  // We can't do async in a sync function — return a best-effort result.
-  // Callers needing Code Mode should prefer verifyUploadedBundleAsync.
-  // For now, return 'pending' so the UI knows to call the async variant.
-  return {
-    ok: false,
-    code: 'PENDING',
-    details: ['Use verifyUploadedBundleAsync for Code Mode bundles.'],
-    errors: [],
     bundleType: bundleType || 'code-mode',
   };
 }
