@@ -330,11 +330,37 @@ export function AICERVerifyResult({
 
               {/* No signed receipt message */}
               {!hasReceipt && (
-                <div className="flex items-start gap-2 text-xs text-muted-foreground p-2.5 rounded-md bg-muted/20 border border-border/50">
-                  <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                  <span>
-                    Attested (no signed receipt fields in this bundle). Offline signature verification is not available, but the attestation record above confirms node verification.
-                  </span>
+                <div className="space-y-2.5 p-2.5 rounded-md bg-muted/20 border border-border/50">
+                  <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                    <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                    <div className="space-y-1">
+                      <span className="font-medium text-foreground">Unsigned attestation (legacy)</span>
+                      <p>
+                        This record includes an attestation ID, but not the signed receipt fields needed for offline verification. Re-attest to generate a signed receipt.
+                      </p>
+                    </div>
+                  </div>
+                  {hasKey && onAttest && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={onAttest}
+                      disabled={isAttesting}
+                      className="ml-5"
+                    >
+                      {isAttesting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Requesting…
+                        </>
+                      ) : (
+                        <>
+                          <Fingerprint className="w-4 h-4 mr-2" />
+                          Request signed receipt
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
               )}
             </CardContent>
