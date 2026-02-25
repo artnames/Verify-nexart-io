@@ -49,6 +49,7 @@ import { recertifyBundle, getLatestRecertificationRun, type RecertifyResponse, t
 import { recertifyAICER } from '@/api/aiCerRecertification';
 import { sanitizeForNode, redactForDisplay, findUndefinedPaths } from '@/lib/attestationSanitize';
 import { verifyCertificateHash, canonicalize } from '@/lib/canonicalize';
+import { verifyUploadedBundle, type BundleVerifyResult } from '@/lib/verifyBundle';
 import { 
   resolveExpectedImageHash, 
   resolveExpectedAnimationHash,
@@ -62,7 +63,7 @@ import { RecertificationStatus } from '@/components/RecertificationStatus';
 import { AICERVerifyResult } from '@/components/AICERVerifyResult';
 import { AICERRecertificationStatus, type AICERRecertifyResponse } from '@/components/AICERRecertificationStatus';
 import { isAICERBundle, validateAICERForAttestation, type AICERBundle } from '@/types/aiCerBundle';
-import { verifyCer as verifyAICERBundle } from '@nexart/ai-execution';
+import { verifyCer as verifyAICERBundle } from '@nexart/ai-execution'; // kept for type re-export only
 import type { AuditRecordRow, CERBundle, AuditSnapshot } from '@/types/auditRecord';
 
 // Render verification result with detailed error info
@@ -169,27 +170,26 @@ function extractExistingAICERAttestation(bundle: AICERBundle): {
   nodeRequestId?: string;
 } | null {
   const b = bundle as Record<string, unknown>;
-  const att = (b.attestation && typeof b.attestation === 'object')
-    ? (b.attestation as Record<string, unknown>)
-    : undefined;
+  // Check meta.attestation first (AI CER standard), then top-level
+  const meta = b.meta as Record<string, unknown> | undefined;
+  const metaAtt = meta?.attestation as Record<string, unknown> | undefined;
+  const topAtt = b.attestation as Record<string, unknown> | undefined;
+  const att = (metaAtt && typeof metaAtt === 'object') ? metaAtt : topAtt;
 
   const attestationHash = (
     (att?.attestationId as string | undefined)
     || (att?.attestationHash as string | undefined)
     || (b.attestationId as string | undefined)
-    || (b.attestationHash as string | undefined)
   );
 
   const runtimeHash = (
     (att?.nodeRuntimeHash as string | undefined)
     || (b.nodeRuntimeHash as string | undefined)
-    || (b.canonicalRuntimeHash as string | undefined)
     || (b.runtimeHash as string | undefined)
   );
 
   const protocolVersion = (
     (att?.protocolVersion as string | undefined)
-    || (b.canonicalProtocolVersion as string | undefined)
     || (b.protocolVersion as string | undefined)
   );
 
@@ -625,9 +625,16 @@ export function AuditPage() {
 
         {/* AI Execution Record — uses CertificationReport layout */}
         {(() => {
-          const sdkVerifyResult = verifyAICERBundle(aiBundle as any);
-          const att = (aiBundle as any).attestation || (aiBundle as any).meta?.attestation;
-          const attPresent = !!(att && typeof att === 'object' && att.attestationId);
+          // Single source of truth: SDK verifier on raw bundle
+          const vResult = verifyUploadedBundle(aiBundle);
+          const sdkVerifyResult = {
+            ok: vResult.ok,
+            code: vResult.code as any,
+            errors: vResult.errors,
+            details: vResult.details,
+          };
+          const att = (aiBundle as any).meta?.attestation || (aiBundle as any).attestation;
+          const attPresent = !!(att && typeof att === 'object' && (att.attestationId || att.attestationStatus));
           const attFields = attPresent ? {
             attestationId: att.attestationId,
             nodeRuntimeHash: att.nodeRuntimeHash,

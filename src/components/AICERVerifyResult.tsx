@@ -242,9 +242,11 @@ export function AICERVerifyResult({
         </CardContent>
       </Card>
 
-      {/* Attestation Block Details (from bundle.attestation object) */}
+      {/* Attestation Block Details (from bundle.attestation or bundle.meta.attestation) */}
       {(() => {
-        const att = bundle?.attestation && typeof bundle.attestation === 'object' ? bundle.attestation : null;
+        const metaAtt = bundle?.meta?.attestation && typeof bundle.meta.attestation === 'object' ? bundle.meta.attestation : null;
+        const topAtt = bundle?.attestation && typeof bundle.attestation === 'object' ? bundle.attestation : null;
+        const att = metaAtt || topAtt;
         if (!att) return null;
         const hasReceipt = !!(att.receipt || att.signature);
         return (
