@@ -18,6 +18,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collap
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { hasNodeApiKey, getNodeApiKey, setNodeApiKey } from '@/storage/nodeApiKey';
+import { NodeAttestationSignature } from './NodeAttestationSignature';
 import type { CerVerifyCode, VerificationResult, AttestationResult } from '@nexart/ai-execution';
 
 interface AICERVerifyResultProps {
@@ -337,6 +338,9 @@ export function AICERVerifyResult({
           )}
         </CardContent>
       </Card>
+
+      {/* Node Attestation Signature (offline verification) */}
+      <NodeAttestationSignature bundle={bundle} />
     </div>
   );
 }
