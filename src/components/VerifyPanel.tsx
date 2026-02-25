@@ -11,6 +11,7 @@ import { BundleValidator, validateBundle, detectBundleKind, EXAMPLE_STATIC_BUNDL
 import { RendererErrorDisplay } from "./RendererErrorDisplay";
 import { AICERVerifyResult } from "./AICERVerifyResult";
 import { NodeAttestationSignature } from "./NodeAttestationSignature";
+import { CertificationReport } from "./certification-report/CertificationReport";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { toast } from "sonner";
@@ -435,267 +436,136 @@ export function VerifyPanel() {
             <>
               {result.status === 'error' ? (
                 <RendererErrorDisplay error={result.error || 'Unknown error'} httpStatus={result.httpStatus} />
-              ) : (
-                <div className={`p-6 rounded-md border-2 ${
-                  result.status === 'verified' 
-                    ? 'border-verified/40 bg-verified/5' 
-                    : 'border-destructive/40 bg-destructive/5'
-                }`}>
-                  <div className="flex items-center gap-3 mb-4">
-                    {result.status === 'verified' ? (
-                      <>
-                        <ShieldCheck className="w-8 h-8 text-verified" />
-                        <div>
-                          <div className="text-lg font-semibold text-verified font-mono">PASSED</div>
-                          <div className="text-sm text-muted-foreground">
-                            All checks passed via Canonical Renderer
-                            {result.rendererVersion && ` (v${result.rendererVersion})`}
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <AlertTriangle className="w-8 h-8 text-destructive" />
-                        <div>
-                          <div className="text-lg font-semibold text-destructive font-mono">FAILED</div>
-                          <div className="text-sm text-muted-foreground">Hash mismatch detected</div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Mode Badge */}
-                  <div className="mb-4">
-                    <span className="text-xs font-mono px-2 py-1 rounded bg-muted">
-                      mode: {result.mode}
-                    </span>
-                    {result.hashMatchType && (
-                      <span className="text-xs font-mono px-2 py-1 rounded bg-muted ml-2">
-                        hashMatchType: {result.hashMatchType}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Loop Mode Details */}
-                  {result.mode === 'loop' && (
-                    <div className="space-y-4 mb-4 p-4 rounded-md bg-card border border-border">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Info className="w-4 h-4" />
-                        <span>Loop verification requires both poster + animation hashes.</span>
-                      </div>
-                      
-                      {/* Poster Verification */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">Poster</span>
-                          <span className={result.posterVerified ? 'text-verified' : 'text-destructive'}>
-                            {result.posterVerified ? (
-                              <span className="flex items-center gap-1">
-                                <CheckCircle2 className="w-4 h-4" /> Verified
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1">
-                                <AlertTriangle className="w-4 h-4" /> Failed
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                        {result.expectedPosterHash && (
-                          <div>
-                            <span className="text-xs text-muted-foreground">Expected Poster Hash</span>
-                            <HashDisplay hash={result.expectedPosterHash} truncate={false} className="mt-1" />
-                          </div>
-                        )}
-                        {result.computedPosterHash && (
-                          <div>
-                            <span className="text-xs text-muted-foreground">Computed Poster Hash</span>
-                            <HashDisplay hash={result.computedPosterHash} truncate={false} className="mt-1" />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Animation Verification */}
-                      <div className="space-y-2 pt-3 border-t border-border">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">Animation</span>
-                          <span className={result.animationVerified ? 'text-verified' : 'text-destructive'}>
-                            {result.animationVerified ? (
-                              <span className="flex items-center gap-1">
-                                <CheckCircle2 className="w-4 h-4" /> Verified
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1">
-                                <AlertTriangle className="w-4 h-4" /> Failed
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                        {result.expectedAnimationHash && (
-                          <div>
-                            <span className="text-xs text-muted-foreground">Expected Animation Hash</span>
-                            <HashDisplay hash={result.expectedAnimationHash} truncate={false} className="mt-1" />
-                          </div>
-                        )}
-                        {result.computedAnimationHash && (
-                          <div>
-                            <span className="text-xs text-muted-foreground">Computed Animation Hash</span>
-                            <HashDisplay hash={result.computedAnimationHash} truncate={false} className="mt-1" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {result.matchDetails && (
-                    <div className="space-y-3 mt-4 pt-4 border-t border-border">
-                      <h4 className="section-header">Verification Details</h4>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div className="flex items-center justify-between">
-                          <span>Code</span>
-                          <span className={result.matchDetails.codeMatch ? 'text-verified' : 'text-destructive'}>
-                            {result.matchDetails.codeMatch ? (
-                              <span className="flex items-center gap-1">
-                                <CheckCircle2 className="w-4 h-4" /> Match
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1">
-                                <AlertTriangle className="w-4 h-4" /> Mismatch
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Seed</span>
-                          <span className={result.matchDetails.seedMatch ? 'text-verified' : 'text-destructive'}>
-                            {result.matchDetails.seedMatch ? (
-                              <span className="flex items-center gap-1">
-                                <CheckCircle2 className="w-4 h-4" /> Match
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1">
-                                <AlertTriangle className="w-4 h-4" /> Mismatch
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>VAR[0-9]</span>
-                          <span className={result.matchDetails.varsMatch ? 'text-verified' : 'text-destructive'}>
-                            {result.matchDetails.varsMatch ? (
-                              <span className="flex items-center gap-1">
-                                <CheckCircle2 className="w-4 h-4" /> Match
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1">
-                                <AlertTriangle className="w-4 h-4" /> Mismatch
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Output</span>
-                          <span className={result.matchDetails.outputMatch ? 'text-verified' : 'text-destructive'}>
-                            {result.matchDetails.outputMatch ? (
-                              <span className="flex items-center gap-1">
-                                <CheckCircle2 className="w-4 h-4" /> Match
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1">
-                                <AlertTriangle className="w-4 h-4" /> Mismatch
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Static mode hash display */}
-                  {result.mode === 'static' && result.originalHash && result.computedHash && (
-                    <div className="space-y-2 mt-4 pt-4 border-t border-border">
-                      <div>
-                        <span className="text-xs text-muted-foreground">Expected Hash</span>
-                        <HashDisplay hash={result.originalHash} truncate={false} className="mt-1" />
-                      </div>
-                      <div>
-                        <span className="text-xs text-muted-foreground">Computed Hash</span>
-                        <HashDisplay hash={result.computedHash} truncate={false} className="mt-1" />
-                      </div>
-                    </div>
-                  )}
-
-                  {result.nodeVersion && (
-                    <div className="mt-4 pt-4 border-t border-border text-xs text-muted-foreground">
-                      Node: {result.nodeVersion}
-                    </div>
-                  )}
-
-                  {/* Debug Panel */}
-                  {(result.hashSource || result.animationHashSource) && (
-                    <Collapsible className="mt-4 pt-4 border-t border-border">
-                      <CollapsibleTrigger className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full">
-                        <ChevronDown className="w-3 h-3" />
-                        <span>Debug: Hash Resolution</span>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="mt-2 space-y-2 text-xs font-mono bg-muted/50 p-3 rounded">
-                        {result.hashSource && (
-                          <div>
-                            <span className="text-muted-foreground">Poster hash source:</span>{' '}
-                            <code className="text-foreground">{result.hashSource}</code>
-                          </div>
-                        )}
-                        {result.animationHashSource && (
-                          <div>
-                            <span className="text-muted-foreground">Animation hash source:</span>{' '}
-                            <code className="text-foreground">{result.animationHashSource}</code>
-                          </div>
-                        )}
-                        {result.originalHash && (
-                          <div>
-                            <span className="text-muted-foreground">Expected (normalized):</span>{' '}
-                            <code className="text-foreground break-all">{result.originalHash}</code>
-                          </div>
-                        )}
-                        {result.computedHash && (
-                          <div>
-                            <span className="text-muted-foreground">Computed:</span>{' '}
-                            <code className="text-foreground break-all">{result.computedHash}</code>
-                          </div>
-                        )}
-                      </CollapsibleContent>
-                    </Collapsible>
-                  )}
-                </div>
-              )}
-
-              {/* Node Attestation Signature for Code Mode bundles */}
-              {result.status !== 'error' && (() => {
+              ) : (() => {
                 const parsedBundle = JSON.parse(bundleJson);
-                // Enhanced detection: try SDK first, fall back to multi-layout extraction
                 const codeModeVerifiers: AttestationVerifiers = {
                   hasAttestation: (b: unknown) => {
                     if (hasCodeModeAttestation(b)) return true;
-                    // Fall back to multi-layout probe
                     return extractSignedReceiptEnvelope(b) !== null;
                   },
                   getAttestationReceipt: (b: unknown) => {
                     const sdkReceipt = getCodeModeAttestationReceipt(b);
                     if (sdkReceipt) return sdkReceipt;
-                    // Fall back to multi-layout extraction
                     const envelope = extractSignedReceiptEnvelope(b);
                     if (!envelope) return null;
-                    return {
-                      attestorKeyId: envelope.kid,
-                      nodeId: envelope.nodeId,
-                    };
+                    return { attestorKeyId: envelope.kid, nodeId: envelope.nodeId };
                   },
                   verifyBundleAttestation: verifyCodeModeBundleAttestation,
                 };
+
                 return (
-                  <NodeAttestationSignature
+                  <CertificationReport
                     bundle={parsedBundle}
-                    verifiers={codeModeVerifiers}
-                  />
+                    bundleKind="code-mode"
+                    verifyStatus={result.status === 'verified' ? 'pass' : 'fail'}
+                  >
+                    {/* Code Mode-specific verification details */}
+                    <div className={`p-4 rounded-md border ${
+                      result.status === 'verified'
+                        ? 'border-verified/30 bg-verified/5'
+                        : 'border-destructive/30 bg-destructive/5'
+                    }`}>
+                      <div className="flex items-center gap-2 mb-3">
+                        {result.status === 'verified' ? (
+                          <ShieldCheck className="w-5 h-5 text-verified" />
+                        ) : (
+                          <AlertTriangle className="w-5 h-5 text-destructive" />
+                        )}
+                        <span className="text-sm font-medium">
+                          Canonical Renderer {result.status === 'verified' ? 'Match' : 'Mismatch'}
+                          {result.rendererVersion && ` (v${result.rendererVersion})`}
+                        </span>
+                      </div>
+
+                      {/* Mode Badge */}
+                      <div className="mb-3 flex gap-2 flex-wrap">
+                        <span className="text-xs font-mono px-2 py-1 rounded bg-muted">
+                          mode: {result.mode}
+                        </span>
+                        {result.hashMatchType && (
+                          <span className="text-xs font-mono px-2 py-1 rounded bg-muted">
+                            hashMatchType: {result.hashMatchType}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Loop Mode Details */}
+                      {result.mode === 'loop' && (
+                        <div className="space-y-3 mb-3 p-3 rounded-md bg-card border border-border">
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium">Poster</span>
+                              <span className={result.posterVerified ? 'text-verified' : 'text-destructive'}>
+                                {result.posterVerified ? (
+                                  <span className="flex items-center gap-1 text-xs">
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> Verified
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1 text-xs">
+                                    <AlertTriangle className="w-3.5 h-3.5" /> Failed
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            {result.expectedPosterHash && (
+                              <div>
+                                <span className="text-xs text-muted-foreground">Expected</span>
+                                <HashDisplay hash={result.expectedPosterHash} truncate={false} className="mt-1" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="space-y-2 pt-2 border-t border-border">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium">Animation</span>
+                              <span className={result.animationVerified ? 'text-verified' : 'text-destructive'}>
+                                {result.animationVerified ? (
+                                  <span className="flex items-center gap-1 text-xs">
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> Verified
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1 text-xs">
+                                    <AlertTriangle className="w-3.5 h-3.5" /> Failed
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            {result.expectedAnimationHash && (
+                              <div>
+                                <span className="text-xs text-muted-foreground">Expected</span>
+                                <HashDisplay hash={result.expectedAnimationHash} truncate={false} className="mt-1" />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Static mode hash display */}
+                      {result.mode === 'static' && result.originalHash && result.computedHash && (
+                        <div className="space-y-2 mt-3 pt-3 border-t border-border">
+                          <div>
+                            <span className="text-xs text-muted-foreground">Expected Hash</span>
+                            <HashDisplay hash={result.originalHash} truncate={false} className="mt-1" />
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground">Computed Hash</span>
+                            <HashDisplay hash={result.computedHash} truncate={false} className="mt-1" />
+                          </div>
+                        </div>
+                      )}
+
+                      {result.nodeVersion && (
+                        <div className="mt-3 pt-3 border-t border-border text-xs text-muted-foreground">
+                          Node: {result.nodeVersion}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Node Attestation Signature */}
+                    <NodeAttestationSignature
+                      bundle={parsedBundle}
+                      verifiers={codeModeVerifiers}
+                    />
+                  </CertificationReport>
                 );
               })()}
             </>
