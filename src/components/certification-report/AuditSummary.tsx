@@ -190,7 +190,7 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails }:
     )}>
       <CardContent className="pt-6 pb-5 px-6">
         {/* 2-column grid: Status + Facts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="space-y-6">
           {/* Left: Status + explanation */}
           <div className="min-w-0 space-y-4">
             <div className="flex items-start gap-4">
@@ -265,7 +265,7 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails }:
           </div>
 
           {/* Right: Key facts table */}
-          <div className="lg:border-l lg:border-border/30 lg:pl-8">
+          <div className="border-t border-border/30 pt-6">
             <table className="w-full text-xs">
               <tbody>
                 <FactRow label="Record type" value={summary.certType} mono={false} />
