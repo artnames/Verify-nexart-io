@@ -95,21 +95,28 @@ export function extractSummary(
   };
 }
 
-/** Extract attestation block from bundle (read-only) */
+/** Extract attestation block from bundle (read-only) — checks both top-level and meta.attestation */
 function extractAttestationBlock(bundle: Record<string, unknown>): AttestationFields | undefined {
-  const att = bundle.attestation as Record<string, unknown> | undefined;
+  // Prefer meta.attestation (AI CER standard location), fall back to top-level
+  const meta = bundle.meta as Record<string, unknown> | undefined;
+  const metaAtt = meta?.attestation as Record<string, unknown> | undefined;
+  const topAtt = bundle.attestation as Record<string, unknown> | undefined;
+  const att = (metaAtt && typeof metaAtt === 'object') ? metaAtt : topAtt;
+  
   if (!att || typeof att !== 'object') return undefined;
 
-  // Check for signed receipt
+  // Check for signed receipt in any location
   const hasSignedReceipt = !!(
-    att.receipt || att.signature ||
-    (bundle.meta as Record<string, unknown>)?.attestation &&
-    typeof (bundle.meta as Record<string, unknown>).attestation === 'object' &&
-    ((bundle.meta as Record<string, unknown>).attestation as Record<string, unknown>).receipt
+    att.receipt || att.signature || att.signatureB64Url ||
+    (metaAtt && (metaAtt.receipt || metaAtt.signature || metaAtt.signatureB64Url))
   );
 
+  // Determine verified status from attestationStatus or verified field
+  const verified = att.verified === true
+    || (att.attestationStatus as string) === 'ATTESTED';
+
   return {
-    verified: att.verified as boolean | undefined,
+    verified,
     attestationId: (att.attestationId || att.attestationHash) as string | undefined,
     nodeRuntimeHash: att.nodeRuntimeHash as string | undefined,
     protocolVersion: att.protocolVersion as string | undefined,

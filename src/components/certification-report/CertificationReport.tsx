@@ -12,6 +12,7 @@
  */
 
 import { useMemo } from 'react';
+import { VerifyDebugBlock } from '@/components/VerifyDebugBlock';
 import { ShieldCheck, AlertTriangle, Stamp, Link2, Copy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -128,6 +129,19 @@ export function CertificationReport({
 
       {/* 5. Children (Independent stamp, Attestation actions, etc.) */}
       {children}
+
+      {/* 6. Dev-only debug block */}
+      <VerifyDebugBlock
+        bundleType={evidence.bundleType || bundleKind}
+        certificateHash={evidence.certificateHash}
+        verifyResult={{
+          ok: verifyStatus === 'pass',
+          code: verifyCode || 'OK',
+          details: verifyDetails || [],
+          errors: verifyStatus !== 'pass' ? (verifyDetails || []) : [],
+          bundleType: evidence.bundleType || bundleKind,
+        }}
+      />
     </div>
   );
 }
