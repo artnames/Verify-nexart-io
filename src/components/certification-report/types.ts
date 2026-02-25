@@ -30,11 +30,20 @@ export interface CertSummary {
   bundleSizeBytes: number;
   certificateHash: string | null;
   /** AI CER extras for summary */
+  bundleType?: string;
+  bundleVersion?: string;
   provider?: string;
   model?: string;
+  modelVersion?: string;
   workflowId?: string;
   conversationId?: string;
   executionId?: string;
+  executionSurface?: string;
+  stepIndex?: number;
+  prevStepHash?: string;
+  snapshotTimestamp?: string;
+  source?: string;
+  tags?: string[];
   attestation?: AttestationFields;
 }
 

@@ -54,9 +54,16 @@ export function extractSummary(
   // AI CER extras
   const provider = snapshot?.provider as string | undefined;
   const model = snapshot?.model as string | undefined;
+  const modelVersion = snapshot?.modelVersion as string | undefined;
   const workflowId = (snapshot?.workflowId as string) || (meta?.workflowId as string) || undefined;
   const conversationId = (snapshot?.conversationId as string) || (meta?.conversationId as string) || undefined;
   const executionId = snapshot?.executionId as string | undefined;
+  const executionSurface = snapshot?.executionSurface as string | undefined;
+  const stepIndex = snapshot?.stepIndex as number | undefined;
+  const prevStepHash = (snapshot?.prevStepHash as string) || (meta?.prevStepHash as string) || undefined;
+  const snapshotTimestamp = snapshot?.timestamp as string | undefined;
+  const source = meta?.source as string | undefined;
+  const tags = meta?.tags as string[] | undefined;
 
   // Extract attestation block
   const attestation = extractAttestationBlock(bundle);
@@ -70,11 +77,20 @@ export function extractSummary(
     sdkVersion,
     bundleSizeBytes,
     certificateHash: (bundle.certificateHash as string) || null,
+    bundleType: (bundle.bundleType as string) || undefined,
+    bundleVersion: (bundle.version as string) || (bundle.bundleVersion as string) || undefined,
     provider,
     model,
+    modelVersion,
     workflowId,
     conversationId,
     executionId,
+    executionSurface,
+    stepIndex,
+    prevStepHash,
+    snapshotTimestamp,
+    source,
+    tags,
     attestation,
   };
 }

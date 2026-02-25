@@ -1,11 +1,12 @@
 /**
  * Audit Summary — professional report header card.
  * Left: status with plain-English explanation.
- * Right: key facts table.
+ * Right: key facts table — ALL fields always shown, "Not provided" for missing.
+ * Includes Evidence Pack download.
  */
 
-import { useState } from 'react';
-import { ShieldCheck, AlertTriangle, Download, Copy, ChevronDown } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { ShieldCheck, AlertTriangle, Download, Copy, ChevronDown, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -32,8 +33,64 @@ function truncateHash(hash: string, chars = 10): string {
   return `${hash.slice(0, chars)}…`;
 }
 
+/** Render a key-value row, always showing even if value is missing */
+function FactRow({ label, value, mono = true, truncate = false, copyable = false }: {
+  label: string;
+  value: string | number | null | undefined;
+  mono?: boolean;
+  truncate?: boolean;
+  copyable?: boolean;
+}) {
+  const display = value !== undefined && value !== null && value !== ''
+    ? String(value)
+    : null;
+
+  const handleCopy = () => {
+    if (display) {
+      navigator.clipboard.writeText(display);
+      toast.success(`${label} copied`);
+    }
+  };
+
+  return (
+    <tr className="border-b border-border/50 last:border-0">
+      <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap text-xs">{label}</td>
+      <td className="py-1.5 text-right">
+        {display ? (
+          copyable ? (
+            <button
+              onClick={handleCopy}
+              className={cn(
+                "text-[11px] text-primary hover:underline cursor-pointer",
+                mono && "font-mono",
+                truncate && "truncate max-w-[180px] inline-block align-bottom",
+              )}
+              title={`Copy ${label}`}
+            >
+              {truncate && display.length > 24 ? truncateHash(display) : display}
+            </button>
+          ) : (
+            <span className={cn(
+              "text-[11px]",
+              mono && "font-mono",
+              truncate && "truncate max-w-[180px] inline-block align-bottom",
+            )}>
+              {display}
+            </span>
+          )
+        ) : (
+          <span className="text-[11px] text-muted-foreground/50 italic">Not provided</span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+const NODE_URL = 'https://node.nexart.io';
+
 export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails }: Props) {
   const [showWhy, setShowWhy] = useState(false);
+  const [downloadingPack, setDownloadingPack] = useState(false);
 
   const handleCopyHash = () => {
     if (summary.certificateHash) {
@@ -52,7 +109,85 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails }:
     URL.revokeObjectURL(url);
   };
 
+  const handleDownloadEvidencePack = useCallback(async () => {
+    setDownloadingPack(true);
+    try {
+      const bundle = JSON.parse(bundleJson);
+
+      // Fetch node keys
+      let nodeKeys: unknown = null;
+      try {
+        const res = await fetch(`${NODE_URL}/.well-known/nexart-node.json`);
+        if (res.ok) nodeKeys = await res.json();
+      } catch { /* node keys unavailable */ }
+
+      // Extract receipt + signature if present
+      const att = bundle.attestation && typeof bundle.attestation === 'object' ? bundle.attestation : null;
+      let receipt: unknown = null;
+      let signature: string | null = null;
+      let attestorKeyId: string | null = null;
+
+      if (att) {
+        receipt = att.receipt || null;
+        signature = att.signature || att.signatureB64Url || null;
+        attestorKeyId = att.attestorKeyId || att.kid || null;
+      }
+      // Also check top-level
+      if (!receipt && bundle.receipt) receipt = bundle.receipt;
+      if (!signature && bundle.signature) signature = bundle.signature;
+      if (!attestorKeyId && (bundle.attestorKeyId || bundle.kid)) attestorKeyId = bundle.attestorKeyId || bundle.kid;
+
+      const readmeText = [
+        'EVIDENCE PACK — Recânon CER Verification',
+        '==========================================',
+        '',
+        `Generated: ${new Date().toISOString()}`,
+        `Certificate Hash: ${summary.certificateHash || 'N/A'}`,
+        `Bundle Type: ${summary.bundleType || 'N/A'}`,
+        '',
+        'Contents:',
+        '  bundle    — The complete CER bundle as uploaded',
+        '  nodeKeys  — Public keys from the NexArt node (for offline signature verification)',
+        receipt ? '  receipt   — The attestation receipt object' : '  receipt   — Not present in this bundle',
+        signature ? '  signature — The Ed25519 signature (base64url)' : '  signature — Not present in this bundle',
+        '',
+        'Verification steps:',
+        '  1. Compute SHA-256 of the canonicalized bundle (JCS) and compare to certificateHash',
+        '  2. If receipt + signature are present, verify the Ed25519 signature using the node public key',
+        '  3. Cross-check receipt.certificateHash matches the bundle certificateHash',
+        '',
+        'Tools: recanon.xyz, @nexart/ai-execution SDK, @nexart/codemode-sdk',
+      ].join('\n');
+
+      const evidencePack = {
+        _format: 'recanon.evidence-pack.v1',
+        generatedAt: new Date().toISOString(),
+        certificateHash: summary.certificateHash,
+        bundle,
+        nodeKeys,
+        receipt,
+        signature,
+        attestorKeyId,
+        readme: readmeText,
+      };
+
+      const blob = new Blob([JSON.stringify(evidencePack, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `evidence-pack-${(summary.certificateHash || 'bundle').slice(0, 16)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Evidence pack downloaded');
+    } catch (err) {
+      toast.error('Failed to generate evidence pack');
+    } finally {
+      setDownloadingPack(false);
+    }
+  }, [bundleJson, summary.certificateHash, summary.bundleType]);
+
   const passed = summary.status === 'pass';
+  const isAI = summary.certType === 'AI Execution Record';
 
   return (
     <Card className={cn(
@@ -110,104 +245,69 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails }:
             )}
           </div>
 
-          {/* Right: Key facts table */}
-          <div className="sm:w-72 shrink-0">
+          {/* Right: Key facts table — ALL fields always shown */}
+          <div className="sm:w-80 shrink-0">
             <table className="w-full text-xs">
               <tbody>
-                <tr className="border-b border-border/50">
-                  <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Record type</td>
-                  <td className="py-1.5 text-right font-medium">{summary.certType}</td>
-                </tr>
-                {summary.provider && (
-                  <tr className="border-b border-border/50">
-                    <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Provider</td>
-                    <td className="py-1.5 text-right font-mono text-[11px]">{summary.provider}</td>
-                  </tr>
+                <FactRow label="Record type" value={summary.certType} mono={false} />
+                <FactRow label="Bundle type" value={summary.bundleType} />
+                <FactRow label="Bundle version" value={summary.bundleVersion} />
+                <FactRow label="Created at" value={summary.issuedAt ? new Date(summary.issuedAt).toLocaleString() : null} />
+                {isAI && (
+                  <FactRow label="Snapshot timestamp" value={
+                    summary.snapshotTimestamp && summary.snapshotTimestamp !== summary.issuedAt
+                      ? new Date(summary.snapshotTimestamp).toLocaleString()
+                      : summary.snapshotTimestamp
+                        ? '(same as created)'
+                        : null
+                  } />
                 )}
-                {summary.model && (
-                  <tr className="border-b border-border/50">
-                    <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Model</td>
-                    <td className="py-1.5 text-right font-mono text-[11px]">{summary.model}</td>
-                  </tr>
+                <FactRow label="Application" value={summary.application} truncate />
+                {isAI && (
+                  <>
+                    <FactRow label="Provider" value={summary.provider} />
+                    <FactRow label="Model" value={summary.model} />
+                    <FactRow label="Model version" value={summary.modelVersion} />
+                    <FactRow label="Execution ID" value={summary.executionId} truncate />
+                    <FactRow label="Workflow ID" value={summary.workflowId} truncate />
+                    <FactRow label="Conversation ID" value={summary.conversationId} truncate />
+                    <FactRow label="Execution surface" value={summary.executionSurface} />
+                  </>
                 )}
-                {summary.executionId && (
-                  <tr className="border-b border-border/50">
-                    <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Execution ID</td>
-                    <td className="py-1.5 text-right font-mono text-[11px] truncate max-w-[160px]">{summary.executionId}</td>
-                  </tr>
+                <FactRow label="Protocol version" value={summary.protocolVersion} />
+                <FactRow label="SDK version" value={summary.sdkVersion} />
+                {isAI && summary.stepIndex !== undefined && (
+                  <FactRow label="Step index" value={summary.stepIndex} />
                 )}
-                {summary.workflowId && (
-                  <tr className="border-b border-border/50">
-                    <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Workflow</td>
-                    <td className="py-1.5 text-right font-mono text-[11px] truncate max-w-[160px]">{summary.workflowId}</td>
-                  </tr>
+                {isAI && (
+                  <FactRow label="Previous step hash" value={summary.prevStepHash} truncate />
                 )}
-                {summary.conversationId && (
-                  <tr className="border-b border-border/50">
-                    <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Conversation</td>
-                    <td className="py-1.5 text-right font-mono text-[11px] truncate max-w-[160px]">{summary.conversationId}</td>
-                  </tr>
+                {summary.source && <FactRow label="Source" value={summary.source} />}
+                {summary.tags && summary.tags.length > 0 && (
+                  <FactRow label="Tags" value={summary.tags.join(', ')} mono={false} />
                 )}
-                {summary.issuedAt && (
-                  <tr className="border-b border-border/50">
-                    <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Issued</td>
-                    <td className="py-1.5 text-right font-mono text-[11px]">
-                      {new Date(summary.issuedAt).toLocaleString()}
-                    </td>
-                  </tr>
-                )}
-                {summary.application && (
-                  <tr className="border-b border-border/50">
-                    <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Application</td>
-                    <td className="py-1.5 text-right font-mono text-[11px] truncate max-w-[160px]">{summary.application}</td>
-                  </tr>
-                )}
-                {summary.protocolVersion && (
-                  <tr className="border-b border-border/50">
-                    <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Protocol</td>
-                    <td className="py-1.5 text-right font-mono">{summary.protocolVersion}</td>
-                  </tr>
-                )}
-                {summary.sdkVersion && (
-                  <tr className="border-b border-border/50">
-                    <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">SDK</td>
-                    <td className="py-1.5 text-right font-mono">{summary.sdkVersion}</td>
-                  </tr>
-                )}
-                {summary.certificateHash && (
-                  <tr className="border-b border-border/50">
-                    <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Certificate ID</td>
-                    <td className="py-1.5 text-right">
-                      <button
-                        onClick={handleCopyHash}
-                        className="font-mono text-[11px] text-primary hover:underline cursor-pointer"
-                        title="Copy full certificate hash"
-                      >
-                        {truncateHash(summary.certificateHash)}
-                      </button>
-                    </td>
-                  </tr>
-                )}
+                <FactRow label="Certificate ID" value={summary.certificateHash} truncate copyable />
                 {/* Node Attestation status */}
-                {summary.attestation && (
-                  <tr className="border-b border-border/50">
-                    <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Node attestation</td>
-                    <td className="py-1.5 text-right">
-                      {summary.attestation.verified ? (
-                        <span className="text-verified text-[11px] font-medium">Attested</span>
-                      ) : (
-                        <span className="text-muted-foreground text-[11px]">Present</span>
-                      )}
-                      {summary.attestation.hasSignedReceipt && (
-                        <span className="ml-1 text-[10px] text-muted-foreground">(signed receipt)</span>
-                      )}
-                    </td>
-                  </tr>
-                )}
-                <tr>
-                  <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap">Size</td>
-                  <td className="py-1.5 text-right">{formatBytes(summary.bundleSizeBytes)}</td>
+                <tr className="border-b border-border/50">
+                  <td className="py-1.5 text-muted-foreground pr-3 whitespace-nowrap text-xs">Node attestation</td>
+                  <td className="py-1.5 text-right text-[11px]">
+                    {summary.attestation ? (
+                      <>
+                        {summary.attestation.verified ? (
+                          <span className="text-verified font-medium">Attested</span>
+                        ) : (
+                          <span className="text-muted-foreground">Present</span>
+                        )}
+                        {summary.attestation.hasSignedReceipt && (
+                          <span className="ml-1 text-[10px] text-muted-foreground">(signed receipt)</span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground/50 italic">None</span>
+                    )}
+                  </td>
                 </tr>
+                <FactRow label="Size" value={formatBytes(summary.bundleSizeBytes)} mono={false} />
               </tbody>
             </table>
           </div>
@@ -218,6 +318,16 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails }:
           <Button variant="outline" size="sm" onClick={handleDownload} className="gap-1.5 text-xs h-8">
             <Download className="w-3.5 h-3.5" />
             Download record
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownloadEvidencePack}
+            disabled={downloadingPack}
+            className="gap-1.5 text-xs h-8"
+          >
+            <Package className="w-3.5 h-3.5" />
+            {downloadingPack ? 'Preparing…' : 'Evidence pack'}
           </Button>
           {summary.certificateHash && (
             <Button variant="outline" size="sm" onClick={handleCopyHash} className="gap-1.5 text-xs h-8">

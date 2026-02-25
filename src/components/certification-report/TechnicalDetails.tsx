@@ -88,10 +88,13 @@ export function TechnicalDetails({ evidence, bundleJson, verifyCode, verifyDetai
             </div>
           )}
 
-          {/* Verify independently note */}
-          <p className="text-xs text-muted-foreground">
-            You can verify this record yourself by re-computing the SHA-256 hash of the canonicalized content and comparing it to the certificate hash above.
-          </p>
+          {/* Independent validation callout */}
+          <div className="p-3 rounded-md bg-muted/20 border border-border/50">
+            <p className="text-xs font-medium text-foreground mb-1">Independent validation available</p>
+            <p className="text-xs text-muted-foreground">
+              You can verify this record independently by re-computing the SHA-256 hash of the canonicalized bundle content (JCS) and comparing it to the certificate hash above. No authentication or API key is required.
+            </p>
+          </div>
 
           {/* Raw JSON */}
           <Collapsible>
