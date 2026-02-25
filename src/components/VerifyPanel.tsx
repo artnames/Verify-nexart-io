@@ -38,6 +38,7 @@ import {
   hasAttestation as hasCodeModeAttestation,
 } from "@nexart/codemode-sdk/core";
 import type { AttestationVerifiers } from "./NodeAttestationSignature";
+import { extractSignedReceiptEnvelope } from "@/lib/extractSignedReceipt";
 import { getNodeApiKey } from "@/storage/nodeApiKey";
 
 // ── Code Mode verification state ──
@@ -668,16 +669,35 @@ export function VerifyPanel() {
               )}
 
               {/* Node Attestation Signature for Code Mode bundles */}
-              {result.status !== 'error' && (
-                <NodeAttestationSignature
-                  bundle={JSON.parse(bundleJson)}
-                  verifiers={{
-                    hasAttestation: hasCodeModeAttestation,
-                    getAttestationReceipt: getCodeModeAttestationReceipt,
-                    verifyBundleAttestation: verifyCodeModeBundleAttestation,
-                  }}
-                />
-              )}
+              {result.status !== 'error' && (() => {
+                const parsedBundle = JSON.parse(bundleJson);
+                // Enhanced detection: try SDK first, fall back to multi-layout extraction
+                const codeModeVerifiers: AttestationVerifiers = {
+                  hasAttestation: (b: unknown) => {
+                    if (hasCodeModeAttestation(b)) return true;
+                    // Fall back to multi-layout probe
+                    return extractSignedReceiptEnvelope(b) !== null;
+                  },
+                  getAttestationReceipt: (b: unknown) => {
+                    const sdkReceipt = getCodeModeAttestationReceipt(b);
+                    if (sdkReceipt) return sdkReceipt;
+                    // Fall back to multi-layout extraction
+                    const envelope = extractSignedReceiptEnvelope(b);
+                    if (!envelope) return null;
+                    return {
+                      attestorKeyId: envelope.kid,
+                      nodeId: envelope.nodeId,
+                    };
+                  },
+                  verifyBundleAttestation: verifyCodeModeBundleAttestation,
+                };
+                return (
+                  <NodeAttestationSignature
+                    bundle={parsedBundle}
+                    verifiers={codeModeVerifiers}
+                  />
+                );
+              })()}
             </>
           )}
 
