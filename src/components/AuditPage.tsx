@@ -59,9 +59,10 @@ import {
 } from '@/lib/hashResolver';
 import { getProxyUrl } from '@/certified/canonicalConfig';
 import { RecertificationStatus } from '@/components/RecertificationStatus';
-import { AIExecutionRecordView } from '@/components/AIExecutionRecordView';
+import { AICERVerifyResult } from '@/components/AICERVerifyResult';
 import { AICERRecertificationStatus, type AICERRecertifyResponse } from '@/components/AICERRecertificationStatus';
 import { isAICERBundle, validateAICERForAttestation, type AICERBundle } from '@/types/aiCerBundle';
+import { verifyCer as verifyAICERBundle } from '@nexart/ai-execution';
 import type { AuditRecordRow, CERBundle, AuditSnapshot } from '@/types/auditRecord';
 
 // Render verification result with detailed error info
@@ -622,11 +623,31 @@ export function AuditPage() {
           </div>
         </div>
 
-        {/* AI Execution Record View */}
-        <AIExecutionRecordView
-          bundle={aiBundle}
-          storedCertificateHash={record.certificate_hash}
-        />
+        {/* AI Execution Record — uses CertificationReport layout */}
+        {(() => {
+          const sdkVerifyResult = verifyAICERBundle(aiBundle as any);
+          const att = (aiBundle as any).attestation || (aiBundle as any).meta?.attestation;
+          const attPresent = !!(att && typeof att === 'object' && att.attestationId);
+          const attFields = attPresent ? {
+            attestationId: att.attestationId,
+            nodeRuntimeHash: att.nodeRuntimeHash,
+            protocolVersion: att.protocolVersion,
+            certificateHash: (aiBundle as any).certificateHash,
+          } : undefined;
+
+          return (
+            <AICERVerifyResult
+              verifyResult={sdkVerifyResult}
+              bundle={aiBundle}
+              attestationPresent={attPresent}
+              attestationFields={attFields}
+              onAttest={handleAiCerRecertify}
+              isAttesting={isAiCerRecertifying}
+              attestResult={null}
+              attestError={null}
+            />
+          );
+        })()}
 
         {/* Canonical Attestation */}
         <AICERRecertificationStatus
@@ -639,180 +660,6 @@ export function AuditPage() {
           missingFields={preflight.missingFields}
           existingAttestationPresent={!!existingAttestation}
         />
-
-        {/* Technical Appendix */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <Fingerprint className="w-5 h-5 text-muted-foreground" />
-              <CardTitle className="text-base text-muted-foreground">Technical Appendix</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Accordion type="single" collapsible className="w-full">
-              <AccordionItem value="canonical">
-                <AccordionTrigger className="text-sm">Canonical JSON (used for hashing)</AccordionTrigger>
-                <AccordionContent>
-                  <div className="relative">
-                    <Button variant="ghost" size="sm" className="absolute top-2 right-2 z-10" onClick={handleCopyCanonical}>
-                      <Copy className="w-3.5 h-3.5 mr-1" /> Copy
-                    </Button>
-                    <div className="bg-muted rounded-lg p-3 max-h-64 overflow-auto">
-                      <pre className="text-xs font-mono whitespace-pre-wrap break-all">
-                        {certVerification?.canonicalJson || record.canonical_json}
-                      </pre>
-                    </div>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-              <AccordionItem value="full-bundle">
-                <AccordionTrigger className="text-sm">Full Bundle JSON</AccordionTrigger>
-                <AccordionContent>
-                  <div className="relative">
-                    <Button variant="ghost" size="sm" className="absolute top-2 right-2 z-10" onClick={handleDownloadBundle}>
-                      <Download className="w-3.5 h-3.5 mr-1" /> Download
-                    </Button>
-                    <div className="bg-muted rounded-lg p-3 max-h-64 overflow-auto">
-                      <pre className="text-xs font-mono whitespace-pre-wrap break-all">
-                        {JSON.stringify(record.bundle_json, null, 2)}
-                      </pre>
-                    </div>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-              {/* Payload Sent to Node — diagnostics */}
-              <AccordionItem value="payload-diagnostics">
-                <AccordionTrigger className="text-sm">Payload Sent to Node</AccordionTrigger>
-                <AccordionContent>
-                  {(() => {
-                    // Compute the EXACT payload that is sent to the canonical node
-                    const { payload: payloadToNode, undefinedPaths: paths } = sanitizeForNode(aiBundle);
-                    // Redacted version for safe display
-                    const displayPayload = redactForDisplay(aiBundle);
-                    // Check if sensitive fields exist in the transmitted payload
-                    const snap = payloadToNode?.snapshot as Record<string, unknown> | undefined;
-                    const hasSensitive = !!(snap?.input || snap?.output || snap?.prompt);
-                    return (
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="text-muted-foreground">Undefined path count:</span>
-                          <Badge variant={paths.length === 0 ? 'outline' : 'destructive'}>
-                            {paths.length}
-                          </Badge>
-                          {hasSensitive && (
-                            <Badge variant="outline" className="text-xs border-verified/40 text-verified">
-                              Sensitive fields included in transmission
-                            </Badge>
-                          )}
-                        </div>
-
-                        {paths.length > 0 && (
-                          <div className="p-2 rounded border border-destructive/30 bg-destructive/5 text-xs font-mono">
-                            {paths.join(', ')}
-                          </div>
-                        )}
-
-                        {/* a) Displayed Payload (redacted) */}
-                        <div className="space-y-1">
-                          <p className="text-xs font-medium text-muted-foreground">Displayed Payload (redacted)</p>
-                          <p className="text-xs text-muted-foreground italic">
-                            Sensitive fields (input, output, prompt) hidden. Hashes and parameters preserved.
-                          </p>
-                          <div className="relative">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="absolute top-2 right-2 z-10"
-                              onClick={() => {
-                                navigator.clipboard.writeText(JSON.stringify(displayPayload, null, 2));
-                                toast.success('Redacted payload copied');
-                              }}
-                            >
-                              <Copy className="w-3.5 h-3.5 mr-1" /> Copy
-                            </Button>
-                            <div className="bg-muted rounded-lg p-3 max-h-48 overflow-auto">
-                              <pre className="text-xs font-mono whitespace-pre-wrap break-all">
-                                {JSON.stringify(displayPayload, null, 2)}
-                              </pre>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* b) Payload Transmitted to Node (full) */}
-                        <div className="space-y-1 border-t border-border pt-3">
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs font-medium text-muted-foreground">Payload Transmitted to Node (full)</p>
-                            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
-                              <input
-                                type="checkbox"
-                                checked={showTransmittedSensitive}
-                                onChange={(e) => setShowTransmittedSensitive(e.target.checked)}
-                                className="rounded"
-                              />
-                              Show transmitted sensitive fields
-                            </label>
-                          </div>
-                          {!showTransmittedSensitive ? (
-                            <div className="p-3 rounded-lg border border-warning/30 bg-warning/5">
-                              <p className="text-xs text-warning flex items-center gap-1.5">
-                                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                                The full bundle (including input/output/prompt) is sent to the canonical node for hash verification.
-                                Sensitive fields are not rendered here by default. Toggle above to inspect.
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-1 italic">
-                                Sensitive fields are never stored by Recânon.
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="space-y-2">
-                              <div className="p-2 rounded border border-warning/30 bg-warning/5 text-xs text-warning flex items-center gap-1.5">
-                                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                                Showing full payload including sensitive fields. Do not share publicly.
-                              </div>
-                              <div className="relative">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="absolute top-2 right-2 z-10"
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(JSON.stringify(payloadToNode, null, 2));
-                                    toast.success('Full payload copied (contains sensitive fields)');
-                                  }}
-                                >
-                                  <Copy className="w-3.5 h-3.5 mr-1" /> Copy
-                                </Button>
-                                <div className="bg-muted rounded-lg p-3 max-h-48 overflow-auto">
-                                  <pre className="text-xs font-mono whitespace-pre-wrap break-all">
-                                    {JSON.stringify(payloadToNode, null, 2)}
-                                  </pre>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </AccordionContent>
-              </AccordionItem>
-              <AccordionItem value="metadata">
-                <AccordionTrigger className="text-sm">Fetch Source & Metadata</AccordionTrigger>
-                <AccordionContent>
-                  <div className="space-y-2 text-sm">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                      <div className="text-muted-foreground">Bundle type:</div>
-                      <div className="font-mono">{aiBundle.bundleType}</div>
-                      <div className="text-muted-foreground">Import source:</div>
-                      <div className="font-mono">{record.import_source || 'unknown'}</div>
-                      <div className="text-muted-foreground">Imported at:</div>
-                      <div className="font-mono">{new Date(record.created_at).toISOString()}</div>
-                    </div>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          </CardContent>
-        </Card>
       </div>
     );
   }
