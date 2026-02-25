@@ -21,9 +21,9 @@ interface Props {
 function KVRow({ label, value }: { label: string; value: unknown }) {
   if (value === undefined || value === null) return null;
   return (
-    <tr className="border-b border-border/40 last:border-0">
-      <td className="py-2 pr-4 text-muted-foreground whitespace-nowrap text-xs">{label}</td>
-      <td className="py-2 text-xs font-mono text-right">{String(value)}</td>
+    <tr className="border-b border-border/30 last:border-0">
+      <td className="py-2.5 pr-4 text-muted-foreground whitespace-nowrap text-xs uppercase tracking-wider">{label}</td>
+      <td className="py-2.5 text-xs font-mono text-foreground text-right break-all">{String(value)}</td>
     </tr>
   );
 }
@@ -46,23 +46,23 @@ export function WhatWasRecorded({ kind, inputs, conditions, outputs, metadata }:
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-sm font-semibold mb-1">What was recorded</h3>
-        <p className="text-xs text-muted-foreground">
-          The data below was locked at certification time. Private fields are hidden by default.
+        <h2 className="text-lg font-semibold tracking-tight">What was recorded</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Data locked at certification time. Private fields are hidden by default.
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Panel A: Input */}
-        <Card className="border">
-          <CardHeader className="pb-2 pt-4 px-4">
+        <Card className="border border-border/60">
+          <CardHeader className="pb-2 pt-4 px-5">
             <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Input
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4 space-y-3">
+          <CardContent className="px-5 pb-4 space-y-3">
             {!hasInputs ? (
-              <p className="text-xs text-muted-foreground italic">No input data in this record.</p>
+              <p className="text-xs text-muted-foreground/50 italic">No input data in this record.</p>
             ) : kind === 'ai-execution' ? (
               <SensitiveFieldViewer label="Prompt / input data" value={inputs.prompt ?? inputs.input} />
             ) : (
@@ -85,15 +85,15 @@ export function WhatWasRecorded({ kind, inputs, conditions, outputs, metadata }:
         </Card>
 
         {/* Panel B: Output */}
-        <Card className="border">
-          <CardHeader className="pb-2 pt-4 px-4">
+        <Card className="border border-border/60">
+          <CardHeader className="pb-2 pt-4 px-5">
             <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Output
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4 space-y-3">
+          <CardContent className="px-5 pb-4 space-y-3">
             {!hasOutputs ? (
-              <p className="text-xs text-muted-foreground italic">No output data in this record.</p>
+              <p className="text-xs text-muted-foreground/50 italic">No output data in this record.</p>
             ) : (
               <>
                 {outputs.output !== undefined && (
@@ -111,15 +111,15 @@ export function WhatWasRecorded({ kind, inputs, conditions, outputs, metadata }:
         </Card>
 
         {/* Panel C: How it was run */}
-        <Card className="border">
-          <CardHeader className="pb-2 pt-4 px-4">
+        <Card className="border border-border/60">
+          <CardHeader className="pb-2 pt-4 px-5">
             <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               How it was run
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
+          <CardContent className="px-5 pb-4">
             {!hasAnyValue(conditions as unknown as Record<string, unknown>) ? (
-              <p className="text-xs text-muted-foreground italic">No execution settings found.</p>
+              <p className="text-xs text-muted-foreground/50 italic">No execution settings found.</p>
             ) : (
               <table className="w-full">
                 <tbody>
@@ -133,9 +133,9 @@ export function WhatWasRecorded({ kind, inputs, conditions, outputs, metadata }:
                       <KVRow label="Top P" value={conditions.topP} />
                       <KVRow label="Seed" value={conditions.seed} />
                       <KVRow label="Execution ID" value={conditions.executionId} />
-                      <KVRow label="Execution surface" value={conditions.executionSurface} />
-                      <KVRow label="Step index" value={conditions.stepIndex} />
-                      <KVRow label="Workflow ID" value={conditions.workflowId} />
+                      <KVRow label="Surface" value={conditions.executionSurface} />
+                      <KVRow label="Step" value={conditions.stepIndex} />
+                      <KVRow label="Workflow" value={conditions.workflowId} />
                       {conditions.parameters && Object.entries(conditions.parameters)
                         .filter(([k]) => !['temperature', 'maxTokens', 'max_tokens', 'topP', 'top_p', 'seed'].includes(k))
                         .map(([k, v]) => (
@@ -150,7 +150,7 @@ export function WhatWasRecorded({ kind, inputs, conditions, outputs, metadata }:
                       <KVRow label="Policy" value={conditions.policy} />
                       <KVRow label="Determinism" value={conditions.determinism} />
                       <KVRow label="Seed" value={conditions.seed} />
-                      <KVRow label="Workflow ID" value={conditions.workflowId} />
+                      <KVRow label="Workflow" value={conditions.workflowId} />
                       <KVRow label="Run ID" value={conditions.runId} />
                       <KVRow label="Step" value={conditions.stepIndex} />
                     </>
@@ -162,15 +162,15 @@ export function WhatWasRecorded({ kind, inputs, conditions, outputs, metadata }:
         </Card>
 
         {/* Panel D: Metadata */}
-        <Card className="border">
-          <CardHeader className="pb-2 pt-4 px-4">
+        <Card className="border border-border/60">
+          <CardHeader className="pb-2 pt-4 px-5">
             <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Metadata
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
+          <CardContent className="px-5 pb-4">
             {!hasMetadata ? (
-              <p className="text-xs text-muted-foreground italic">No metadata in this record.</p>
+              <p className="text-xs text-muted-foreground/50 italic">No metadata in this record.</p>
             ) : (
               <table className="w-full">
                 <tbody>

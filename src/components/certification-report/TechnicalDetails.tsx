@@ -1,10 +1,9 @@
 /**
  * Technical Details — accordion for hashes, raw JSON, reason codes.
- * Collapsed by default. For power users.
+ * Collapsed by default. Visually lighter — positioned at bottom for power users.
  */
 
-import { useState } from 'react';
-import { Copy, ChevronDown, Code2 } from 'lucide-react';
+import { Copy, Code2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -25,10 +24,10 @@ function HashItem({ label, value }: { label: string; value?: string }) {
     toast.success(`${label} copied`);
   };
   return (
-    <tr className="border-b border-border/40 last:border-0">
-      <td className="py-2 pr-4 text-muted-foreground whitespace-nowrap text-xs">{label}</td>
-      <td className="py-2 text-xs font-mono break-all pr-2">{value}</td>
-      <td className="py-2">
+    <tr className="border-b border-border/30 last:border-0">
+      <td className="py-2.5 pr-4 text-muted-foreground whitespace-nowrap text-xs uppercase tracking-wider">{label}</td>
+      <td className="py-2.5 text-xs font-mono break-all pr-2 text-foreground">{value}</td>
+      <td className="py-2.5">
         <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={handleCopy}>
           <Copy className="w-3 h-3" />
         </Button>
@@ -49,12 +48,12 @@ export function TechnicalDetails({ evidence, bundleJson, verifyCode, verifyDetai
   };
 
   return (
-    <Accordion type="single" collapsible className="border border-border rounded-lg overflow-hidden">
+    <Accordion type="single" collapsible className="border border-border/50 rounded-lg overflow-hidden">
       <AccordionItem value="technical" className="border-0">
-        <AccordionTrigger className="px-4 py-3 text-sm text-muted-foreground hover:text-foreground hover:no-underline">
+        <AccordionTrigger className="px-5 py-3 text-sm text-muted-foreground hover:text-foreground hover:no-underline">
           Technical details
         </AccordionTrigger>
-        <AccordionContent className="px-4 pb-4 space-y-4">
+        <AccordionContent className="px-5 pb-5 space-y-5">
           {/* Hashes table */}
           <table className="w-full">
             <tbody>
@@ -69,10 +68,10 @@ export function TechnicalDetails({ evidence, bundleJson, verifyCode, verifyDetai
           {/* Bundle info */}
           <div className="flex gap-4 text-xs text-muted-foreground">
             {evidence.bundleType && (
-              <span>Type: <code className="font-mono">{evidence.bundleType}</code></span>
+              <span>Type: <code className="font-mono text-foreground">{evidence.bundleType}</code></span>
             )}
             {evidence.bundleVersion && (
-              <span>Version: <code className="font-mono">{evidence.bundleVersion}</code></span>
+              <span>Version: <code className="font-mono text-foreground">{evidence.bundleVersion}</code></span>
             )}
           </div>
 
@@ -88,11 +87,11 @@ export function TechnicalDetails({ evidence, bundleJson, verifyCode, verifyDetai
             </div>
           )}
 
-          {/* Independent validation callout */}
-          <div className="p-3 rounded-md bg-muted/20 border border-border/50">
-            <p className="text-xs font-medium text-foreground mb-1">Independent validation available</p>
+          {/* Independent validation */}
+          <div className="p-3 rounded-md bg-muted/20 border border-border/40">
+            <p className="text-xs font-medium text-foreground mb-1">Independent validation</p>
             <p className="text-xs text-muted-foreground">
-              You can verify this record independently by re-computing the SHA-256 hash of the canonicalized bundle content (JCS) and comparing it to the certificate hash above. No authentication or API key is required.
+              Re-compute SHA-256 of the canonicalized bundle (JCS) and compare to the certificate hash. No API key needed.
             </p>
           </div>
 
@@ -103,14 +102,14 @@ export function TechnicalDetails({ evidence, bundleJson, verifyCode, verifyDetai
               <span>Full record JSON</span>
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-2">
-              <div className="border border-border rounded-md overflow-hidden">
-                <div className="flex justify-end p-2 border-b border-border bg-muted/10">
+              <div className="border border-border/50 rounded-md overflow-hidden">
+                <div className="flex justify-end p-2 border-b border-border/30 bg-muted/10">
                   <Button variant="ghost" size="sm" onClick={handleCopyJson} className="h-6 gap-1 text-xs">
                     <Copy className="w-3 h-3" />
                     Copy
                   </Button>
                 </div>
-                <pre className="p-3 text-xs font-mono whitespace-pre-wrap break-all max-h-80 overflow-auto bg-muted/10">
+                <pre className="p-4 text-xs font-mono whitespace-pre-wrap break-all max-h-96 overflow-auto bg-muted/5">
                   {formatted}
                 </pre>
               </div>
