@@ -221,10 +221,9 @@ export function NodeAttestationSignature({ bundle, verifiers, nodeUrl, className
                   <AlertTriangle className="w-4 h-4 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Stamp incomplete</p>
+                  <p className="text-sm font-medium text-muted-foreground">Unsigned attestation (legacy)</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Some stamp fields were found but not enough to verify offline.
-                    This record may have been stamped before signed receipts were available.
+                    This record includes an attestation ID, but not the signed receipt fields needed for offline verification. Re-attest to generate a signed receipt.
                   </p>
                 </div>
               </div>
