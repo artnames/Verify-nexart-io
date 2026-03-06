@@ -14,6 +14,7 @@ export default {
     },
     extend: {
       fontFamily: {
+        serif: ['Libre Baskerville', 'Georgia', 'serif'],
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
