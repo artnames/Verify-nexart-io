@@ -45,7 +45,7 @@ export function AuditLogPage() {
       setRecords(data);
     } catch (error) {
       console.error('Failed to load audit records:', error);
-      toast.error('Failed to load audit log');
+      toast.error('Failed to load verification log');
     } finally {
       setIsLoading(false);
     }
