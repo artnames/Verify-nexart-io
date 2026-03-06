@@ -1,14 +1,15 @@
 import { useParams, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Loader2, AlertTriangle } from "lucide-react";
-import { fetchBundleFromUrl } from "@/api/auditRecords";
-import { computeCertificateHash } from "@/lib/canonicalize";
+import { lookupByExecutionId } from "@/api/executionLookup";
 import { importLocalRecord } from "@/storage/localAuditLog";
 import type { CERBundle } from "@/types/auditRecord";
 
 /**
- * /e/:executionId → looks up a bundle by execution ID via the fetch-bundle proxy,
- * imports it locally, then redirects to /audit/:hash.
+ * /e/:executionId → looks up a bundle by execution ID from the audit_records table
+ * (via bundle_json->snapshot->executionId), imports it locally, then redirects to /audit/:hash.
+ *
+ * Does NOT use fetch-bundle or treat executionId as a URL.
  */
 export default function VerifyExecution() {
   const { executionId } = useParams<{ executionId: string }>();
@@ -28,26 +29,23 @@ export default function VerifyExecution() {
 
     (async () => {
       try {
-        const result = await fetchBundleFromUrl(executionId);
+        const result = await lookupByExecutionId(executionId);
 
         if (cancelled) return;
 
-        if (!result.success || !result.bundle) {
+        if (!result.success || !result.bundle || !result.certificateHash) {
           setState({
             status: "error",
-            message: result.error || "Could not fetch execution record.",
+            message: result.error || "Could not find execution record.",
           });
           return;
         }
 
-        const bundle = result.bundle as CERBundle;
-        const hash = await computeCertificateHash(bundle);
-
         // Import into local audit log so AuditPage can find it
-        await importLocalRecord(bundle, "url");
+        await importLocalRecord(result.bundle as CERBundle, "url");
 
         if (!cancelled) {
-          setState({ status: "ready", hash });
+          setState({ status: "ready", hash: result.certificateHash });
         }
       } catch (err: unknown) {
         if (!cancelled) {
@@ -69,7 +67,7 @@ export default function VerifyExecution() {
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
           <Loader2 className="w-6 h-6 animate-spin" />
-          <p className="font-mono text-sm">Fetching execution record…</p>
+          <p className="font-mono text-sm">Looking up execution record…</p>
         </div>
       </div>
     );
