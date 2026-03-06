@@ -238,6 +238,10 @@ serve(async (req) => {
       );
     }
     
+    if (!DECISION_CERTIFIER_PUBLIC_BASE) {
+      console.error('[fetch-bundle] DECISION_CERTIFIER_PUBLIC_BASE secret is not configured');
+      return createErrorResponse(500, 'SERVER_CONFIG_ERROR', 'Verification service is not configured. Please contact the administrator.');
+    }
     // Construct the public certificate URL
     targetUrl = `${DECISION_CERTIFIER_PUBLIC_BASE}/${encodeURIComponent(normalizedHash)}`;
     console.log(`[fetch-bundle] Constructed URL from hash: ${targetUrl}`);
