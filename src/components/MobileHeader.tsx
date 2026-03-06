@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import recanonIcon from "@/assets/recanon-icon.png";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface MobileHeaderProps {
   activeView: string;
@@ -46,13 +47,15 @@ export function MobileHeader({ activeView, onViewChange }: MobileHeaderProps) {
           </div>
         </div>
 
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-9 w-9">
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Toggle menu</span>
-            </Button>
-          </SheetTrigger>
+        <div className="flex items-center gap-1">
+          <ThemeToggle className="h-8 w-8 text-muted-foreground" />
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-9 w-9">
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Toggle menu</span>
+              </Button>
+            </SheetTrigger>
           <SheetContent side="right" className="w-64 p-0 bg-sidebar">
             <div className="flex flex-col h-full">
               {/* Header */}
@@ -118,6 +121,7 @@ export function MobileHeader({ activeView, onViewChange }: MobileHeaderProps) {
             </div>
           </SheetContent>
         </Sheet>
+        </div>
       </div>
     </header>
   );

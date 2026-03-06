@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import recanonIcon from "@/assets/recanon-icon.png";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 import { useNavigate } from "react-router-dom";
 
@@ -100,11 +101,12 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
         </div>
       </div>
 
-      {/* Anonymous mode — no auth section */}
-      <div className="p-3 border-t border-sidebar-border">
-        <p className="text-[10px] text-muted-foreground text-center leading-relaxed">
+      {/* Footer */}
+      <div className="p-3 border-t border-sidebar-border flex items-center justify-between">
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
           Anonymous verification mode
         </p>
+        <ThemeToggle className="h-7 w-7 text-muted-foreground" />
       </div>
     </aside>
   );
