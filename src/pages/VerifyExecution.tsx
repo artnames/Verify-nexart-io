@@ -3,13 +3,13 @@ import { useEffect, useState } from "react";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { lookupByExecutionId } from "@/api/executionLookup";
 import { importLocalRecord } from "@/storage/localAuditLog";
+import { computeCertificateHash } from "@/lib/canonicalize";
 import type { CERBundle } from "@/types/auditRecord";
 
 /**
- * /e/:executionId → looks up a bundle by execution ID from the audit_records table
- * (via bundle_json->snapshot->executionId), imports it locally, then redirects to /audit/:hash.
- *
- * Does NOT use fetch-bundle or treat executionId as a URL.
+ * /e/:executionId → looks up a bundle by execution ID from the Decision Certifier
+ * public-certificate endpoint (via fetch-bundle proxy), imports it locally,
+ * then redirects to /audit/:hash.
  */
 export default function VerifyExecution() {
   const { executionId } = useParams<{ executionId: string }>();
@@ -33,7 +33,7 @@ export default function VerifyExecution() {
 
         if (cancelled) return;
 
-        if (!result.success || !result.bundle || !result.certificateHash) {
+        if (!result.success || !result.bundle) {
           setState({
             status: "error",
             message: result.error || "Could not find execution record.",
@@ -42,10 +42,20 @@ export default function VerifyExecution() {
         }
 
         // Import into local audit log so AuditPage can find it
-        await importLocalRecord(result.bundle as CERBundle, "url");
+        const importResult = await importLocalRecord(
+          result.bundle as CERBundle,
+          "url",
+          result.wrapperMetadata,
+        );
+
+        // Use certificateHash from the lookup result, import result, or compute it
+        const hash =
+          result.certificateHash ||
+          importResult.certificateHash ||
+          (await computeCertificateHash(result.bundle as CERBundle));
 
         if (!cancelled) {
-          setState({ status: "ready", hash: result.certificateHash });
+          setState({ status: "ready", hash });
         }
       } catch (err: unknown) {
         if (!cancelled) {
