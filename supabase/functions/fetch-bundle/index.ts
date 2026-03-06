@@ -373,12 +373,17 @@ serve(async (req) => {
         }
         
         // Follow the redirect
+        const redirectHeaders: Record<string, string> = {
+          'Accept': 'application/json',
+          'User-Agent': 'Recanon-Bundle-Fetcher/1.0',
+        };
+        if (DECISION_CERTIFIER_ANON_KEY && redirectUrl.hostname.endsWith('.supabase.co')) {
+          redirectHeaders['apikey'] = DECISION_CERTIFIER_ANON_KEY;
+          redirectHeaders['Authorization'] = `Bearer ${DECISION_CERTIFIER_ANON_KEY}`;
+        }
         const redirectResponse = await fetch(redirectUrl.toString(), {
           method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'Recanon-Bundle-Fetcher/1.0',
-          },
+          headers: redirectHeaders,
           redirect: 'manual',
           signal: controller.signal,
         });
