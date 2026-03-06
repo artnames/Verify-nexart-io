@@ -150,11 +150,11 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails }:
         '  1. SHA-256 of canonicalized bundle → compare to certificateHash',
         '  2. If receipt + signature: verify Ed25519 with node public key',
         '',
-        'Tools: recanon.xyz, @nexart/ai-execution SDK',
+        'Tools: verify.nexart.iort.io, @nexart/ai-execution SDK',
       ].join('\n');
 
       const evidencePack = {
-        _format: 'recanon.evidence-pack.v1',
+        _format: 'nexart.evidence-pack.v1',
         generatedAt: new Date().toISOString(),
         certificateHash: summary.certificateHash,
         bundle,

@@ -538,7 +538,7 @@ export function AuditPage() {
       <div className="max-w-4xl mx-auto space-y-6 px-4">
         <Button variant="ghost" size="sm" onClick={() => navigate('/audit-log')}>
           <ChevronLeft className="w-4 h-4 mr-1" />
-          Back to Audit Log
+          Back to Verification Log
         </Button>
         
         <Card className="border-warning/30 bg-warning/5">
@@ -611,7 +611,7 @@ export function AuditPage() {
         <div className="flex items-center justify-between">
           <Button variant="ghost" size="sm" onClick={() => navigate('/audit-log')}>
             <ChevronLeft className="w-4 h-4 mr-1" />
-            Audit Log
+            Verification Log
           </Button>
         </div>
 
@@ -676,7 +676,7 @@ export function AuditPage() {
       <div className="flex items-center justify-between">
         <Button variant="ghost" size="sm" onClick={() => navigate('/audit-log')}>
           <ChevronLeft className="w-4 h-4 mr-1" />
-          Audit Log
+          Verification Log
         </Button>
       </div>
 

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { cn } from "@/lib/utils";
 import { checkCanonicalHealth, isProxyConfigured } from "@/certified/canonicalClient";
 
-const APP_VERSION = 'recanon-app v0.1.0';
+const APP_VERSION = 'nexart-verify v0.1.0';
 
 interface HealthData {
   status: 'idle' | 'checking' | 'healthy' | 'unreachable';

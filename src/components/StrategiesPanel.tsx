@@ -38,7 +38,7 @@ export function StrategiesPanel({ strategies }: StrategiesPanelProps) {
                 </DialogHeader>
                 <div className="space-y-4 pt-2">
                   <p className="text-sm text-muted-foreground">
-                    Recanon strategies are immutable, sealed execution definitions.
+                    Strategies are immutable, sealed execution definitions.
                   </p>
                   <p className="text-sm text-muted-foreground">
                     To register a new strategy, contact <span className="text-foreground font-medium">@arrotu</span> on X with:

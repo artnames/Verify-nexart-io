@@ -1,5 +1,5 @@
 /**
- * Audit Log Page - List of all imported Certified Execution Records
+ * Verification Log Page - List of all imported Certified Execution Records
  */
 
 import { useState, useEffect } from 'react';
@@ -45,7 +45,7 @@ export function AuditLogPage() {
       setRecords(data);
     } catch (error) {
       console.error('Failed to load audit records:', error);
-      toast.error('Failed to load audit log');
+      toast.error('Failed to load verification log');
     } finally {
       setIsLoading(false);
     }
@@ -88,7 +88,7 @@ export function AuditLogPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Audit Log</h1>
+          <h1 className="text-2xl font-bold">Verification Log</h1>
           <p className="text-muted-foreground">
             Browse and verify imported Certified Execution Records
           </p>
@@ -118,7 +118,7 @@ export function AuditLogPage() {
           ) : records.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 text-center">
               <AlertTriangle className="w-8 h-8 text-muted-foreground mb-2" />
-              <p className="text-muted-foreground">No audit records yet</p>
+              <p className="text-muted-foreground">No records yet</p>
               <p className="text-sm text-muted-foreground">Import a bundle using the panel above</p>
             </div>
           ) : (
