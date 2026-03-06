@@ -619,6 +619,9 @@ async function processResponse(response: Response, fetchedFrom: string, requestI
     createdAt?: string;
     status?: string;
     expectedImageHash?: string;
+    bundleType?: string;
+    projectName?: string;
+    appName?: string;
   } = { isWrapped: false };
   
   const p = parsedJson as Record<string, unknown>;
