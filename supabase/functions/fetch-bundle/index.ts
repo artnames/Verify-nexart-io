@@ -10,9 +10,11 @@ const corsHeaders = {
 // ============================================================
 
 // Decision Certifier public certificate endpoint base URL
-// This is the Supabase project hosting the public-certificate edge function
+// Read from environment secret so it's configurable and DNS-resolvable
+const DECISION_CERTIFIER_PUBLIC_BASE = Deno.env.get("DECISION_CERTIFIER_PUBLIC_BASE") || '';
+
+// Legacy fallback project ref (used only for domain allowlist)
 const DECISION_CERTIFIER_SUPABASE_PROJECT = 'nxjkrwcxyhftoaenyztu';
-const DECISION_CERTIFIER_PUBLIC_BASE = `https://${DECISION_CERTIFIER_SUPABASE_PROJECT}.supabase.co/functions/v1/public-certificate`;
 
 // Allowlisted domains for fetching bundles
 const ALLOWED_DOMAINS = [
