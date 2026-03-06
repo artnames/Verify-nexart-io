@@ -34,9 +34,16 @@ export default function VerifyExecution() {
         if (cancelled) return;
 
         if (!result.success || !result.bundle) {
+          // Clean up raw plumbing errors for display
+          const rawError = result.error || "Could not find execution record.";
+          const cleanMessage = rawError.includes('dns error') || rawError.includes('Service unreachable')
+            ? "The verification service is temporarily unavailable. Please try again later."
+            : rawError.includes('SERVER_CONFIG_ERROR') || rawError.includes('not configured')
+            ? "The verification service is not yet configured. Please contact the administrator."
+            : rawError;
           setState({
             status: "error",
-            message: result.error || "Could not find execution record.",
+            message: cleanMessage,
           });
           return;
         }
