@@ -283,4 +283,63 @@ describe('Public verification routes', () => {
       expect(att.hasSignedReceipt).toBe(true);
     });
   });
+
+  describe('Attestation status consistency', () => {
+    it('signed receipt bundle does not trigger legacy/unsigned wording', () => {
+      const { extractSignedReceiptEnvelope, probeReceiptFields } = require('@/lib/extractSignedReceipt');
+
+      const signedBundle = {
+        bundleType: 'cer.ai.execution.v1',
+        meta: {
+          attestation: {
+            attestationId: 'att-001',
+            receipt: { certificateHash: 'sha256:abc', outputHash: 'sha256:def' },
+            signature: 'base64sig',
+            attestorKeyId: 'kid-001',
+            verified: true,
+            hasSignedReceipt: true,
+          },
+        },
+      };
+
+      // extractSignedReceiptEnvelope should find the receipt
+      const envelope = extractSignedReceiptEnvelope(signedBundle);
+      expect(envelope).not.toBeNull();
+      expect(envelope?.source).toBe('meta.attestation');
+
+      // probeReceiptFields should find all fields
+      const probe = probeReceiptFields(signedBundle);
+      expect(probe.hasReceipt).toBe(true);
+      expect(probe.hasSignature).toBe(true);
+      expect(probe.hasKid).toBe(true);
+      expect(probe.hasAttestationId).toBe(true);
+    });
+
+    it('actual unsigned/legacy bundle correctly shows legacy probe', () => {
+      const { extractSignedReceiptEnvelope, probeReceiptFields } = require('@/lib/extractSignedReceipt');
+
+      const legacyBundle = {
+        bundleType: 'cer.ai.execution.v1',
+        meta: {
+          attestation: {
+            attestationId: 'att-legacy-001',
+            nodeRuntimeHash: 'sha256:abc',
+            verified: true,
+            // No receipt, no signature, no kid
+          },
+        },
+      };
+
+      // extractSignedReceiptEnvelope should return null (no complete triple)
+      const envelope = extractSignedReceiptEnvelope(legacyBundle);
+      expect(envelope).toBeNull();
+
+      // probeReceiptFields should find attestationId but not receipt/sig/kid
+      const probe = probeReceiptFields(legacyBundle);
+      expect(probe.hasAttestationId).toBe(true);
+      expect(probe.hasReceipt).toBe(false);
+      expect(probe.hasSignature).toBe(false);
+      expect(probe.hasKid).toBe(false);
+    });
+  });
 });
