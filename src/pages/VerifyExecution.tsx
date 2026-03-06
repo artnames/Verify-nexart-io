@@ -66,9 +66,13 @@ export default function VerifyExecution() {
         }
       } catch (err: unknown) {
         if (!cancelled) {
+          const raw = err instanceof Error ? err.message : "Unknown error";
+          const clean = raw.includes('fetch') || raw.includes('network')
+            ? "Unable to reach the verification service. Please check your connection and try again."
+            : raw;
           setState({
             status: "error",
-            message: err instanceof Error ? err.message : "Unknown error",
+            message: clean,
           });
         }
       }
