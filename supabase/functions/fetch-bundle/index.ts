@@ -296,13 +296,22 @@ serve(async (req) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
+    // Build headers — include apikey for Supabase-hosted targets
+    const fetchHeaders: Record<string, string> = {
+      'Accept': 'application/json',
+      'User-Agent': 'Recanon-Bundle-Fetcher/1.0',
+    };
+    
+    // Add Decision Certifier anon key if calling a Supabase-hosted endpoint
+    if (DECISION_CERTIFIER_ANON_KEY && parsedUrl.hostname.endsWith('.supabase.co')) {
+      fetchHeaders['apikey'] = DECISION_CERTIFIER_ANON_KEY;
+      fetchHeaders['Authorization'] = `Bearer ${DECISION_CERTIFIER_ANON_KEY}`;
+    }
+
     // Use redirect: 'manual' to catch auth redirects before they happen
     const response = await fetch(targetUrl, {
       method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'Recanon-Bundle-Fetcher/1.0',
-      },
+      headers: fetchHeaders,
       redirect: 'manual', // Don't follow redirects automatically
       signal: controller.signal,
     });
