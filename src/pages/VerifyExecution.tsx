@@ -1,16 +1,14 @@
-import { useParams } from "react-router-dom";
+import { useParams, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Loader2, AlertTriangle, ShieldCheck } from "lucide-react";
+import { Loader2, AlertTriangle } from "lucide-react";
 import { fetchBundleFromUrl } from "@/api/auditRecords";
 import { computeCertificateHash } from "@/lib/canonicalize";
-import { AuditLayout } from "@/components/AuditLayout";
-import { AuditPage } from "@/components/AuditPage";
 import { importLocalRecord } from "@/storage/localAuditLog";
 import type { CERBundle } from "@/types/auditRecord";
 
 /**
  * /e/:executionId → looks up a bundle by execution ID via the fetch-bundle proxy,
- * imports it locally, then renders the full AuditPage for that certificate hash.
+ * imports it locally, then redirects to /audit/:hash.
  */
 export default function VerifyExecution() {
   const { executionId } = useParams<{ executionId: string }>();
@@ -30,7 +28,6 @@ export default function VerifyExecution() {
 
     (async () => {
       try {
-        // Try fetching the bundle by execution ID (the proxy accepts hashes)
         const result = await fetchBundleFromUrl(executionId);
 
         if (cancelled) return;
@@ -93,10 +90,5 @@ export default function VerifyExecution() {
     );
   }
 
-  // Render the full audit page with the resolved hash
-  return (
-    <AuditLayout>
-      <AuditPage />
-    </AuditLayout>
-  );
+  return <Navigate to={`/audit/${state.hash}`} replace />;
 }
