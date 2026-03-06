@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import VerifyCertificate from "./pages/VerifyCertificate";
+import VerifyExecution from "./pages/VerifyExecution";
 import { AuditPage } from "./components/AuditPage";
 import { AuditLogPage } from "./components/AuditLogPage";
 import { AuditLayout } from "./components/AuditLayout";
@@ -21,6 +23,8 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/c/:certificateHash" element={<VerifyCertificate />} />
+          <Route path="/e/:executionId" element={<VerifyExecution />} />
           <Route path="/audit/:hash" element={
             <AuditLayout>
               <AuditPage />
