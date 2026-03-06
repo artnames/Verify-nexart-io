@@ -72,7 +72,9 @@ export function NodeAttestationSignature({ bundle, verifiers, nodeUrl, className
   const [showDebug, setShowDebug] = useState(false);
 
   const receipt = verifiers.getAttestationReceipt(bundle);
-  const hasReceipt = verifiers.hasAttestation(bundle) && receipt !== null;
+  // Fallback: use multi-layout probe if SDK doesn't find receipt
+  const envelopeFallback = !receipt ? extractSignedReceiptEnvelope(bundle) : null;
+  const hasReceipt = (verifiers.hasAttestation(bundle) && receipt !== null) || envelopeFallback !== null;
 
   // ── Run verification (original) ──
   const runVerify = useCallback(async () => {
