@@ -34,9 +34,16 @@ export default function VerifyExecution() {
         if (cancelled) return;
 
         if (!result.success || !result.bundle) {
+          // Clean up raw plumbing errors for display
+          const rawError = result.error || "Could not find execution record.";
+          const cleanMessage = rawError.includes('dns error') || rawError.includes('Service unreachable')
+            ? "The verification service is temporarily unavailable. Please try again later."
+            : rawError.includes('SERVER_CONFIG_ERROR') || rawError.includes('not configured')
+            ? "The verification service is not yet configured. Please contact the administrator."
+            : rawError;
           setState({
             status: "error",
-            message: result.error || "Could not find execution record.",
+            message: cleanMessage,
           });
           return;
         }
@@ -59,9 +66,13 @@ export default function VerifyExecution() {
         }
       } catch (err: unknown) {
         if (!cancelled) {
+          const raw = err instanceof Error ? err.message : "Unknown error";
+          const clean = raw.includes('fetch') || raw.includes('network')
+            ? "Unable to reach the verification service. Please check your connection and try again."
+            : raw;
           setState({
             status: "error",
-            message: err instanceof Error ? err.message : "Unknown error",
+            message: clean,
           });
         }
       }

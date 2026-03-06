@@ -10,9 +10,11 @@ const corsHeaders = {
 // ============================================================
 
 // Decision Certifier public certificate endpoint base URL
-// This is the Supabase project hosting the public-certificate edge function
+// Read from environment secret so it's configurable and DNS-resolvable
+const DECISION_CERTIFIER_PUBLIC_BASE = Deno.env.get("DECISION_CERTIFIER_PUBLIC_BASE") || '';
+
+// Legacy fallback project ref (used only for domain allowlist)
 const DECISION_CERTIFIER_SUPABASE_PROJECT = 'nxjkrwcxyhftoaenyztu';
-const DECISION_CERTIFIER_PUBLIC_BASE = `https://${DECISION_CERTIFIER_SUPABASE_PROJECT}.supabase.co/functions/v1/public-certificate`;
 
 // Allowlisted domains for fetching bundles
 const ALLOWED_DOMAINS = [
@@ -215,6 +217,10 @@ serve(async (req) => {
     if (!trimmed) {
       return createErrorResponse(400, 'INVALID_EXECUTION_ID', 'executionId parameter must not be empty');
     }
+    if (!DECISION_CERTIFIER_PUBLIC_BASE) {
+      console.error('[fetch-bundle] DECISION_CERTIFIER_PUBLIC_BASE secret is not configured');
+      return createErrorResponse(500, 'SERVER_CONFIG_ERROR', 'Verification service is not configured. Please contact the administrator.');
+    }
     targetUrl = `${DECISION_CERTIFIER_PUBLIC_BASE}?executionId=${encodeURIComponent(trimmed)}`;
     console.log(`[fetch-bundle] Constructed URL from executionId: ${targetUrl}`);
   }
@@ -232,6 +238,10 @@ serve(async (req) => {
       );
     }
     
+    if (!DECISION_CERTIFIER_PUBLIC_BASE) {
+      console.error('[fetch-bundle] DECISION_CERTIFIER_PUBLIC_BASE secret is not configured');
+      return createErrorResponse(500, 'SERVER_CONFIG_ERROR', 'Verification service is not configured. Please contact the administrator.');
+    }
     // Construct the public certificate URL
     targetUrl = `${DECISION_CERTIFIER_PUBLIC_BASE}/${encodeURIComponent(normalizedHash)}`;
     console.log(`[fetch-bundle] Constructed URL from hash: ${targetUrl}`);
@@ -366,14 +376,25 @@ serve(async (req) => {
     console.error(`[fetch-bundle] Fetch error:`, error);
     
     const isTimeout = error instanceof Error && error.name === 'AbortError';
+    const isDnsError = error instanceof Error && error.message.includes('dns error');
+    
+    // Surface clean messages — never expose raw DNS/plumbing details
+    let userMessage: string;
+    if (isTimeout) {
+      userMessage = `Request timed out after ${FETCH_TIMEOUT_MS / 1000} seconds. The verification service may be temporarily unavailable.`;
+    } else if (isDnsError) {
+      userMessage = 'The verification service endpoint could not be reached. Please try again later or contact the administrator.';
+    } else {
+      userMessage = 'An unexpected network error occurred while looking up the verification record. Please try again.';
+    }
+    
+    console.error(`[fetch-bundle] Upstream error details: ${error instanceof Error ? error.message : 'unknown'}`);
     
     return new Response(
       JSON.stringify({
         ok: false,
-        error: isTimeout ? 'Request timeout' : 'Network error',
-        message: isTimeout 
-          ? `Request timed out after ${FETCH_TIMEOUT_MS / 1000} seconds`
-          : (error instanceof Error ? error.message : 'Unknown network error'),
+        error: isTimeout ? 'Request timeout' : isDnsError ? 'Service unreachable' : 'Network error',
+        message: userMessage,
         requestId,
       }),
       { 
