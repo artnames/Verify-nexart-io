@@ -217,6 +217,10 @@ serve(async (req) => {
     if (!trimmed) {
       return createErrorResponse(400, 'INVALID_EXECUTION_ID', 'executionId parameter must not be empty');
     }
+    if (!DECISION_CERTIFIER_PUBLIC_BASE) {
+      console.error('[fetch-bundle] DECISION_CERTIFIER_PUBLIC_BASE secret is not configured');
+      return createErrorResponse(500, 'SERVER_CONFIG_ERROR', 'Verification service is not configured. Please contact the administrator.');
+    }
     targetUrl = `${DECISION_CERTIFIER_PUBLIC_BASE}?executionId=${encodeURIComponent(trimmed)}`;
     console.log(`[fetch-bundle] Constructed URL from executionId: ${targetUrl}`);
   }
