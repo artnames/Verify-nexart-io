@@ -8,10 +8,12 @@ import NotFound from "./pages/NotFound";
 import { AuditPage } from "./components/AuditPage";
 import { AuditLogPage } from "./components/AuditLogPage";
 import { AuditLayout } from "./components/AuditLayout";
+import { ThemeProvider } from "./components/ThemeProvider";
 
 const queryClient = new QueryClient();
 
 const App = () => (
+  <ThemeProvider>
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
