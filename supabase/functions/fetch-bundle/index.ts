@@ -11,7 +11,16 @@ const corsHeaders = {
 
 // Decision Certifier public certificate endpoint base URL
 // Read from environment secret so it's configurable and DNS-resolvable
-const DECISION_CERTIFIER_PUBLIC_BASE = Deno.env.get("DECISION_CERTIFIER_PUBLIC_BASE") || '';
+// Should be the FULL base URL including function name, e.g.:
+//   https://<project>.supabase.co/functions/v1/public-certificate
+const DECISION_CERTIFIER_PUBLIC_BASE_RAW = Deno.env.get("DECISION_CERTIFIER_PUBLIC_BASE") || '';
+// Ensure the URL ends with /public-certificate
+const DECISION_CERTIFIER_PUBLIC_BASE = DECISION_CERTIFIER_PUBLIC_BASE_RAW.endsWith('/public-certificate')
+  ? DECISION_CERTIFIER_PUBLIC_BASE_RAW
+  : DECISION_CERTIFIER_PUBLIC_BASE_RAW.replace(/\/?$/, '/public-certificate');
+
+// Decision Certifier anon key for Supabase API gateway auth
+const DECISION_CERTIFIER_ANON_KEY = Deno.env.get("DECISION_CERTIFIER_ANON_KEY") || '';
 
 // Legacy fallback project ref (used only for domain allowlist)
 const DECISION_CERTIFIER_SUPABASE_PROJECT = 'nxjkrwcxyhftoaenyztu';
@@ -287,13 +296,22 @@ serve(async (req) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
+    // Build headers — include apikey for Supabase-hosted targets
+    const fetchHeaders: Record<string, string> = {
+      'Accept': 'application/json',
+      'User-Agent': 'Recanon-Bundle-Fetcher/1.0',
+    };
+    
+    // Add Decision Certifier anon key if calling a Supabase-hosted endpoint
+    if (DECISION_CERTIFIER_ANON_KEY && parsedUrl.hostname.endsWith('.supabase.co')) {
+      fetchHeaders['apikey'] = DECISION_CERTIFIER_ANON_KEY;
+      fetchHeaders['Authorization'] = `Bearer ${DECISION_CERTIFIER_ANON_KEY}`;
+    }
+
     // Use redirect: 'manual' to catch auth redirects before they happen
     const response = await fetch(targetUrl, {
       method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'Recanon-Bundle-Fetcher/1.0',
-      },
+      headers: fetchHeaders,
       redirect: 'manual', // Don't follow redirects automatically
       signal: controller.signal,
     });
@@ -355,12 +373,17 @@ serve(async (req) => {
         }
         
         // Follow the redirect
+        const redirectHeaders: Record<string, string> = {
+          'Accept': 'application/json',
+          'User-Agent': 'Recanon-Bundle-Fetcher/1.0',
+        };
+        if (DECISION_CERTIFIER_ANON_KEY && redirectUrl.hostname.endsWith('.supabase.co')) {
+          redirectHeaders['apikey'] = DECISION_CERTIFIER_ANON_KEY;
+          redirectHeaders['Authorization'] = `Bearer ${DECISION_CERTIFIER_ANON_KEY}`;
+        }
         const redirectResponse = await fetch(redirectUrl.toString(), {
           method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'Recanon-Bundle-Fetcher/1.0',
-          },
+          headers: redirectHeaders,
           redirect: 'manual',
           signal: controller.signal,
         });
