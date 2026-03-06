@@ -1,21 +1,26 @@
 /**
  * Execution ID Lookup — resolves an executionId to a CER bundle
- * by querying audit_records where bundle_json->'snapshot'->>'executionId' matches.
+ * by querying the public-certificate endpoint via the fetch-bundle proxy.
+ *
+ * This uses the same public-safe CER storage path populated by
+ * the Decision Certifier after /v1/cer/ai/certify.
  */
 
-import { supabase } from '@/integrations/supabase/client';
+import { fetchBundleFromUrl } from '@/api/auditRecords';
 import type { CERBundle } from '@/types/auditRecord';
+import type { WrapperMetadata } from '@/api/auditRecords';
 
 export interface ExecutionLookupResult {
   success: boolean;
   bundle?: CERBundle;
   certificateHash?: string;
   error?: string;
+  wrapperMetadata?: WrapperMetadata;
 }
 
 /**
- * Look up an audit record by its execution ID (stored in bundle_json->snapshot->executionId).
- * Uses the public SELECT RLS policy on audit_records.
+ * Look up a public CER record by its execution ID.
+ * Routes through the fetch-bundle proxy → Decision Certifier public-certificate endpoint.
  */
 export async function lookupByExecutionId(executionId: string): Promise<ExecutionLookupResult> {
   if (!executionId || typeof executionId !== 'string' || executionId.trim().length === 0) {
@@ -23,26 +28,38 @@ export async function lookupByExecutionId(executionId: string): Promise<Executio
   }
 
   try {
-    const { data, error } = await supabase
-      .from('audit_records')
-      .select('certificate_hash, bundle_json')
-      .filter('bundle_json->snapshot->>executionId', 'eq', executionId.trim())
-      .limit(1)
-      .maybeSingle();
+    const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fetch-bundle?executionId=${encodeURIComponent(executionId.trim())}`;
 
-    if (error) {
-      console.error('[ExecutionLookup] Query error:', error);
-      return { success: false, error: 'Database query failed.' };
+    const response = await fetch(proxyUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+    });
+
+    const result = await response.json();
+
+    if (!result.ok || !result.bundle) {
+      return {
+        success: false,
+        error: result.message || result.error || `No record found for execution ID: ${executionId}`,
+      };
     }
 
-    if (!data) {
-      return { success: false, error: `No record found for execution ID: ${executionId}` };
-    }
+    const bundle = result.bundle as CERBundle;
+
+    // Extract certificateHash from wrapper metadata or from the bundle itself
+    const certificateHash =
+      result.wrapperMetadata?.certificateHash ||
+      (bundle as Record<string, unknown>).certificateHash as string ||
+      undefined;
 
     return {
       success: true,
-      bundle: data.bundle_json as unknown as CERBundle,
-      certificateHash: data.certificate_hash,
+      bundle,
+      certificateHash,
+      wrapperMetadata: result.wrapperMetadata,
     };
   } catch (err) {
     console.error('[ExecutionLookup] Unexpected error:', err);

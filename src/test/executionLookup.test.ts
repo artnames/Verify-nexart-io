@@ -1,16 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock supabase client
-const mockMaybeSingle = vi.fn();
-const mockLimit = vi.fn(() => ({ maybeSingle: mockMaybeSingle }));
-const mockFilter = vi.fn(() => ({ limit: mockLimit }));
-const mockSelect = vi.fn(() => ({ filter: mockFilter }));
-const mockFrom = vi.fn((_table: string) => ({ select: mockSelect }));
+// Mock fetch globally
+const mockFetch = vi.fn();
+vi.stubGlobal('fetch', mockFetch);
 
-vi.mock('@/integrations/supabase/client', () => ({
-  supabase: {
-    from: (table: string) => mockFrom(table),
-  },
+// Mock import.meta.env
+vi.stubGlobal('import', { meta: { env: {} } });
+
+// We need to mock the module that executionLookup imports
+vi.mock('@/api/auditRecords', () => ({
+  fetchBundleFromUrl: vi.fn(),
 }));
 
 import { lookupByExecutionId } from '@/api/executionLookup';
@@ -18,17 +17,19 @@ import { lookupByExecutionId } from '@/api/executionLookup';
 describe('lookupByExecutionId', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFrom.mockReturnValue({ select: mockSelect });
-    mockSelect.mockReturnValue({ filter: mockFilter });
-    mockFilter.mockReturnValue({ limit: mockLimit });
-    mockLimit.mockReturnValue({ maybeSingle: mockMaybeSingle });
   });
 
-  it('returns bundle and hash on successful lookup', async () => {
+  it('returns bundle and hash on successful lookup via fetch-bundle proxy', async () => {
     const mockBundle = { snapshot: { executionId: 'test-123', model: 'gpt-4' } };
-    mockMaybeSingle.mockResolvedValue({
-      data: { certificate_hash: 'abc123', bundle_json: mockBundle },
-      error: null,
+    mockFetch.mockResolvedValue({
+      json: () => Promise.resolve({
+        ok: true,
+        bundle: mockBundle,
+        wrapperMetadata: {
+          source: 'public-certificate',
+          certificateHash: 'abc123',
+        },
+      }),
     });
 
     const result = await lookupByExecutionId('test-123');
@@ -36,16 +37,27 @@ describe('lookupByExecutionId', () => {
     expect(result.success).toBe(true);
     expect(result.certificateHash).toBe('abc123');
     expect(result.bundle).toEqual(mockBundle);
-    expect(mockFrom).toHaveBeenCalledWith('audit_records');
-    expect(mockFilter).toHaveBeenCalledWith(
-      'bundle_json->snapshot->>executionId',
-      'eq',
-      'test-123'
-    );
+  });
+
+  it('calls fetch-bundle with executionId param, NOT audit_records', async () => {
+    mockFetch.mockResolvedValue({
+      json: () => Promise.resolve({ ok: false, error: 'NOT_FOUND', message: 'Not found' }),
+    });
+
+    await lookupByExecutionId('some-exec-id');
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const calledUrl = mockFetch.mock.calls[0][0] as string;
+    expect(calledUrl).toContain('fetch-bundle');
+    expect(calledUrl).toContain('executionId=some-exec-id');
+    // Must NOT query audit_records directly
+    expect(calledUrl).not.toContain('audit_records');
   });
 
   it('returns error when no record found', async () => {
-    mockMaybeSingle.mockResolvedValue({ data: null, error: null });
+    mockFetch.mockResolvedValue({
+      json: () => Promise.resolve({ ok: false, message: 'No record found' }),
+    });
 
     const result = await lookupByExecutionId('nonexistent-id');
 
@@ -57,36 +69,36 @@ describe('lookupByExecutionId', () => {
     const result = await lookupByExecutionId('');
     expect(result.success).toBe(false);
     expect(result.error).toBe('No execution ID provided.');
-    expect(mockFrom).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it('does NOT call fetch-bundle URL proxy', async () => {
-    mockMaybeSingle.mockResolvedValue({ data: null, error: null });
-
-    await lookupByExecutionId('some-exec-id');
-
-    // Verify it queries audit_records, not fetch-bundle
-    expect(mockFrom).toHaveBeenCalledWith('audit_records');
-    // No fetch calls to fetch-bundle edge function
-    expect(globalThis.fetch).toBeUndefined;
-  });
-
-  it('handles database errors gracefully', async () => {
-    mockMaybeSingle.mockResolvedValue({
-      data: null,
-      error: { message: 'connection failed' },
-    });
+  it('handles network errors gracefully', async () => {
+    mockFetch.mockRejectedValue(new Error('Network failure'));
 
     const result = await lookupByExecutionId('test-123');
 
     expect(result.success).toBe(false);
-    expect(result.error).toBe('Database query failed.');
+    expect(result.error).toBe('Network failure');
+  });
+
+  it('extracts certificateHash from bundle when not in wrapper metadata', async () => {
+    const mockBundle = {
+      snapshot: { executionId: 'test-456' },
+      certificateHash: 'sha256:deadbeef',
+    };
+    mockFetch.mockResolvedValue({
+      json: () => Promise.resolve({ ok: true, bundle: mockBundle }),
+    });
+
+    const result = await lookupByExecutionId('test-456');
+
+    expect(result.success).toBe(true);
+    expect(result.certificateHash).toBe('sha256:deadbeef');
   });
 });
 
 describe('/c/:certificateHash route (unchanged)', () => {
   it('VerifyCertificate redirects to /audit/:hash', async () => {
-    // This is a static redirect component - just verify the module exports correctly
     const mod = await import('@/pages/VerifyCertificate');
     expect(mod.default).toBeDefined();
     expect(typeof mod.default).toBe('function');

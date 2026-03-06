@@ -207,9 +207,19 @@ serve(async (req) => {
   const reqUrl = new URL(req.url);
   let targetUrl = reqUrl.searchParams.get('url');
   const hashParam = reqUrl.searchParams.get('hash');
+  const executionIdParam = reqUrl.searchParams.get('executionId');
 
+  // If executionId is provided, construct the Decision Certifier lookup URL
+  if (executionIdParam) {
+    const trimmed = executionIdParam.trim();
+    if (!trimmed) {
+      return createErrorResponse(400, 'INVALID_EXECUTION_ID', 'executionId parameter must not be empty');
+    }
+    targetUrl = `${DECISION_CERTIFIER_PUBLIC_BASE}?executionId=${encodeURIComponent(trimmed)}`;
+    console.log(`[fetch-bundle] Constructed URL from executionId: ${targetUrl}`);
+  }
   // If hash is provided (or URL looks like a hash), construct the Decision Certifier URL
-  if (hashParam || (targetUrl && looksLikeHash(targetUrl))) {
+  else if (hashParam || (targetUrl && looksLikeHash(targetUrl))) {
     const hashInput = hashParam || targetUrl!;
     const normalizedHash = normalizeHash(hashInput);
     
