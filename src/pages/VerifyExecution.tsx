@@ -47,7 +47,7 @@ export default function VerifyExecution() {
         const hash = await computeCertificateHash(bundle);
 
         // Import into local audit log so AuditPage can find it
-        await importLocalRecord("url", undefined, bundle, hash);
+        await importLocalRecord(bundle, "url");
 
         if (!cancelled) {
           setState({ status: "ready", hash });
