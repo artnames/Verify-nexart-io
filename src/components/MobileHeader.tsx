@@ -121,6 +121,7 @@ export function MobileHeader({ activeView, onViewChange }: MobileHeaderProps) {
             </div>
           </SheetContent>
         </Sheet>
+        </div>
       </div>
     </header>
   );
