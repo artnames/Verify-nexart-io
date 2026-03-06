@@ -623,11 +623,12 @@ async function processResponse(response: Response, fetchedFrom: string, requestI
   
   const p = parsedJson as Record<string, unknown>;
   
-  // Detect wrapper format: { ok: true, bundle: {...} }
+  // Detect wrapper format: { bundle: {...} } with or without ok flag
+  // public-cer-lookup returns { bundle, certificateHash, bundleType, ... } (no ok field)
+  // public-certificate returns { ok: true, bundle, certificateHash, ... }
   if (
     p &&
     typeof p === 'object' &&
-    p.ok === true &&
     typeof p.bundle === 'object' &&
     p.bundle !== null
   ) {
