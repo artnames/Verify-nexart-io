@@ -154,7 +154,7 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails }:
       ].join('\n');
 
       const evidencePack = {
-        _formnexartcanon.evidence-pack.v1',
+        _format: 'nexart.evidence-pack.v1',
         generatedAt: new Date().toISOString(),
         certificateHash: summary.certificateHash,
         bundle,
