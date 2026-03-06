@@ -40,7 +40,14 @@ export async function lookupByExecutionId(executionId: string): Promise<Executio
 
     const result = await response.json();
 
-    if (!result.ok || !result.bundle) {
+    // Safety net: if the proxy didn't unwrap, extract nested bundle
+    let bundleData = result.bundle;
+    if (bundleData && typeof bundleData === 'object' && typeof bundleData.bundle === 'object' && bundleData.bundle !== null) {
+      console.warn('[ExecutionLookup] Client-side unwrap: proxy returned nested wrapper');
+      bundleData = bundleData.bundle;
+    }
+
+    if (!result.ok || !bundleData) {
       const rawMsg = result.message || result.error || `No record found for execution ID: ${executionId}`;
       return {
         success: false,
