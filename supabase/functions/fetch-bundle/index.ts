@@ -12,12 +12,19 @@ const corsHeaders = {
 // Decision Certifier public certificate endpoint base URL
 // Read from environment secret so it's configurable and DNS-resolvable
 // Should be the FULL base URL including function name, e.g.:
-//   https://<project>.supabase.co/functions/v1/public-certificate
+//   https://<project>.supabase.co/functions/v1/public-cer-lookup
 const DECISION_CERTIFIER_PUBLIC_BASE_RAW = Deno.env.get("DECISION_CERTIFIER_PUBLIC_BASE") || '';
-// Ensure the URL ends with /public-certificate
-const DECISION_CERTIFIER_PUBLIC_BASE = DECISION_CERTIFIER_PUBLIC_BASE_RAW.endsWith('/public-certificate')
-  ? DECISION_CERTIFIER_PUBLIC_BASE_RAW
-  : DECISION_CERTIFIER_PUBLIC_BASE_RAW.replace(/\/?$/, '/public-certificate');
+// Ensure the URL ends with /public-cer-lookup (the correct function name)
+const DECISION_CERTIFIER_PUBLIC_BASE = (() => {
+  const raw = DECISION_CERTIFIER_PUBLIC_BASE_RAW;
+  if (!raw) return '';
+  // If it already ends with a function name path, use as-is
+  if (raw.endsWith('/public-cer-lookup') || raw.endsWith('/public-certificate')) {
+    return raw;
+  }
+  // Otherwise append the correct function name
+  return raw.replace(/\/?$/, '/public-cer-lookup');
+})();
 
 // Decision Certifier anon key for Supabase API gateway auth
 const DECISION_CERTIFIER_ANON_KEY = Deno.env.get("DECISION_CERTIFIER_ANON_KEY") || '';
