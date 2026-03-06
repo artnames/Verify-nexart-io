@@ -23,6 +23,8 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/c/:certificateHash" element={<VerifyCertificate />} />
+          <Route path="/e/:executionId" element={<VerifyExecution />} />
           <Route path="/audit/:hash" element={
             <AuditLayout>
               <AuditPage />
