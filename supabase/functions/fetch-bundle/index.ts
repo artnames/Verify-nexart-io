@@ -372,14 +372,25 @@ serve(async (req) => {
     console.error(`[fetch-bundle] Fetch error:`, error);
     
     const isTimeout = error instanceof Error && error.name === 'AbortError';
+    const isDnsError = error instanceof Error && error.message.includes('dns error');
+    
+    // Surface clean messages — never expose raw DNS/plumbing details
+    let userMessage: string;
+    if (isTimeout) {
+      userMessage = `Request timed out after ${FETCH_TIMEOUT_MS / 1000} seconds. The verification service may be temporarily unavailable.`;
+    } else if (isDnsError) {
+      userMessage = 'The verification service endpoint could not be reached. Please try again later or contact the administrator.';
+    } else {
+      userMessage = 'An unexpected network error occurred while looking up the verification record. Please try again.';
+    }
+    
+    console.error(`[fetch-bundle] Upstream error details: ${error instanceof Error ? error.message : 'unknown'}`);
     
     return new Response(
       JSON.stringify({
         ok: false,
-        error: isTimeout ? 'Request timeout' : 'Network error',
-        message: isTimeout 
-          ? `Request timed out after ${FETCH_TIMEOUT_MS / 1000} seconds`
-          : (error instanceof Error ? error.message : 'Unknown network error'),
+        error: isTimeout ? 'Request timeout' : isDnsError ? 'Service unreachable' : 'Network error',
+        message: userMessage,
         requestId,
       }),
       { 
