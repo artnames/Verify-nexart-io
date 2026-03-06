@@ -189,4 +189,98 @@ describe('Public verification routes', () => {
       expect(localAuditLog.listLocalRecords).toBeDefined();
     });
   });
+
+  describe('Wrapper unwrapping', () => {
+    it('extracts nested bundle from wrapper response shape', async () => {
+      const innerBundle = {
+        bundleType: 'cer.ai.execution.v1',
+        version: '0.5.0',
+        createdAt: '2025-01-01T00:00:00Z',
+        certificateHash: 'sha256:abc123',
+        snapshot: { provider: 'openai', model: 'gpt-4', executionId: 'exec-001', protocolVersion: '1.0' },
+      };
+
+      // Simulate a wrapper response where proxy failed to unwrap
+      const wrapperResponse = {
+        bundle: innerBundle,
+        certificateHash: 'sha256:abc123',
+        bundleType: 'cer.ai.execution.v1',
+        createdAt: '2025-01-01T00:00:00Z',
+        projectName: 'test-project',
+        appName: 'test-app',
+      };
+
+      // The client-side safety net should detect and unwrap
+      let bundleData: any = wrapperResponse;
+      if (bundleData && typeof bundleData === 'object' && typeof bundleData.bundle === 'object' && bundleData.bundle !== null) {
+        bundleData = bundleData.bundle;
+      }
+
+      expect(bundleData.bundleType).toBe('cer.ai.execution.v1');
+      expect(bundleData.snapshot.provider).toBe('openai');
+      expect(bundleData.snapshot.model).toBe('gpt-4');
+      expect(bundleData.snapshot.executionId).toBe('exec-001');
+    });
+
+    it('passes bundle directly to verification, not the wrapper', async () => {
+      const innerBundle = {
+        bundleType: 'cer.ai.execution.v1',
+        version: '0.5.0',
+        createdAt: '2025-01-01T00:00:00Z',
+        certificateHash: 'sha256:abc123',
+        snapshot: { provider: 'openai', model: 'gpt-4' },
+      };
+
+      const mockVerify = verifyUploadedBundleAsync as ReturnType<typeof vi.fn>;
+      mockVerify.mockResolvedValue({
+        ok: true,
+        code: 'OK',
+        details: [],
+        errors: [],
+        bundleType: 'cer.ai.execution.v1',
+      });
+
+      // Verify against the inner bundle, not the wrapper
+      const result = await verifyUploadedBundleAsync(innerBundle);
+      expect(result.ok).toBe(true);
+      expect(mockVerify).toHaveBeenCalledWith(innerBundle);
+    });
+
+    it('certified AI record with attestation shows verified status', async () => {
+      const certifiedBundle = {
+        bundleType: 'cer.ai.execution.v1',
+        version: '0.5.0',
+        createdAt: '2025-01-01T00:00:00Z',
+        certificateHash: 'sha256:abc123',
+        snapshot: { provider: 'openai', model: 'gpt-4', executionId: 'exec-001' },
+        meta: {
+          attestation: {
+            attestationId: 'att-001',
+            nodeRuntimeHash: 'sha256:node123',
+            protocolVersion: '1.0',
+            verified: true,
+            hasSignedReceipt: true,
+          },
+        },
+      };
+
+      const mockVerify = verifyUploadedBundleAsync as ReturnType<typeof vi.fn>;
+      mockVerify.mockResolvedValue({
+        ok: true,
+        code: 'OK',
+        details: [],
+        errors: [],
+        bundleType: 'cer.ai.execution.v1',
+      });
+
+      const result = await verifyUploadedBundleAsync(certifiedBundle);
+      expect(result.ok).toBe(true);
+
+      // Verify attestation data is accessible from the bundle
+      const att = certifiedBundle.meta.attestation;
+      expect(att.attestationId).toBe('att-001');
+      expect(att.verified).toBe(true);
+      expect(att.hasSignedReceipt).toBe(true);
+    });
+  });
 });

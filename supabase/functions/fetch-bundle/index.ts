@@ -619,15 +619,19 @@ async function processResponse(response: Response, fetchedFrom: string, requestI
     createdAt?: string;
     status?: string;
     expectedImageHash?: string;
+    bundleType?: string;
+    projectName?: string;
+    appName?: string;
   } = { isWrapped: false };
   
   const p = parsedJson as Record<string, unknown>;
   
-  // Detect wrapper format: { ok: true, bundle: {...} }
+  // Detect wrapper format: { bundle: {...} } with or without ok flag
+  // public-cer-lookup returns { bundle, certificateHash, bundleType, ... } (no ok field)
+  // public-certificate returns { ok: true, bundle, certificateHash, ... }
   if (
     p &&
     typeof p === 'object' &&
-    p.ok === true &&
     typeof p.bundle === 'object' &&
     p.bundle !== null
   ) {
@@ -640,6 +644,9 @@ async function processResponse(response: Response, fetchedFrom: string, requestI
       createdAt: (p.createdAt || p.created_at) as string | undefined,
       status: p.status as string | undefined,
       expectedImageHash: (p.expectedImageHash || p.expected_image_hash) as string | undefined,
+      bundleType: p.bundleType as string | undefined,
+      projectName: p.projectName as string | undefined,
+      appName: p.appName as string | undefined,
     };
   } else {
     // No wrapper, use as-is
@@ -664,6 +671,9 @@ async function processResponse(response: Response, fetchedFrom: string, requestI
           createdAt: wrapperMetadata.createdAt,
           status: wrapperMetadata.status,
           expectedImageHash: wrapperMetadata.expectedImageHash,
+          bundleType: wrapperMetadata.bundleType,
+          projectName: wrapperMetadata.projectName,
+          appName: wrapperMetadata.appName,
         },
       }),
     }),
