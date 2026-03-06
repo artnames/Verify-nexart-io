@@ -55,7 +55,7 @@ export async function lookupByExecutionId(executionId: string): Promise<Executio
       };
     }
 
-    const bundle = result.bundle as CERBundle;
+    const bundle = bundleData as CERBundle;
 
     // Extract certificateHash from wrapper metadata or from the bundle itself
     const certificateHash =
