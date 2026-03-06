@@ -37,6 +37,7 @@ const ALLOWED_DOMAINS = [
   // Decision Certifier domains
   'preview--decision-certifier.lovable.app',
   `${DECISION_CERTIFIER_SUPABASE_PROJECT}.supabase.co`,
+  'tnvckrssolgjrtcfhnwm.supabase.co',
   // Supabase wildcards
   '.supabase.co',
   '.supabase.in',
