@@ -51,6 +51,7 @@ const ALLOWED_DOMAINS = [
 // Allowed path patterns for public certificate endpoints
 const PUBLIC_CERTIFICATE_PATHS = [
   '/functions/v1/public-certificate',
+  '/functions/v1/public-cer-lookup',
   '/api/public/certificates',
 ];
 
