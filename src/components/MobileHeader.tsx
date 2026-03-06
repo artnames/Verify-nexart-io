@@ -61,7 +61,7 @@ export function MobileHeader({ activeView, onViewChange }: MobileHeaderProps) {
               {/* Header */}
               <div className="p-4 border-b border-sidebar-border">
                 <div className="flex items-center gap-3">
-                  <img src={recnexartn} alt="NexArt" className="h-8 w-8" />
+                  <img src={nexartIcon} alt="NexArt" className="h-8 w-8" />
                   <div>
                     <div className="font-semibold text-sm">NexArt</div>
                     <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
