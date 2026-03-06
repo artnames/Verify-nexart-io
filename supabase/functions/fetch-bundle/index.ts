@@ -641,6 +641,9 @@ async function processResponse(response: Response, fetchedFrom: string, requestI
       createdAt: (p.createdAt || p.created_at) as string | undefined,
       status: p.status as string | undefined,
       expectedImageHash: (p.expectedImageHash || p.expected_image_hash) as string | undefined,
+      bundleType: p.bundleType as string | undefined,
+      projectName: p.projectName as string | undefined,
+      appName: p.appName as string | undefined,
     };
   } else {
     // No wrapper, use as-is
