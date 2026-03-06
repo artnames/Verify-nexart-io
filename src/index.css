@@ -155,8 +155,7 @@
 
 @layer components {
   .hash-display {
-    @apply font-mono text-sm tracking-tight;
-    color: hsl(var(--hash));
+    @apply font-mono text-sm tracking-tight text-hash;
   }
 
   .verified-badge {

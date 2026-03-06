@@ -65,6 +65,9 @@ export default {
           foreground: "hsl(var(--verified-foreground))",
         },
         hash: "hsl(var(--hash))",
+        link: "hsl(var(--link))",
+        "text-body": "hsl(var(--text-body))",
+        "text-caption": "hsl(var(--text-caption))",
         chart: {
           equity: "hsl(var(--chart-equity))",
           drawdown: "hsl(var(--chart-drawdown))",
