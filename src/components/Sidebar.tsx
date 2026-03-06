@@ -3,7 +3,7 @@ import {
   ScrollText
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import recanonIcon from "@/assets/recanon-icon.png";
+import nexartIcon from "@/assets/nexart-icon.png";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 import { useNavigate } from "react-router-dom";
