@@ -150,7 +150,7 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails }:
         '  1. SHA-256 of canonicalized bundle → compare to certificateHash',
         '  2. If receipt + signature: verify Ed25519 with node public key',
         '',
-        'Tools: recanon.xyz, @nexart/ai-execution SDK',
+        'Tools: verify.nexart.io, @nexart/ai-execution SDK',
       ].join('\n');
 
       const evidencePack = {
