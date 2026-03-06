@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { cn } from '@/lib/utils';
-import { probeReceiptFields, type ReceiptFieldProbe } from '@/lib/extractSignedReceipt';
+import { probeReceiptFields, extractSignedReceiptEnvelope, type ReceiptFieldProbe } from '@/lib/extractSignedReceipt';
 
 // ── Default node URL ──
 const DEFAULT_NODE_URL = 'https://node.nexart.io';
