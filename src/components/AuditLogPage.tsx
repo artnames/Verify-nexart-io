@@ -118,7 +118,7 @@ export function AuditLogPage() {
           ) : records.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 text-center">
               <AlertTriangle className="w-8 h-8 text-muted-foreground mb-2" />
-              <p className="text-muted-foreground">No audit records yet</p>
+              <p className="text-muted-foreground">No records yet</p>
               <p className="text-sm text-muted-foreground">Import a bundle using the panel above</p>
             </div>
           ) : (

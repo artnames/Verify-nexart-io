@@ -676,7 +676,7 @@ export function AuditPage() {
       <div className="flex items-center justify-between">
         <Button variant="ghost" size="sm" onClick={() => navigate('/audit-log')}>
           <ChevronLeft className="w-4 h-4 mr-1" />
-          Audit Log
+          Verification Log
         </Button>
       </div>
 

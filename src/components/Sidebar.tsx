@@ -1,14 +1,5 @@
 import { 
-  FileCode, 
-  Play, 
-  ShieldCheck, 
-  RotateCcw, 
-  Settings,
-  Database,
   BookOpen,
-  Stamp,
-  Library,
-  FileSearch,
   ScrollText
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -24,7 +15,7 @@ interface SidebarProps {
 
 const navItems = [
   { id: 'guide', label: 'Start Here', icon: BookOpen },
-  { id: 'audit-log', label: 'Audit Log', icon: ScrollText, route: '/audit-log' },
+  { id: 'audit-log', label: 'Verification Log', icon: ScrollText, route: '/audit-log' },
 ];
 
 const bottomItems: typeof navItems = [];
@@ -45,10 +36,10 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
       {/* Logo */}
       <div className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <img src={recanonIcon} alt="Recanon" className="h-8 w-8" />
+          <img src={recanonIcon} alt="NexArt" className="h-8 w-8" />
           <div>
-            <div className="font-semibold text-sm">Recanon</div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Certified Backtests</div>
+            <div className="font-semibold text-sm">NexArt</div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Verification Portal</div>
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Menu, X, BookOpen, Stamp, Library, RotateCcw, FileCode, Play, ShieldCheck, Database, Settings, ScrollText } from "lucide-react";
+import { Menu, BookOpen, ScrollText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,7 @@ interface MobileHeaderProps {
 
 const navItems = [
   { id: 'guide', label: 'Start Here', icon: BookOpen },
-  { id: 'audit-log', label: 'Audit Log', icon: ScrollText, route: '/audit-log' },
+  { id: 'audit-log', label: 'Verification Log', icon: ScrollText, route: '/audit-log' },
 ];
 
 const bottomItems: typeof navItems = [];
@@ -38,9 +38,9 @@ export function MobileHeader({ activeView, onViewChange }: MobileHeaderProps) {
     <header className="md:hidden sticky top-0 z-50 bg-sidebar border-b border-sidebar-border px-4 py-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <img src={recanonIcon} alt="Recanon" className="h-7 w-7" />
+          <img src={recanonIcon} alt="NexArt" className="h-7 w-7" />
           <div>
-            <div className="font-semibold text-sm">Recanon</div>
+            <div className="font-semibold text-sm">NexArt</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
               {currentItem?.label || 'Menu'}
             </div>
@@ -61,11 +61,11 @@ export function MobileHeader({ activeView, onViewChange }: MobileHeaderProps) {
               {/* Header */}
               <div className="p-4 border-b border-sidebar-border">
                 <div className="flex items-center gap-3">
-                  <img src={recanonIcon} alt="Recanon" className="h-8 w-8" />
+                  <img src={recanonIcon} alt="NexArt" className="h-8 w-8" />
                   <div>
-                    <div className="font-semibold text-sm">Recanon</div>
+                    <div className="font-semibold text-sm">NexArt</div>
                     <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                      Certified Backtests
+                      Verification Portal
                     </div>
                   </div>
                 </div>
