@@ -5,7 +5,7 @@ const mockMaybeSingle = vi.fn();
 const mockLimit = vi.fn(() => ({ maybeSingle: mockMaybeSingle }));
 const mockFilter = vi.fn(() => ({ limit: mockLimit }));
 const mockSelect = vi.fn(() => ({ filter: mockFilter }));
-const mockFrom = vi.fn(() => ({ select: mockSelect }));
+const mockFrom = vi.fn((_table: string) => ({ select: mockSelect }));
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
