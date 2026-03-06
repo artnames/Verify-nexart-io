@@ -88,7 +88,7 @@ export function AuditLogPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Audit Log</h1>
+          <h1 className="text-2xl font-bold">Verification Log</h1>
           <p className="text-muted-foreground">
             Browse and verify imported Certified Execution Records
           </p>
