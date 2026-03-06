@@ -38,7 +38,7 @@ export function MobileHeader({ activeView, onViewChange }: MobileHeaderProps) {
     <header className="md:hidden sticky top-0 z-50 bg-sidebar border-b border-sidebar-border px-4 py-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <img src={renenexart alt="NexArt" className="h-7 w-7" />
+          <img src={nexartIcon} alt="NexArt" className="h-7 w-7" />
           <div>
             <div className="font-semibold text-sm">NexArt</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
