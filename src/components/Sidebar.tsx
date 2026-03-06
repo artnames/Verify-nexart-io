@@ -93,11 +93,16 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
       </div>
 
       {/* Footer */}
-      <div className="p-3 border-t border-sidebar-border flex items-center justify-between">
+      <div className="p-3 border-t border-sidebar-border space-y-2">
+        <div className="flex items-center justify-between">
+          <a href="https://nexart.io" target="_blank" rel="noopener noreferrer" className="text-[11px] text-link hover:underline">
+            nexart.io
+          </a>
+          <ThemeToggle className="h-7 w-7 text-muted-foreground" />
+        </div>
         <p className="text-[10px] text-muted-foreground leading-relaxed">
           Anonymous verification mode
         </p>
-        <ThemeToggle className="h-7 w-7 text-muted-foreground" />
       </div>
     </aside>
   );
