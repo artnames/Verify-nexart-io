@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import VerifyCertificate from "./pages/VerifyCertificate";
+import VerifyExecution from "./pages/VerifyExecution";
 import { AuditPage } from "./components/AuditPage";
 import { AuditLogPage } from "./components/AuditLogPage";
 import { AuditLayout } from "./components/AuditLayout";
