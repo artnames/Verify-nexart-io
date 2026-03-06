@@ -1,5 +1,5 @@
 /**
- * Audit Log Page - List of all imported Certified Execution Records
+ * Verification Log Page - List of all imported Certified Execution Records
  */
 
 import { useState, useEffect } from 'react';
