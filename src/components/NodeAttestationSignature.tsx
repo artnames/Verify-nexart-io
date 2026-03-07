@@ -341,38 +341,6 @@ export function NodeAttestationSignature({ bundle, verifiers, nodeUrl, className
         </CardContent>
       </Card>
 
-      {/* Integrity simulation */}
-      {hasReceipt && (state.status === 'verified' || state.status === 'failed') && (
-        <div className="border border-border rounded-lg p-4 space-y-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">Integrity simulation</p>
-              <p className="text-[11px] text-muted-foreground">
-                Show what happens if a record is edited.
-              </p>
-            </div>
-            <Button
-              variant={tamperActive ? "destructive" : "outline"}
-              size="sm"
-              onClick={handleTamperToggle}
-              className="gap-1.5 text-xs h-7"
-            >
-              <FlaskConical className="w-3 h-3" />
-              {tamperActive ? 'Reset' : 'Simulate'}
-            </Button>
-          </div>
-          {tamperActive && tamperState?.status === 'failed' && 'result' in tamperState && (
-            <div className="p-3 rounded-md bg-destructive/5 border border-destructive/20">
-              <p className="text-xs text-destructive">
-                We changed one character. Verification failed.
-              </p>
-              <p className="text-[11px] font-mono text-muted-foreground mt-1">
-                {tamperState.result.code}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Retry */}
       {state.status === 'error' && (
