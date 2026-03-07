@@ -380,6 +380,8 @@ export function AICERVerifyResult({
         let normalizedBundle = bundle;
         if (envelope && !getAICERAttestationReceipt(bundle)) {
           const cloned = JSON.parse(JSON.stringify(bundle)) as any;
+          // Place receipt fields at BOTH bundle.attestation.* AND top-level
+          // The SDK may look for bundle.receipt + bundle.signatureB64Url (top-level)
           if (!cloned.attestation || typeof cloned.attestation !== 'object') {
             cloned.attestation = {};
           }
@@ -387,6 +389,13 @@ export function AICERVerifyResult({
           cloned.attestation.signatureB64Url = envelope.signatureB64Url;
           cloned.attestation.attestorKeyId = envelope.kid;
           if (envelope.nodeId) cloned.attestation.nodeId = envelope.nodeId;
+          // Also set top-level for SDKs that expect bundle.receipt / bundle.signature
+          cloned.receipt = envelope.receipt;
+          cloned.signatureB64Url = envelope.signatureB64Url;
+          cloned.signature = envelope.signatureB64Url;
+          cloned.attestorKeyId = envelope.kid;
+          cloned.kid = envelope.kid;
+          if (envelope.nodeId) cloned.nodeId = envelope.nodeId;
           normalizedBundle = cloned;
         }
         return (
