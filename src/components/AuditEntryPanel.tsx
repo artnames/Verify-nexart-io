@@ -328,7 +328,7 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            The SHA-256 certificate hash from the execution record, or a direct bundle URL.
+            The SHA-256 certificate hash from the certified execution record.
           </p>
         </div>
 

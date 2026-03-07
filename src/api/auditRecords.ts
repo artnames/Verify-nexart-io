@@ -233,7 +233,7 @@ export async function fetchBundleFromUrl(urlOrHash: string): Promise<{
     let constructedUrl: string | undefined;
     
     if (looksLikeHash(urlOrHash)) {
-      queryParam = `hash=${encodeURIComponent(urlOrHash)}`;
+      queryParam = `certificateHash=${encodeURIComponent(urlOrHash)}`;
       try {
         constructedUrl = buildPublicCertificateUrl(urlOrHash);
       } catch {

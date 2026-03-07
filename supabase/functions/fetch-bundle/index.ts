@@ -261,8 +261,8 @@ serve(async (req) => {
       return createErrorResponse(500, 'SERVER_CONFIG_ERROR', 'Verification service is not configured. Please contact the administrator.');
     }
     // Construct the public certificate URL using query parameter (not path segment)
-    targetUrl = `${DECISION_CERTIFIER_PUBLIC_BASE}?hash=${encodeURIComponent(normalizedHash)}`;
-    console.log(`[fetch-bundle] Constructed URL from hash: ${targetUrl}`);
+    targetUrl = `${DECISION_CERTIFIER_PUBLIC_BASE}?certificateHash=${encodeURIComponent(normalizedHash)}`;
+    console.log(`[fetch-bundle] Constructed URL from certificateHash: ${targetUrl}`);
   }
 
   // Validate URL parameter
