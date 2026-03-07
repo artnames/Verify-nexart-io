@@ -20,11 +20,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  getAuditRecordByHash,
-  fetchBundleFromUrl,
   parseBundleJson,
   importAuditRecord,
   looksLikeHash,
+  getAuditRecordByHash,
 } from '@/api/auditRecords';
 import { computeCertificateHash } from '@/lib/canonicalize';
 import { normalizeHash } from '@/lib/hashResolver';
@@ -63,66 +62,40 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
     }
   };
 
+  /** Strip full verifier URLs down to just the execution ID */
+  const sanitizeExecutionId = (raw: string): string => {
+    const trimmed = raw.trim();
+    // Match patterns like https://verify.nexart.io/e/<id> or .../e/<id>
+    const urlMatch = trimmed.match(/\/e\/([^/?#]+)/);
+    if (urlMatch) return decodeURIComponent(urlMatch[1]);
+    // If it looks like a full URL but doesn't match /e/, reject
+    if (/^https?:\/\//i.test(trimmed)) return '';
+    return trimmed;
+  };
+
   const handleExecutionIdLookup = async () => {
-    const trimmed = executionIdInput.trim();
-    if (!trimmed) return;
+    const sanitized = sanitizeExecutionId(executionIdInput);
+    if (!sanitized) {
+      setError('Enter an execution ID only (e.g. retest-certify-002), not a full URL.');
+      return;
+    }
 
     setError(null);
-    // Navigate to /e/:executionId for stateless public verification
-    navigate(`/e/${encodeURIComponent(trimmed)}`);
+    navigate(`/e/${encodeURIComponent(sanitized)}`);
   };
 
   const handleHashLookup = async () => {
     const trimmed = hashInput.trim();
     if (!trimmed) return;
 
-    setIsLookingUpHash(true);
     setError(null);
 
-    // If it looks like a hash, navigate to /c/ for stateless public verification
     if (looksLikeHash(trimmed)) {
       navigate(`/c/${encodeURIComponent(trimmed)}`);
-      setIsLookingUpHash(false);
       return;
     }
 
-    // Otherwise try as a URL
-    try {
-      new URL(trimmed);
-      // It's a URL — fetch via proxy and import
-      const result = await fetchBundleFromUrl(trimmed);
-
-      if (!result.success || !result.bundle) {
-        setError(result.error || 'Failed to fetch bundle');
-        setIsLookingUpHash(false);
-        return;
-      }
-
-      const certificateHash = await computeCertificateHash(result.bundle);
-      const existing = await getAuditRecordByHash(certificateHash);
-      if (existing) {
-        toast.success('Record found');
-        navigateToAudit(certificateHash);
-        setIsLookingUpHash(false);
-        return;
-      }
-
-      const importResult = await importAuditRecord(result.bundle, 'url', result.wrapperMetadata);
-      if (!importResult.success) {
-        setError(importResult.error || 'Import failed');
-        setIsLookingUpHash(false);
-        return;
-      }
-
-      toast.success('Bundle imported');
-      if (importResult.certificateHash) {
-        navigateToAudit(importResult.certificateHash);
-      }
-    } catch {
-      setError('Invalid input. Enter a certificate hash (sha256:...) or a URL.');
-    } finally {
-      setIsLookingUpHash(false);
-    }
+    setError('Enter a valid certificate hash (e.g. sha256:d25a3557...).');
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -273,7 +246,7 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            The unique execution identifier from the certified decision record.
+            Enter the execution ID only, not the full verify.nexart.io link.
           </p>
         </div>
 
@@ -296,7 +269,7 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
               <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 id="hash-input"
-                placeholder="sha256:d25a3557... or URL"
+                placeholder="sha256:d25a3557..."
                 value={hashInput}
                 onChange={(e) => { setHashInput(e.target.value); setError(null); }}
                 onKeyDown={(e) => e.key === 'Enter' && handleHashLookup()}
@@ -315,7 +288,7 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            The SHA-256 certificate hash from the execution record, or a direct bundle URL.
+            The SHA-256 certificate hash from the certified execution record.
           </p>
         </div>
 
