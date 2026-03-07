@@ -63,13 +63,26 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
     }
   };
 
+  /** Strip full verifier URLs down to just the execution ID */
+  const sanitizeExecutionId = (raw: string): string => {
+    const trimmed = raw.trim();
+    // Match patterns like https://verify.nexart.io/e/<id> or .../e/<id>
+    const urlMatch = trimmed.match(/\/e\/([^/?#]+)/);
+    if (urlMatch) return decodeURIComponent(urlMatch[1]);
+    // If it looks like a full URL but doesn't match /e/, reject
+    if (/^https?:\/\//i.test(trimmed)) return '';
+    return trimmed;
+  };
+
   const handleExecutionIdLookup = async () => {
-    const trimmed = executionIdInput.trim();
-    if (!trimmed) return;
+    const sanitized = sanitizeExecutionId(executionIdInput);
+    if (!sanitized) {
+      setError('Enter an execution ID only (e.g. retest-certify-002), not a full URL.');
+      return;
+    }
 
     setError(null);
-    // Navigate to /e/:executionId for stateless public verification
-    navigate(`/e/${encodeURIComponent(trimmed)}`);
+    navigate(`/e/${encodeURIComponent(sanitized)}`);
   };
 
   const handleHashLookup = async () => {
