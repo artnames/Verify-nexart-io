@@ -332,7 +332,7 @@ export function AICERVerifyResult({
               )}
 
               {/* No signed receipt message */}
-              {!hasReceipt && (
+              {!hasReceiptFields && (
                 <div className="space-y-2.5 p-2.5 rounded-md bg-muted/20 border border-border/50">
                   <div className="flex items-start gap-2 text-xs text-muted-foreground">
                     <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
