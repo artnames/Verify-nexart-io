@@ -24,6 +24,7 @@ import {
   getAttestationReceipt as getAICERAttestationReceipt,
   hasAttestation as hasAICERAttestation,
 } from '@nexart/ai-execution';
+import { extractSignedReceiptEnvelope } from '@/lib/extractSignedReceipt';
 
 interface AICERVerifyResultProps {
   verifyResult: VerificationResult;

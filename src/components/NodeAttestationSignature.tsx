@@ -142,40 +142,35 @@ export function NodeAttestationSignature({ bundle, verifiers, nodeUrl, className
 
   // ── Integrity simulation (tamper demo) ──
   const runTamper = useCallback(async () => {
-    if (!hasReceipt || !receipt) return;
+    if (!hasReceipt) return;
 
-    const tampered = JSON.parse(JSON.stringify(bundle)) as any;
+    // Normalize first, then tamper the normalized copy
+    const normalized = normalizeBundleForSdk(bundle);
+    const tampered = JSON.parse(JSON.stringify(normalized)) as any;
 
-    const att = tampered.attestation || tampered;
-    if (att.receipt && typeof att.receipt === 'object') {
-      const rct = att.receipt;
-      if (rct.certificateHash && typeof rct.certificateHash === 'string') {
-        const ch = rct.certificateHash;
-        rct.certificateHash = (ch[0] === 'a' ? 'b' : 'a') + ch.slice(1);
-      }
-    } else if (att.attestation && typeof att.attestation === 'object') {
-      const inner = att.attestation;
-      if (inner.certificateHash && typeof inner.certificateHash === 'string') {
-        const ch = inner.certificateHash;
-        inner.certificateHash = (ch[0] === 'a' ? 'b' : 'a') + ch.slice(1);
-      }
-    }
+    // Flip signature to guarantee failure
     if (tampered.attestation?.signatureB64Url) {
       const sig = tampered.attestation.signatureB64Url;
       tampered.attestation.signatureB64Url = (sig[0] === 'A' ? 'B' : 'A') + sig.slice(1);
+    }
+    // Also flip a receipt field if present
+    const rct = tampered.attestation?.receipt;
+    if (rct && typeof rct === 'object' && rct.certificateHash && typeof rct.certificateHash === 'string') {
+      const ch = rct.certificateHash;
+      rct.certificateHash = (ch[0] === 'a' ? 'b' : 'a') + ch.slice(1);
     }
 
     try {
       const result = await verifiers.verifyBundleAttestation(tampered, { nodeUrl: resolvedNodeUrl });
       if (result.ok) {
-        setTamperState({ status: 'verified', result, receipt: receipt! });
+        setTamperState({ status: 'verified', result, receipt: effectiveReceipt! });
       } else {
-        setTamperState({ status: 'failed', result, receipt: receipt! });
+        setTamperState({ status: 'failed', result, receipt: effectiveReceipt! });
       }
     } catch (err: any) {
       setTamperState({ status: 'error', message: err?.message || 'Tamper verification failed' });
     }
-  }, [bundle, hasReceipt, receipt, resolvedNodeUrl, verifiers]);
+  }, [bundle, hasReceipt, effectiveReceipt, resolvedNodeUrl, verifiers, normalizeBundleForSdk]);
 
   const handleTamperToggle = async () => {
     if (!tamperActive) {
