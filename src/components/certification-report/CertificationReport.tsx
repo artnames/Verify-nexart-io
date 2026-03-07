@@ -131,18 +131,6 @@ export function CertificationReport({
         verifyDetails={verifyDetails}
       />
 
-      {/* 6. Dev-only debug block */}
-      <VerifyDebugBlock
-        bundleType={evidence.bundleType || bundleKind}
-        certificateHash={evidence.certificateHash}
-        verifyResult={{
-          ok: verifyStatus === 'pass',
-          code: verifyCode || 'OK',
-          details: verifyDetails || [],
-          errors: verifyStatus !== 'pass' ? (verifyDetails || []) : [],
-          bundleType: evidence.bundleType || bundleKind,
-        }}
-      />
     </div>
   );
 }
