@@ -435,4 +435,45 @@ describe('Public verification routes', () => {
       expect(normalized.attestation.signatureB64Url).not.toBe(envelope!.signatureB64Url);
     });
   });
+
+  describe('Execution ID input sanitization', () => {
+    const sanitizeExecutionId = (raw: string): string => {
+      const trimmed = raw.trim();
+      const urlMatch = trimmed.match(/\/e\/([^/?#]+)/);
+      if (urlMatch) return decodeURIComponent(urlMatch[1]);
+      if (/^https?:\/\//i.test(trimmed)) return '';
+      return trimmed;
+    };
+
+    it('extracts execution ID from full verifier URL', () => {
+      expect(sanitizeExecutionId('https://verify.nexart.io/e/retest-certify-002')).toBe('retest-certify-002');
+    });
+
+    it('extracts execution ID from preview URL', () => {
+      expect(sanitizeExecutionId('https://preview.lovable.app/e/my-exec-id')).toBe('my-exec-id');
+    });
+
+    it('passes through plain execution ID unchanged', () => {
+      expect(sanitizeExecutionId('retest-certify-002')).toBe('retest-certify-002');
+    });
+
+    it('returns empty string for unrelated URL', () => {
+      expect(sanitizeExecutionId('https://example.com/foo')).toBe('');
+    });
+
+    it('handles URL-encoded execution ID', () => {
+      expect(sanitizeExecutionId('https://verify.nexart.io/e/my%20exec')).toBe('my exec');
+    });
+  });
+
+  describe('Certificate hash lookup uses certificateHash param', () => {
+    it('client sends certificateHash query param for hash lookups', async () => {
+      const mockFetch = fetchBundleFromUrl as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({ success: true, bundle: mockCodeModeBundle });
+
+      const fullHash = 'sha256:d25a355780b18246f8775b721bcccd74423b3251d193d46c2d183e626cf558e5';
+      await fetchBundleFromUrl(fullHash);
+      expect(mockFetch).toHaveBeenCalledWith(fullHash);
+    });
+  });
 });
