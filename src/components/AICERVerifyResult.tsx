@@ -249,7 +249,9 @@ export function AICERVerifyResult({
         const topAtt = bundle?.attestation && typeof bundle.attestation === 'object' ? bundle.attestation : null;
         const att = metaAtt || topAtt;
         if (!att) return null;
-        const hasReceipt = !!(att.receipt || att.signature);
+        // Use canonical multi-layout probe for signed receipt detection
+        const envelope = extractSignedReceiptEnvelope(bundle);
+        const hasReceiptFields = !!(envelope || att.receipt || att.signature || att.signatureB64Url);
         return (
           <Card className="border">
             <CardHeader className="pb-2">
