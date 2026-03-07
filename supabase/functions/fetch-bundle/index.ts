@@ -226,7 +226,7 @@ serve(async (req) => {
 
   const reqUrl = new URL(req.url);
   let targetUrl = reqUrl.searchParams.get('url');
-  const hashParam = reqUrl.searchParams.get('hash');
+  const hashParam = reqUrl.searchParams.get('certificateHash') || reqUrl.searchParams.get('hash');
   const executionIdParam = reqUrl.searchParams.get('executionId');
 
   // If executionId is provided, construct the Decision Certifier lookup URL
