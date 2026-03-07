@@ -20,11 +20,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  getAuditRecordByHash,
-  fetchBundleFromUrl,
   parseBundleJson,
   importAuditRecord,
   looksLikeHash,
+  getAuditRecordByHash,
 } from '@/api/auditRecords';
 import { computeCertificateHash } from '@/lib/canonicalize';
 import { normalizeHash } from '@/lib/hashResolver';
