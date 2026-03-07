@@ -286,7 +286,7 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            The unique execution identifier from the certified decision record.
+            Enter the execution ID only, not the full verify.nexart.io link.
           </p>
         </div>
 
