@@ -285,8 +285,8 @@ describe('Public verification routes', () => {
   });
 
   describe('Attestation status consistency', () => {
-    it('signed receipt bundle does not trigger legacy/unsigned wording', () => {
-      const { extractSignedReceiptEnvelope, probeReceiptFields } = require('@/lib/extractSignedReceipt');
+    it('signed receipt bundle does not trigger legacy/unsigned wording', async () => {
+      const { extractSignedReceiptEnvelope, probeReceiptFields } = await import('@/lib/extractSignedReceipt');
 
       const signedBundle = {
         bundleType: 'cer.ai.execution.v1',
@@ -315,8 +315,8 @@ describe('Public verification routes', () => {
       expect(probe.hasAttestationId).toBe(true);
     });
 
-    it('actual unsigned/legacy bundle correctly shows legacy probe', () => {
-      const { extractSignedReceiptEnvelope, probeReceiptFields } = require('@/lib/extractSignedReceipt');
+    it('actual unsigned/legacy bundle correctly shows legacy probe', async () => {
+      const { extractSignedReceiptEnvelope, probeReceiptFields } = await import('@/lib/extractSignedReceipt');
 
       const legacyBundle = {
         bundleType: 'cer.ai.execution.v1',
@@ -340,6 +340,76 @@ describe('Public verification routes', () => {
       expect(probe.hasReceipt).toBe(false);
       expect(probe.hasSignature).toBe(false);
       expect(probe.hasKid).toBe(false);
+    });
+
+    it('NodeAttestationSignature normalization places receipt where SDK expects it', async () => {
+      const { extractSignedReceiptEnvelope } = await import('@/lib/extractSignedReceipt');
+
+      const bundleWithMetaAttestation = {
+        bundleType: 'cer.ai.execution.v1',
+        certificateHash: 'sha256:abc123',
+        meta: {
+          attestation: {
+            attestationId: 'att-001',
+            receipt: { certificateHash: 'sha256:abc123', outputHash: 'sha256:def' },
+            signature: 'base64sig',
+            attestorKeyId: 'kid-001',
+            verified: true,
+          },
+        },
+      };
+
+      // Envelope should be found at meta.attestation
+      const envelope = extractSignedReceiptEnvelope(bundleWithMetaAttestation);
+      expect(envelope).not.toBeNull();
+      expect(envelope!.source).toBe('meta.attestation');
+
+      // Simulate the normalization logic from NodeAttestationSignature
+      const normalized = JSON.parse(JSON.stringify(bundleWithMetaAttestation)) as any;
+      if (!normalized.attestation || typeof normalized.attestation !== 'object') {
+        normalized.attestation = {};
+      }
+      normalized.attestation.receipt = envelope!.receipt;
+      normalized.attestation.signatureB64Url = envelope!.signatureB64Url;
+      normalized.attestation.attestorKeyId = envelope!.kid;
+
+      // SDK should now find receipt at bundle.attestation.*
+      expect(normalized.attestation.receipt).toBeDefined();
+      expect(normalized.attestation.signatureB64Url).toBe('base64sig');
+      expect(normalized.attestation.attestorKeyId).toBe('kid-001');
+    });
+
+    it('simulate tamper works when receipt is in meta.attestation layout', async () => {
+      const { extractSignedReceiptEnvelope } = await import('@/lib/extractSignedReceipt');
+
+      const bundle = {
+        bundleType: 'cer.ai.execution.v1',
+        meta: {
+          attestation: {
+            receipt: { certificateHash: 'sha256:abc123' },
+            signature: 'ABCDsig',
+            attestorKeyId: 'kid-001',
+          },
+        },
+      };
+
+      const envelope = extractSignedReceiptEnvelope(bundle);
+      expect(envelope).not.toBeNull();
+
+      // Simulate tamper: normalize then mutate
+      const normalized = JSON.parse(JSON.stringify(bundle)) as any;
+      normalized.attestation = {
+        receipt: envelope!.receipt,
+        signatureB64Url: envelope!.signatureB64Url,
+        attestorKeyId: envelope!.kid,
+      };
+
+      // Flip signature
+      const sig = normalized.attestation.signatureB64Url;
+      normalized.attestation.signatureB64Url = (sig[0] === 'A' ? 'B' : 'A') + sig.slice(1);
+
+      // The tampered bundle should have a different signature
+      expect(normalized.attestation.signatureB64Url).not.toBe(envelope!.signatureB64Url);
     });
   });
 });

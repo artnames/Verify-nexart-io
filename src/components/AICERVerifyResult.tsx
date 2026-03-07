@@ -24,6 +24,7 @@ import {
   getAttestationReceipt as getAICERAttestationReceipt,
   hasAttestation as hasAICERAttestation,
 } from '@nexart/ai-execution';
+import { extractSignedReceiptEnvelope } from '@/lib/extractSignedReceipt';
 
 interface AICERVerifyResultProps {
   verifyResult: VerificationResult;
@@ -248,7 +249,9 @@ export function AICERVerifyResult({
         const topAtt = bundle?.attestation && typeof bundle.attestation === 'object' ? bundle.attestation : null;
         const att = metaAtt || topAtt;
         if (!att) return null;
-        const hasReceipt = !!(att.receipt || att.signature);
+        // Use canonical multi-layout probe for signed receipt detection
+        const envelope = extractSignedReceiptEnvelope(bundle);
+        const hasReceiptFields = !!(envelope || att.receipt || att.signature || att.signatureB64Url);
         return (
           <Card className="border">
             <CardHeader className="pb-2">
@@ -329,7 +332,7 @@ export function AICERVerifyResult({
               )}
 
               {/* No signed receipt message */}
-              {!hasReceipt && (
+              {!hasReceiptFields && (
                 <div className="space-y-2.5 p-2.5 rounded-md bg-muted/20 border border-border/50">
                   <div className="flex items-start gap-2 text-xs text-muted-foreground">
                     <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
