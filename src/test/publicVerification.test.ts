@@ -127,6 +127,29 @@ describe('Public verification routes', () => {
       expect(getLocalRecordByHash).not.toHaveBeenCalled();
     });
 
+    it('handles full sha256: prefixed certificate hash', async () => {
+      const mockFetch = fetchBundleFromUrl as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({ success: true, bundle: mockCodeModeBundle });
+
+      const fullHash = 'sha256:d25a355780b18246f8775b721bcccd74423b3251d193d46c2d183e626cf558e5';
+      const result = await fetchBundleFromUrl(fullHash);
+      expect(result.success).toBe(true);
+      expect(mockFetch).toHaveBeenCalledWith(fullHash);
+    });
+
+    it('handles URL-encoded certificate hash from route params', async () => {
+      const mockFetch = fetchBundleFromUrl as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValue({ success: true, bundle: mockCodeModeBundle });
+
+      // Simulate what happens when react-router decodes the URL param
+      const encoded = 'sha256%3Ad25a355780b18246f8775b721bcccd74423b3251d193d46c2d183e626cf558e5';
+      const decoded = decodeURIComponent(encoded);
+      expect(decoded).toBe('sha256:d25a355780b18246f8775b721bcccd74423b3251d193d46c2d183e626cf558e5');
+
+      const result = await fetchBundleFromUrl(decoded);
+      expect(result.success).toBe(true);
+    });
+
     it('returns error for invalid certificate hash', async () => {
       const mockFetch = fetchBundleFromUrl as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValue({
