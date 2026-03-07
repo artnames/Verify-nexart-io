@@ -372,14 +372,34 @@ export function AICERVerifyResult({
       })()}
 
       {/* Node Attestation Signature (offline verification) */}
-      <NodeAttestationSignature
-        bundle={bundle}
-        verifiers={{
-          hasAttestation: hasAICERAttestation,
-          getAttestationReceipt: getAICERAttestationReceipt,
-          verifyBundleAttestation: verifyAICERBundleAttestation,
-        }}
-      />
+      {(() => {
+        // Pre-normalize the bundle so the SDK can find receipt fields
+        // Public-safe bundles often store receipt at meta.attestation.* 
+        // but SDK expects bundle.attestation.*
+        const envelope = extractSignedReceiptEnvelope(bundle);
+        let normalizedBundle = bundle;
+        if (envelope && !getAICERAttestationReceipt(bundle)) {
+          const cloned = JSON.parse(JSON.stringify(bundle)) as any;
+          if (!cloned.attestation || typeof cloned.attestation !== 'object') {
+            cloned.attestation = {};
+          }
+          cloned.attestation.receipt = envelope.receipt;
+          cloned.attestation.signatureB64Url = envelope.signatureB64Url;
+          cloned.attestation.attestorKeyId = envelope.kid;
+          if (envelope.nodeId) cloned.attestation.nodeId = envelope.nodeId;
+          normalizedBundle = cloned;
+        }
+        return (
+          <NodeAttestationSignature
+            bundle={normalizedBundle}
+            verifiers={{
+              hasAttestation: hasAICERAttestation,
+              getAttestationReceipt: getAICERAttestationReceipt,
+              verifyBundleAttestation: verifyAICERBundleAttestation,
+            }}
+          />
+        );
+      })()}
     </CertificationReport>
   );
 }
