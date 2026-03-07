@@ -76,6 +76,37 @@ export function NodeAttestationSignature({ bundle, verifiers, nodeUrl, className
   const envelopeFallback = !receipt ? extractSignedReceiptEnvelope(bundle) : null;
   const hasReceipt = (verifiers.hasAttestation(bundle) && receipt !== null) || envelopeFallback !== null;
 
+  // Build a normalized receipt from envelope fallback for display purposes
+  const effectiveReceipt: AttestationReceiptCompat | null = receipt ?? (envelopeFallback ? {
+    attestorKeyId: envelopeFallback.kid,
+    nodeId: envelopeFallback.nodeId,
+  } : null);
+
+  /**
+   * Normalize bundle so the SDK can find receipt fields at bundle.attestation.*
+   * when they actually live at bundle.meta.attestation.* or other layouts.
+   */
+  const normalizeBundleForSdk = useCallback((b: unknown): unknown => {
+    if (!b || typeof b !== 'object') return b;
+    const envelope = extractSignedReceiptEnvelope(b);
+    if (!envelope) return b;
+
+    // If SDK already finds it, no normalization needed
+    const sdkReceipt = verifiers.getAttestationReceipt(b);
+    if (sdkReceipt) return b;
+
+    // Deep clone and place receipt fields where SDK expects: bundle.attestation.*
+    const normalized = JSON.parse(JSON.stringify(b)) as any;
+    if (!normalized.attestation || typeof normalized.attestation !== 'object') {
+      normalized.attestation = {};
+    }
+    normalized.attestation.receipt = envelope.receipt;
+    normalized.attestation.signatureB64Url = envelope.signatureB64Url;
+    normalized.attestation.attestorKeyId = envelope.kid;
+    if (envelope.nodeId) normalized.attestation.nodeId = envelope.nodeId;
+    return normalized;
+  }, [verifiers]);
+
   // ── Run verification (original) ──
   const runVerify = useCallback(async () => {
     if (!hasReceipt) {
@@ -91,21 +122,23 @@ export function NodeAttestationSignature({ bundle, verifiers, nodeUrl, className
     setState({ status: 'loading' });
 
     try {
-      const result = await verifiers.verifyBundleAttestation(bundle, { nodeUrl: resolvedNodeUrl });
+      const normalizedBundle = normalizeBundleForSdk(bundle);
+      const result = await verifiers.verifyBundleAttestation(normalizedBundle, { nodeUrl: resolvedNodeUrl });
       if (result.ok) {
-        setState({ status: 'verified', result, receipt: receipt! });
+        setState({ status: 'verified', result, receipt: effectiveReceipt! });
       } else {
         if (result.code === 'NODE_RECEIPT_MISSING') {
+          // SDK still can't find receipt even after normalization
           const probe = probeReceiptFields(bundle);
           setState({ status: 'missing-fields', probe });
         } else {
-          setState({ status: 'failed', result, receipt: receipt! });
+          setState({ status: 'failed', result, receipt: effectiveReceipt! });
         }
       }
     } catch (err: any) {
       setState({ status: 'error', message: err?.message || 'Verification failed' });
     }
-  }, [bundle, hasReceipt, receipt, resolvedNodeUrl, verifiers]);
+  }, [bundle, hasReceipt, effectiveReceipt, resolvedNodeUrl, verifiers, normalizeBundleForSdk]);
 
   // ── Integrity simulation (tamper demo) ──
   const runTamper = useCallback(async () => {
