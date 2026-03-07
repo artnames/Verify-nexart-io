@@ -309,7 +309,7 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
               <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 id="hash-input"
-                placeholder="sha256:d25a3557... or URL"
+                placeholder="sha256:d25a3557..."
                 value={hashInput}
                 onChange={(e) => { setHashInput(e.target.value); setError(null); }}
                 onKeyDown={(e) => e.key === 'Enter' && handleHashLookup()}
