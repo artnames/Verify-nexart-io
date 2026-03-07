@@ -95,7 +95,7 @@ export function NodeAttestationSignature({ bundle, verifiers, nodeUrl, className
     const sdkReceipt = verifiers.getAttestationReceipt(b);
     if (sdkReceipt) return b;
 
-    // Deep clone and place receipt fields where SDK expects: bundle.attestation.*
+    // Deep clone and place receipt fields where SDK expects
     const normalized = JSON.parse(JSON.stringify(b)) as any;
     if (!normalized.attestation || typeof normalized.attestation !== 'object') {
       normalized.attestation = {};
@@ -104,6 +104,13 @@ export function NodeAttestationSignature({ bundle, verifiers, nodeUrl, className
     normalized.attestation.signatureB64Url = envelope.signatureB64Url;
     normalized.attestation.attestorKeyId = envelope.kid;
     if (envelope.nodeId) normalized.attestation.nodeId = envelope.nodeId;
+    // Also set top-level for SDKs that expect bundle.receipt / bundle.signature
+    normalized.receipt = envelope.receipt;
+    normalized.signatureB64Url = envelope.signatureB64Url;
+    normalized.signature = envelope.signatureB64Url;
+    normalized.attestorKeyId = envelope.kid;
+    normalized.kid = envelope.kid;
+    if (envelope.nodeId) normalized.nodeId = envelope.nodeId;
     return normalized;
   }, [verifiers]);
 
