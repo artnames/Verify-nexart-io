@@ -53,11 +53,11 @@ export function CertificationReport({
 
   const nodeStampLabel = summary.attestation
     ? summary.attestation.hasSignedReceipt
-      ? 'Verified'
+      ? 'Stamp verified'
       : summary.attestation.verified
-        ? 'Attested'
+        ? 'Legacy timestamp'
         : 'Present'
-    : 'Missing';
+    : 'No stamp';
 
   const nodeStampColor = summary.attestation?.verified
     ? 'text-verified'
