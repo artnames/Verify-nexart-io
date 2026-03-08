@@ -479,12 +479,12 @@ describe('Public verification routes', () => {
 
   describe('Verification result states', () => {
     it('pass result maps to "Verified" status', () => {
-      const status: 'pass' | 'fail' = 'pass';
+      const status = 'pass' as string;
       expect(status === 'pass' ? 'Verified' : 'Not Verified').toBe('Verified');
     });
 
     it('fail result maps to "Not Verified" status', () => {
-      const status: 'pass' | 'fail' = 'fail';
+      const status = 'fail' as string;
       expect(status === 'pass' ? 'Verified' : 'Not Verified').toBe('Not Verified');
     });
 
