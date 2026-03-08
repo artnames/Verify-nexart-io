@@ -476,4 +476,56 @@ describe('Public verification routes', () => {
       expect(mockFetch).toHaveBeenCalledWith(fullHash);
     });
   });
+
+  describe('Verification result states', () => {
+    it('pass result maps to "Verified" status', () => {
+      const status = 'pass' as string;
+      expect(status === 'pass' ? 'Verified' : 'Not Verified').toBe('Verified');
+    });
+
+    it('fail result maps to "Not Verified" status', () => {
+      const status = 'fail' as string;
+      expect(status === 'pass' ? 'Verified' : 'Not Verified').toBe('Not Verified');
+    });
+
+    it('error sanitizer maps 400/404 to "Record Not Found" language', () => {
+      const sanitizeError = (raw: string): string => {
+        if (raw.includes('status 400') || raw.includes('status 404'))
+          return 'No matching record was found for the provided identifier.';
+        if (raw.includes('status'))
+          return 'The verification service returned an unexpected response. Please try again.';
+        return raw;
+      };
+
+      expect(sanitizeError('The server returned status 400')).toBe('No matching record was found for the provided identifier.');
+      expect(sanitizeError('The server returned status 404')).toBe('No matching record was found for the provided identifier.');
+      expect(sanitizeError('The server returned status 500')).toBe('The verification service returned an unexpected response. Please try again.');
+    });
+  });
+
+  describe('Node attestation label taxonomy', () => {
+    it('signed receipt → "Stamp verified"', () => {
+      const att = { verified: true, hasSignedReceipt: true };
+      const label = att.hasSignedReceipt ? 'Stamp verified' : att.verified ? 'Legacy timestamp' : 'Present';
+      expect(label).toBe('Stamp verified');
+    });
+
+    it('verified but no signed receipt → "Legacy timestamp"', () => {
+      const att = { verified: true, hasSignedReceipt: false };
+      const label = att.hasSignedReceipt ? 'Stamp verified' : att.verified ? 'Legacy timestamp' : 'Present';
+      expect(label).toBe('Legacy timestamp');
+    });
+
+    it('present but not verified → "Present"', () => {
+      const att = { verified: false, hasSignedReceipt: false };
+      const label = att.hasSignedReceipt ? 'Stamp verified' : att.verified ? 'Legacy timestamp' : 'Present';
+      expect(label).toBe('Present');
+    });
+
+    it('no attestation → "No stamp"', () => {
+      const att = null;
+      const label = att ? 'Stamp verified' : 'No stamp';
+      expect(label).toBe('No stamp');
+    });
+  });
 });

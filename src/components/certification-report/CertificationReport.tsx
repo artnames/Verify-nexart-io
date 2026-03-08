@@ -53,11 +53,11 @@ export function CertificationReport({
 
   const nodeStampLabel = summary.attestation
     ? summary.attestation.hasSignedReceipt
-      ? 'Verified'
+      ? 'Stamp verified'
       : summary.attestation.verified
-        ? 'Attested'
+        ? 'Legacy timestamp'
         : 'Present'
-    : 'Missing';
+    : 'No stamp';
 
   const nodeStampColor = summary.attestation?.verified
     ? 'text-verified'
@@ -101,7 +101,7 @@ export function CertificationReport({
           {/* Node stamp */}
           <div className="flex items-center gap-1.5">
             <Stamp className="w-3.5 h-3.5 text-muted-foreground" />
-            <span className="text-muted-foreground">Node stamp:</span>
+            <span className="text-muted-foreground">Stamp:</span>
             <span className={cn("font-medium", nodeStampColor)}>{nodeStampLabel}</span>
           </div>
         </div>
