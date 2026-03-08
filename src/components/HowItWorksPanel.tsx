@@ -159,7 +159,7 @@ export function HowItWorksPanel() {
             </li>
             <li className="flex gap-3">
               <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-medium shrink-0">2</span>
-              <span>Check that the verification status shows <strong>VERIFIED</strong> or <strong>SEALED</strong></span>
+              <span>Check that the verification status shows <strong>Verified</strong></span>
             </li>
             <li className="flex gap-3">
               <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-medium shrink-0">3</span>

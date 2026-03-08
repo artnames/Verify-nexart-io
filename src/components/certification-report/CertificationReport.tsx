@@ -101,7 +101,7 @@ export function CertificationReport({
           {/* Node stamp */}
           <div className="flex items-center gap-1.5">
             <Stamp className="w-3.5 h-3.5 text-muted-foreground" />
-            <span className="text-muted-foreground">Node stamp:</span>
+            <span className="text-muted-foreground">Stamp:</span>
             <span className={cn("font-medium", nodeStampColor)}>{nodeStampLabel}</span>
           </div>
         </div>

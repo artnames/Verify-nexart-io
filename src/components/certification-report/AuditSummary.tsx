@@ -303,17 +303,16 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails }:
                   <td className="py-2 text-right text-xs">
                     {summary.attestation ? (
                       <>
-                        {summary.attestation.verified ? (
-                          <span className="text-verified font-medium">Attested</span>
+                        {summary.attestation.hasSignedReceipt ? (
+                          <span className="text-verified font-medium">Stamp verified</span>
+                        ) : summary.attestation.verified ? (
+                          <span className="text-muted-foreground font-medium">Legacy timestamp</span>
                         ) : (
                           <span className="text-muted-foreground">Present</span>
                         )}
-                        {summary.attestation.hasSignedReceipt && (
-                          <span className="ml-1 text-[10px] text-muted-foreground">(signed)</span>
-                        )}
                       </>
                     ) : (
-                      <span className="text-muted-foreground/40 italic">None</span>
+                      <span className="text-muted-foreground/40 italic">No stamp</span>
                     )}
                   </td>
                 </tr>
