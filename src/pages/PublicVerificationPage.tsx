@@ -180,7 +180,7 @@ export default function PublicVerificationPage({ lookupKey, mode }: PublicVerifi
   );
 }
 
-/** Sanitize raw error messages for display */
+/** Sanitize raw error messages for display — user-safe language only */
 function sanitizeError(raw: string): string {
   if (raw.includes('dns error') || raw.includes('Service unreachable'))
     return 'The verification service is temporarily unavailable. Please try again later.';
@@ -188,5 +188,9 @@ function sanitizeError(raw: string): string {
     return 'The verification service is not yet configured. Please contact the administrator.';
   if (raw.includes('fetch') || raw.includes('network'))
     return 'Unable to reach the verification service. Please check your connection and try again.';
+  if (raw.includes('status 400') || raw.includes('status 404'))
+    return 'No matching record was found for the provided identifier.';
+  if (raw.includes('status'))
+    return 'The verification service returned an unexpected response. Please try again.';
   return raw;
 }
