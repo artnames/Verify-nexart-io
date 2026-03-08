@@ -109,7 +109,7 @@ export default function PublicVerificationPage({ lookupKey, mode }: PublicVerifi
           <AlertTriangle className="w-8 h-8 text-destructive" />
           <h1 className="text-lg font-serif">Record Not Found</h1>
           <p className="text-sm text-muted-foreground">{state.message}</p>
-          <a href="/" className="text-sm text-link underline hover:opacity-80">
+          <a href="/" className="text-sm text-primary underline hover:opacity-80">
             Return to verifier
           </a>
         </div>
