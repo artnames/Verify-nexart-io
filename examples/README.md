@@ -49,3 +49,4 @@ Real bundles will verify against the canonical renderer that created them.
 - Bundles are specific to the canonical renderer version that created them
 - Different renderer versions may produce different hashes for the same input
 - The `canonical.url` field in the bundle indicates which renderer to use for verification
+- Each bundle is a Certified Execution Record (CER) as defined by the [NexArt protocol](https://nexart.io/protocol). See the [glossary](https://nexart.io/glossary) for terminology
