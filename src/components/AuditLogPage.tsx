@@ -4,6 +4,8 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSEO } from '@/hooks/useSEO';
+import { useJsonLd, buildWebPage, buildBreadcrumbs } from '@/hooks/useJsonLd';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -34,7 +36,24 @@ import { formatDistanceToNow } from 'date-fns';
 
 export function AuditLogPage() {
   const navigate = useNavigate();
-  
+
+  useSEO({
+    title: 'Verification Log — NexArt Verification Portal',
+    description: 'Browse previously verified Certified Execution Records (CERs). Review verification status, certificate hashes, and attestation details.',
+    path: '/audit-log',
+  });
+
+  useJsonLd([
+    buildWebPage({
+      name: 'Verification Log',
+      description: 'Log of verified Certified Execution Records on the NexArt verification portal.',
+      path: '/audit-log',
+    }),
+    buildBreadcrumbs([
+      { name: 'Verification Portal', path: '/' },
+      { name: 'Verification Log', path: '/audit-log' },
+    ]),
+  ]);
   const [records, setRecords] = useState<AuditRecordRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
