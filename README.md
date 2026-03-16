@@ -36,7 +36,7 @@ This is useful for:
 
 ### The Reproducibility Gap
 
-Screenshots lie. Logs can be forged. Even blockchain explorers only show *that* a transaction happened—not *what* computation produced it.
+Screenshots lie. Logs can be forged. Even blockchain explorers only show _that_ a transaction happened—not _what_ computation produced it.
 
 When someone claims "my trading strategy returned 40% in backtesting," you have no way to verify:
 
@@ -77,22 +77,22 @@ The result: **Portable, verifiable artifacts** that anyone can replay.
 │  • GET  /health  → Check availability                       │
 │                                                             │
 │  Deterministic environment:                                 │
-│  • Seeded PRNG (randomSeed)                                │
+│  • Seeded PRNG (randomSeed)                                 │
 │  • Fixed library versions                                   │
-│  • SHA-256 of raw output bytes                             │
+│  • SHA-256 of raw output bytes                              │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    Artifact Bundle (JSON)                   │
 │  {                                                          │
-│    "snapshot": { code, seed, vars, execution },            │
-│    "expectedImageHash": "sha256...",                       │
-│    "canonical": { url, rendererVersion, protocolVersion }, │
-│    "output": { base64, mimeType }                          │
+│    "snapshot": { code, seed, vars, execution },             │
+│    "expectedImageHash": "sha256...",                        │
+│    "canonical": { url, rendererVersion, protocolVersion },  │
+│    "output": { base64, mimeType }                           │
 │  }                                                          │
 │                                                             │
-│  → Portable, self-describing, independently verifiable     │
+│  → Portable, self-describing, independently verifiable      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -151,15 +151,15 @@ The system correctly detected that the claimed hash doesn't match the recomputed
 
 ## What This Is NOT
 
-| ❌ Not This | ✓ What It Actually Is |
-|-------------|----------------------|
-| A trading platform | A verification layer for backtests |
-| An oracle network | A deterministic execution environment |
-| Investment advice | A technical tool for reproducibility |
-| Client-side verification | Server-side canonical execution |
-| A blockchain | Complementary infrastructure (works alongside chains) |
+| ❌ Not This              | ✓ What It Actually Is                                 |
+| ------------------------ | ----------------------------------------------------- |
+| A trading platform       | A verification layer for backtests                    |
+| An oracle network        | A deterministic execution environment                 |
+| Investment advice        | A technical tool for reproducibility                  |
+| Client-side verification | Server-side canonical execution                       |
+| A blockchain             | Complementary infrastructure (works alongside chains) |
 
-Recanon doesn't replace blockchains—it produces artifacts that *can* be anchored to blockchains for timestamping, but verification is independent of any chain.
+Recanon doesn't replace blockchains—it produces artifacts that _can_ be anchored to blockchains for timestamping, but verification is independent of any chain.
 
 ---
 
@@ -207,11 +207,11 @@ Loop mode requires **both** hashes to verify successfully.
 
 Verification can happen through three equivalent paths:
 
-| Path | Use Case |
-|------|----------|
-| **Browser UI** | Interactive verification |
+| Path           | Use Case                                             |
+| -------------- | ---------------------------------------------------- |
+| **Browser UI** | Interactive verification                             |
 | **CLI Script** | `npx ts-node scripts/replay-artifact.ts bundle.json` |
-| **Direct API** | `POST /verify` to canonical renderer |
+| **Direct API** | `POST /verify` to canonical renderer                 |
 
 All paths produce identical results.
 
