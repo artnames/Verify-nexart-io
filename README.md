@@ -6,6 +6,12 @@ Recanon is an open-source verification layer for deterministic computations. It 
 
 ---
 
+## Execution Verification
+
+Recanon uses the [NexArt deterministic execution runtime](https://nexart.io/protocol) to produce **Certified Execution Records (CERs)**—portable JSON artifacts that can be independently replayed and verified without trusting the presenter. For protocol details, see the [NexArt documentation](https://docs.nexart.io).
+
+---
+
 ## What This Is
 
 Recanon connects to a **Canonical Renderer**—an authoritative, deterministic execution environment. When you submit a program (code + seed + parameters), the renderer produces:
