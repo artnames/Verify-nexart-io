@@ -49,13 +49,19 @@ export function VerificationEnvelopeCard({
   bundle,
   nodeUrl,
   className,
+  precomputedResult,
 }: VerificationEnvelopeCardProps) {
-  const [result, setResult] = useState<VerificationEnvelopeResult | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [result, setResult] = useState<VerificationEnvelopeResult | null>(precomputedResult || null);
+  const [loading, setLoading] = useState(!precomputedResult);
   const [showCovered, setShowCovered] = useState(false);
   const [showExcluded, setShowExcluded] = useState(false);
 
   useEffect(() => {
+    if (precomputedResult) {
+      setResult(precomputedResult);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
 
@@ -67,7 +73,7 @@ export function VerificationEnvelopeCard({
     });
 
     return () => { cancelled = true; };
-  }, [bundle, nodeUrl]);
+  }, [bundle, nodeUrl, precomputedResult]);
 
   if (loading) {
     return (
