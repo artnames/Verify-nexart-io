@@ -151,6 +151,7 @@ export default function PublicVerificationPage({ lookupKey, mode }: PublicVerifi
             bundle={aiBundle}
             attestationPresent={attPresent}
             attestationFields={attFields}
+            contextIntegrityProtected={verifyResult.contextIntegrityProtected}
           />
         </div>
       </AuditLayout>
@@ -174,6 +175,7 @@ export default function PublicVerificationPage({ lookupKey, mode }: PublicVerifi
           verifyStatus={verifyStatus}
           verifyCode={verifyResult.code}
           verifyDetails={verifyResult.details}
+          contextIntegrityProtected={verifyResult.contextIntegrityProtected}
         />
       </div>
     </AuditLayout>

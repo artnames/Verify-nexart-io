@@ -40,6 +40,7 @@ interface AICERVerifyResultProps {
   isAttesting?: boolean;
   attestResult?: AttestationResult | null;
   attestError?: string | null;
+  contextIntegrityProtected?: boolean;
 }
 
 export function AICERVerifyResult({
@@ -51,6 +52,7 @@ export function AICERVerifyResult({
   isAttesting,
   attestResult,
   attestError,
+  contextIntegrityProtected,
 }: AICERVerifyResultProps) {
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [hasKey, setHasKey] = useState(hasNodeApiKey());
@@ -72,6 +74,7 @@ export function AICERVerifyResult({
       verifyStatus={passed ? 'pass' : 'fail'}
       verifyCode={!passed ? verifyResult.code : undefined}
       verifyDetails={!passed ? verifyResult.errors : undefined}
+      contextIntegrityProtected={contextIntegrityProtected}
     >
       {/* Canonical Attestation Section */}
       <Card className={cn(

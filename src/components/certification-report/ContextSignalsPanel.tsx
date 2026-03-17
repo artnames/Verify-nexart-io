@@ -26,6 +26,8 @@ export interface ContextSignal {
 
 interface ContextSignalsPanelProps {
   signals: ContextSignal[];
+  /** Whether context signals are covered by the certificate hash */
+  integrityProtected?: boolean;
 }
 
 function SignalRow({ signal, index }: { signal: ContextSignal; index: number }) {
@@ -91,7 +93,7 @@ function SignalRow({ signal, index }: { signal: ContextSignal; index: number }) 
   );
 }
 
-export function ContextSignalsPanel({ signals }: ContextSignalsPanelProps) {
+export function ContextSignalsPanel({ signals, integrityProtected }: ContextSignalsPanelProps) {
   if (!signals || signals.length === 0) return null;
 
   return (
@@ -102,6 +104,16 @@ export function ContextSignalsPanel({ signals }: ContextSignalsPanelProps) {
         <Badge variant="secondary" className="text-[10px] h-5">
           {signals.length}
         </Badge>
+        {integrityProtected === true && (
+          <Badge variant="outline" className="text-[10px] h-5 text-verified border-verified/30">
+            integrity-protected
+          </Badge>
+        )}
+        {integrityProtected === false && (
+          <Badge variant="outline" className="text-[10px] h-5 text-muted-foreground">
+            not hash-covered
+          </Badge>
+        )}
       </div>
 
       <Card className="border border-border/60">
@@ -114,6 +126,9 @@ export function ContextSignalsPanel({ signals }: ContextSignalsPanelProps) {
 
       <p className="text-[11px] text-muted-foreground/70 leading-relaxed">
         Signals are recorded as part of the execution context. NexArt does not interpret or enforce them.
+        {integrityProtected === false && (
+          <> This artifact's certificate hash does not cover context signals (resealed public artifact).</>
+        )}
       </p>
     </div>
   );

@@ -15,6 +15,8 @@ export interface CertificationReportProps {
   verifyCode?: string;
   /** Detail lines on failure */
   verifyDetails?: string[];
+  /** Whether context signals are covered by the certificate hash */
+  contextIntegrityProtected?: boolean;
   /** Additional children rendered after the report (e.g. Node Attestation, Attestation actions) */
   children?: React.ReactNode;
 }
