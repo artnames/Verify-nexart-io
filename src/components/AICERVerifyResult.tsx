@@ -52,6 +52,7 @@ export function AICERVerifyResult({
   isAttesting,
   attestResult,
   attestError,
+  contextIntegrityProtected,
 }: AICERVerifyResultProps) {
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [hasKey, setHasKey] = useState(hasNodeApiKey());
