@@ -87,12 +87,19 @@ async function verifyAiCerBrowser(rawBundle: Record<string, unknown>): Promise<B
       snapshot: rawBundle.snapshot,
     };
 
-    // Include signals in hash envelope when present — tampering causes FAIL
-    const signals = rawBundle.signals
-      ?? (rawBundle.snapshot as any)?.signals
-      ?? (rawBundle.meta as any)?.signals;
-    if (Array.isArray(signals) && signals.length > 0) {
-      envelope.signals = signals;
+    // Include context in hash envelope when present (v0.11.0+)
+    // The SDK hashes the full top-level `context` object, not extracted signals.
+    const context = rawBundle.context as Record<string, unknown> | undefined;
+    if (context && typeof context === 'object' && Object.keys(context).length > 0) {
+      envelope.context = context;
+    } else {
+      // Backward compat: older bundles stored signals at root/snapshot/meta level
+      const signals = rawBundle.signals
+        ?? (rawBundle.snapshot as any)?.signals
+        ?? (rawBundle.meta as any)?.signals;
+      if (Array.isArray(signals) && signals.length > 0) {
+        envelope.signals = signals;
+      }
     }
 
     const canonicalJson = JSON.stringify(canonicalizeValue(envelope));
