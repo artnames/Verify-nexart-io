@@ -18,6 +18,7 @@ interface Props {
   bundleJson: string;
   verifyCode?: string;
   verifyDetails?: string[];
+  trustWarnings?: string[];
 }
 
 function formatBytes(bytes: number): string {
