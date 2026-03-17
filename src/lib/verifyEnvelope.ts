@@ -145,54 +145,95 @@ export function jcsCanonicalizeToString(value: unknown): string {
 /* ------------------------------------------------------------------ */
 /*  v2: Signable payload reconstruction                                */
 /* ------------------------------------------------------------------ */
-
 /**
  * Reconstruct the v2 signable payload from a live CER bundle.
  * Mirrors the node-side derivation exactly.
+ *
+ * The node signs: { attestation, bundle (cleaned CER), envelopeType }
+ * - attestation comes from verificationEnvelope.attestation (exactly 5 fields)
+ * - bundle is the CER with all envelope-related meta fields stripped
+ * - if meta becomes empty after stripping, it is removed entirely
  */
 export function reconstructV2SignablePayload(bundle: Record<string, unknown>): {
   payload: Record<string, unknown>;
   excludedFields: string[];
 } {
-  // Deep clone the bundle
+  const meta = bundle.meta as Record<string, unknown> | undefined;
+
+  // 1. Extract attestation from verificationEnvelope.attestation BEFORE cloning/stripping
+  const envObj = meta?.verificationEnvelope as Record<string, unknown> | undefined;
+  const envAtt = envObj?.attestation as Record<string, unknown> | undefined;
+
+  const attestationSummary: Record<string, unknown> = {};
+  if (envAtt && typeof envAtt === 'object') {
+    // Exactly these 5 fields, using the field names as they appear in the envelope
+    if (envAtt.attestationId !== undefined) attestationSummary.attestationId = envAtt.attestationId;
+    if (envAtt.attestedAt !== undefined) attestationSummary.attestedAt = envAtt.attestedAt;
+    if (envAtt.kid !== undefined) attestationSummary.kid = envAtt.kid;
+    if (envAtt.nodeRuntimeHash !== undefined) attestationSummary.nodeRuntimeHash = envAtt.nodeRuntimeHash;
+    if (envAtt.protocolVersion !== undefined) attestationSummary.protocolVersion = envAtt.protocolVersion;
+  }
+
+  // 2. Deep clone the bundle for stripping
   const cleaned = JSON.parse(JSON.stringify(bundle)) as Record<string, unknown>;
-  const meta = cleaned.meta as Record<string, unknown> | undefined;
+  const cleanedMeta = cleaned.meta as Record<string, unknown> | undefined;
 
   const excludedFields: string[] = [];
 
-  if (meta && typeof meta === 'object') {
-    // Remove self-referential fields
-    if ('verificationEnvelopeSignature' in meta) {
-      delete meta.verificationEnvelopeSignature;
+  // 3. Strip all envelope-related response-level fields from meta
+  //    The node does NOT write these into the CER — they are response-level.
+  //    Excluded fields per node spec: verificationEnvelopeSignature, verificationEnvelopeVerification
+  //    Also strip verificationEnvelope and verificationEnvelopeType (response-level, not in original CER)
+  if (cleanedMeta && typeof cleanedMeta === 'object') {
+    if ('verificationEnvelopeSignature' in cleanedMeta) {
+      delete cleanedMeta.verificationEnvelopeSignature;
       excludedFields.push('meta.verificationEnvelopeSignature');
     }
-    if ('verificationEnvelopeVerification' in meta) {
-      delete meta.verificationEnvelopeVerification;
+    if ('verificationEnvelopeVerification' in cleanedMeta) {
+      delete cleanedMeta.verificationEnvelopeVerification;
       excludedFields.push('meta.verificationEnvelopeVerification');
     }
+    if ('verificationEnvelope' in cleanedMeta) {
+      delete cleanedMeta.verificationEnvelope;
+      excludedFields.push('meta.verificationEnvelope');
+    }
+    if ('verificationEnvelopeType' in cleanedMeta) {
+      delete cleanedMeta.verificationEnvelopeType;
+      excludedFields.push('meta.verificationEnvelopeType');
+    }
 
-    // If meta is now empty, remove it entirely
-    if (Object.keys(meta).length === 0) {
+    // If meta is now an empty plain object, remove it entirely (mirrors node behavior)
+    if (Object.keys(cleanedMeta).length === 0) {
       delete cleaned.meta;
     }
   }
 
-  // Extract attestation summary from the bundle's attestation data
-  const att = (cleaned.meta as Record<string, unknown> | undefined)?.attestation as Record<string, unknown> | undefined;
-  const attestationSummary: Record<string, unknown> = {};
-  if (att && typeof att === 'object') {
-    if (att.attestationId) attestationSummary.attestationId = att.attestationId;
-    if (att.attestedAt) attestationSummary.attestedAt = att.attestedAt;
-    if (att.attestorKeyId) attestationSummary.kid = att.attestorKeyId;
-    if (att.nodeRuntimeHash) attestationSummary.nodeRuntimeHash = att.nodeRuntimeHash;
-    if (att.protocolVersion) attestationSummary.protocolVersion = att.protocolVersion;
-  }
-
+  // 4. Build the exact signed payload shape
   const payload: Record<string, unknown> = {
     attestation: attestationSummary,
     bundle: cleaned,
     envelopeType: V2_ENVELOPE_TYPE,
   };
+
+  // Debug diagnostics (development only)
+  if (typeof window !== 'undefined' && import.meta.env.DEV) {
+    const canonical = jcsCanonicalizeToString(payload);
+    console.group('[Envelope v2] Reconstruction diagnostics');
+    console.log('attestation source:', envAtt ? 'verificationEnvelope.attestation' : 'MISSING');
+    console.log('attestation summary:', attestationSummary);
+    console.log('meta existed before stripping:', !!meta);
+    console.log('meta removed after stripping:', !cleaned.meta);
+    console.log('excluded fields:', excludedFields);
+    console.log('canonical string length:', canonical.length);
+    // Compute SHA-256 of canonical string for debug comparison
+    if (crypto?.subtle) {
+      crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical)).then(buf => {
+        const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+        console.log('canonical SHA-256:', `sha256:${hex}`);
+      });
+    }
+    console.groupEnd();
+  }
 
   return { payload, excludedFields };
 }
