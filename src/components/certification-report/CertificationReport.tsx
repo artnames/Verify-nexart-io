@@ -29,7 +29,9 @@ import {
   extractOutputs,
   extractMetadata,
   extractEvidence,
+  extractContextSignals,
 } from './extractors';
+import { ContextSignalsPanel, type ContextSignal } from './ContextSignalsPanel';
 import type { CertificationReportProps } from './types';
 
 export function CertificationReport({
