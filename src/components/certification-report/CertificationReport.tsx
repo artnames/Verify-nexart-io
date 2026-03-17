@@ -125,7 +125,7 @@ export function CertificationReport({
       />
 
       {/* 3b. Context Signals — only shown if present */}
-      <ContextSignalsPanel signals={contextSignals} />
+      <ContextSignalsPanel signals={contextSignals} integrityProtected={contextIntegrityProtected} />
 
       {/* 4. Children (Independent stamp, Attestation actions, etc.) */}
       {children}
