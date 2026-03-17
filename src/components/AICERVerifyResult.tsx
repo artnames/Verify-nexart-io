@@ -135,10 +135,11 @@ export function AICERVerifyResult({
       verifyCode={!passed ? verifyResult.code : undefined}
       verifyDetails={!passed ? verifyResult.errors : undefined}
       contextIntegrityProtected={contextIntegrityProtected}
+      trustWarnings={trustWarnings.length > 0 ? trustWarnings : undefined}
     >
       {/* ─── Layer 2a: Verification Envelope (highest trust) ─── */}
       {hasEnvelope && (
-        <VerificationEnvelopeCard bundle={bundle} />
+        <VerificationEnvelopeCard bundle={bundle} precomputedResult={envelopeResult} />
       )}
 
       {/* ─── Layer 2b: Signed Attestation Verification ─── */}
