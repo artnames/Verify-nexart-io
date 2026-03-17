@@ -81,6 +81,7 @@ export function AICERVerifyResult({
   const envelope = extractSignedReceiptEnvelope(bundle);
   const hasSignedReceipt = !!(envelope || att?.receipt || att?.signature || att?.signatureB64Url);
   const hasLegacyAttestation = !!(att && !hasSignedReceipt && (att.attestationId || att.attestationStatus));
+  const hasEnvelope = hasVerificationEnvelope(bundle);
 
   // Prepare normalized bundle for NodeAttestationSignature
   let normalizedBundle = bundle;
