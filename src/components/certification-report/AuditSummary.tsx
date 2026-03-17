@@ -182,12 +182,14 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, t
   }, [bundleJson, summary.certificateHash, summary.bundleType]);
 
   const passed = summary.status === 'pass';
+  const hasTrustWarnings = trustWarnings && trustWarnings.length > 0;
+  const fullyTrusted = passed && !hasTrustWarnings;
   const isAI = summary.certType === 'AI Execution Record';
 
   return (
     <Card className={cn(
       "border-2",
-      passed ? "border-verified/20" : "border-destructive/20",
+      fullyTrusted ? "border-verified/20" : "border-destructive/20",
     )}>
       <CardContent className="pt-6 pb-5 px-6">
         {/* 2-column grid: Status + Facts */}
@@ -195,7 +197,7 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, t
           {/* Left: Status + explanation */}
           <div className="min-w-0 space-y-4">
             <div className="flex items-start gap-4">
-              {passed ? (
+              {fullyTrusted ? (
                 <div className="w-12 h-12 rounded-full bg-verified/10 flex items-center justify-center shrink-0">
                   <ShieldCheck className="w-6 h-6 text-verified" />
                 </div>
@@ -207,15 +209,22 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, t
               <div>
                 <h1 className={cn(
                   "text-2xl font-semibold tracking-tight",
-                  passed ? "text-verified" : "text-destructive",
+                  fullyTrusted ? "text-verified" : "text-destructive",
                 )}>
-                  {passed ? 'Verified' : 'Not verified'}
+                  {fullyTrusted ? 'Verified' : 'Not verified'}
                 </h1>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {passed
+                  {fullyTrusted
                     ? 'This record has not been altered since certification.'
-                    : 'This record may have been modified after certification.'}
+                    : !passed
+                      ? 'This record may have been modified after certification.'
+                      : 'Bundle integrity passed, but one or more trust layers failed verification.'}
                 </p>
+                {hasTrustWarnings && (
+                  <ul className="mt-2 space-y-1 text-xs text-destructive list-disc list-inside">
+                    {trustWarnings.map((w, i) => <li key={i}>{w}</li>)}
+                  </ul>
+                )}
               </div>
             </div>
 
