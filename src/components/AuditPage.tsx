@@ -650,6 +650,7 @@ export function AuditPage() {
               isAttesting={isAiCerRecertifying}
               attestResult={null}
               attestError={null}
+              contextIntegrityProtected={vResult.contextIntegrityProtected}
             />
           );
         })()}
