@@ -29,7 +29,9 @@ import {
   extractOutputs,
   extractMetadata,
   extractEvidence,
+  extractContextSignals,
 } from './extractors';
+import { ContextSignalsPanel, type ContextSignal } from './ContextSignalsPanel';
 import type { CertificationReportProps } from './types';
 
 export function CertificationReport({
@@ -48,6 +50,7 @@ export function CertificationReport({
   const outputs = useMemo(() => extractOutputs(bundle, bundleKind), [bundle, bundleKind]);
   const metadata = useMemo(() => extractMetadata(bundle, bundleKind), [bundle, bundleKind]);
   const evidence = useMemo(() => extractEvidence(bundle, bundleKind), [bundle, bundleKind]);
+  const contextSignals = useMemo(() => extractContextSignals(bundle) as ContextSignal[], [bundle]);
 
   const passed = verifyStatus === 'pass';
 
@@ -119,6 +122,9 @@ export function CertificationReport({
         outputs={outputs}
         metadata={metadata}
       />
+
+      {/* 3b. Context Signals — only shown if present */}
+      <ContextSignalsPanel signals={contextSignals} />
 
       {/* 4. Children (Independent stamp, Attestation actions, etc.) */}
       {children}

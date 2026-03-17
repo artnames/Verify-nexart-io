@@ -232,6 +232,22 @@ export function extractMetadata(bundle: Record<string, unknown>, kind: BundleKin
   return fields;
 }
 
+/** Extract context signals from the bundle. Returns empty array if none. */
+export function extractContextSignals(bundle: Record<string, unknown>): Array<Record<string, unknown>> {
+  const snapshot = bundle.snapshot as Record<string, unknown> | undefined;
+  const meta = bundle.meta as Record<string, unknown> | undefined;
+
+  // Check snapshot.signals, meta.signals, and top-level signals
+  const raw = (snapshot?.signals ?? meta?.signals ?? bundle.signals) as unknown;
+  if (!Array.isArray(raw)) return [];
+
+  // Filter to objects that at least have a 'type' field
+  return raw.filter(
+    (s): s is Record<string, unknown> =>
+      s !== null && typeof s === 'object' && typeof (s as any).type === 'string',
+  );
+}
+
 export function extractEvidence(bundle: Record<string, unknown>, kind: BundleKind): HashEvidence {
   const snapshot = bundle.snapshot as Record<string, unknown> | undefined;
 

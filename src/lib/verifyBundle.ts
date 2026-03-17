@@ -87,6 +87,14 @@ async function verifyAiCerBrowser(rawBundle: Record<string, unknown>): Promise<B
       snapshot: rawBundle.snapshot,
     };
 
+    // Include signals in hash envelope when present — tampering causes FAIL
+    const signals = rawBundle.signals
+      ?? (rawBundle.snapshot as any)?.signals
+      ?? (rawBundle.meta as any)?.signals;
+    if (Array.isArray(signals) && signals.length > 0) {
+      envelope.signals = signals;
+    }
+
     const canonicalJson = JSON.stringify(canonicalizeValue(envelope));
     const computedHash = await sha256HexWebCrypto(canonicalJson);
     const normalizedExpected = storedHash.toLowerCase();
