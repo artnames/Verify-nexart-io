@@ -113,7 +113,6 @@ export async function importLocalRecord(
     return { success: true, certificateHash, error: 'Record already exists' };
   }
 
-  const isAiCer = isAICERBundle(bundle);
   const expectedImageHash = wrapperMetadata?.expectedImageHash || resolveExpectedImageHash(bundle);
   const expectedAnimationHash = resolveExpectedAnimationHash(bundle);
 
