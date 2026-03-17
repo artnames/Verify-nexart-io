@@ -26,6 +26,7 @@ import {
   getAuditRecordByHash,
 } from '@/api/auditRecords';
 import { computeCertificateHash } from '@/lib/canonicalize';
+import { isAICERBundle } from '@/types/aiCerBundle';
 import { normalizeHash } from '@/lib/hashResolver';
 import type { CERBundle } from '@/types/auditRecord';
 
@@ -115,7 +116,12 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
         return;
       }
 
-      const certificateHash = await computeCertificateHash(result.bundle);
+      // For AI CER bundles, use the bundle's own certificateHash (correct protected set)
+      // rather than recomputing from the full bundle which would include meta/declaration
+      const bundleRec = result.bundle as Record<string, unknown>;
+      const certificateHash = (isAICERBundle(result.bundle) && typeof bundleRec.certificateHash === 'string')
+        ? (bundleRec.certificateHash as string).replace(/^sha256:/i, '').toLowerCase()
+        : await computeCertificateHash(result.bundle);
 
       const existing = await getAuditRecordByHash(certificateHash);
       if (existing) {
