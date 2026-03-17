@@ -28,6 +28,8 @@ interface VerificationEnvelopeCardProps {
   bundle: unknown;
   nodeUrl?: string;
   className?: string;
+  /** If the parent already ran verification, pass the result to avoid re-running */
+  precomputedResult?: VerificationEnvelopeResult | null;
 }
 
 const ENVELOPE_TYPE_LABELS: Record<EnvelopeType, string> = {
