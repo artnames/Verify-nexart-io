@@ -237,8 +237,9 @@ export function extractContextSignals(bundle: Record<string, unknown>): Array<Re
   const snapshot = bundle.snapshot as Record<string, unknown> | undefined;
   const meta = bundle.meta as Record<string, unknown> | undefined;
 
-  // Check snapshot.signals, meta.signals, and top-level signals
-  const raw = (snapshot?.signals ?? meta?.signals ?? bundle.signals) as unknown;
+  // Check context.signals (v0.11.0+), then snapshot.signals, meta.signals, top-level signals
+  const context = bundle.context as Record<string, unknown> | undefined;
+  const raw = (context?.signals ?? snapshot?.signals ?? meta?.signals ?? bundle.signals) as unknown;
   if (!Array.isArray(raw)) return [];
 
   // Filter to objects that at least have a 'type' field
