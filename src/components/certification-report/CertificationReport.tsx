@@ -50,6 +50,7 @@ export function CertificationReport({
   const outputs = useMemo(() => extractOutputs(bundle, bundleKind), [bundle, bundleKind]);
   const metadata = useMemo(() => extractMetadata(bundle, bundleKind), [bundle, bundleKind]);
   const evidence = useMemo(() => extractEvidence(bundle, bundleKind), [bundle, bundleKind]);
+  const contextSignals = useMemo(() => extractContextSignals(bundle) as ContextSignal[], [bundle]);
 
   const passed = verifyStatus === 'pass';
 
