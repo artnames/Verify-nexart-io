@@ -29,6 +29,8 @@ import {
   hasAttestation as hasAICERAttestation,
 } from '@nexart/ai-execution';
 import { extractSignedReceiptEnvelope } from '@/lib/extractSignedReceipt';
+import { hasVerificationEnvelope } from '@/lib/verifyEnvelope';
+import { VerificationEnvelopeCard } from './VerificationEnvelopeCard';
 
 interface AICERVerifyResultProps {
   verifyResult: VerificationResult;
@@ -79,6 +81,7 @@ export function AICERVerifyResult({
   const envelope = extractSignedReceiptEnvelope(bundle);
   const hasSignedReceipt = !!(envelope || att?.receipt || att?.signature || att?.signatureB64Url);
   const hasLegacyAttestation = !!(att && !hasSignedReceipt && (att.attestationId || att.attestationStatus));
+  const hasEnvelope = hasVerificationEnvelope(bundle);
 
   // Prepare normalized bundle for NodeAttestationSignature
   let normalizedBundle = bundle;
@@ -109,7 +112,12 @@ export function AICERVerifyResult({
       verifyDetails={!passed ? verifyResult.errors : undefined}
       contextIntegrityProtected={contextIntegrityProtected}
     >
-      {/* ─── Layer 2: Signed Attestation Verification ─── */}
+      {/* ─── Layer 2a: Verification Envelope (highest trust) ─── */}
+      {hasEnvelope && (
+        <VerificationEnvelopeCard bundle={bundle} />
+      )}
+
+      {/* ─── Layer 2b: Signed Attestation Verification ─── */}
       {hasSignedReceipt && (
         <NodeAttestationSignature
           bundle={normalizedBundle}
