@@ -74,6 +74,7 @@ export function AICERVerifyResult({
       verifyStatus={passed ? 'pass' : 'fail'}
       verifyCode={!passed ? verifyResult.code : undefined}
       verifyDetails={!passed ? verifyResult.errors : undefined}
+      contextIntegrityProtected={contextIntegrityProtected}
     >
       {/* Canonical Attestation Section */}
       <Card className={cn(
