@@ -82,7 +82,7 @@ function canonicalizeValue(value: unknown): unknown {
 /**
  * Decode a base64url string to Uint8Array.
  */
-function base64UrlToBytes(b64url: string): Uint8Array {
+function base64UrlToBytes(b64url: string): ArrayBuffer {
   const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
   const pad = (4 - (b64.length % 4)) % 4;
   const padded = b64 + '='.repeat(pad);
