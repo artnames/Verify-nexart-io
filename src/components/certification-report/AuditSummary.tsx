@@ -88,7 +88,7 @@ function FactRow({ label, value, mono = true, truncate = false, copyable = false
 
 const NODE_URL = 'https://node.nexart.io';
 
-export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails }: Props) {
+export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, trustWarnings }: Props) {
   const [showWhy, setShowWhy] = useState(false);
   const [downloadingPack, setDownloadingPack] = useState(false);
 
