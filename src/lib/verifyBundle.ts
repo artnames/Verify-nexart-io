@@ -82,40 +82,91 @@ async function verifyAiCerBrowser(rawBundle: Record<string, unknown>): Promise<B
   }
 
   try {
-    const envelope: Record<string, unknown> = {
+    // Build envelope with context included (v0.11.0+ SDK behavior)
+    const baseEnvelope: Record<string, unknown> = {
       bundleType: rawBundle.bundleType,
       version: rawBundle.version ?? rawBundle.bundleVersion,
       createdAt: rawBundle.createdAt,
       snapshot: rawBundle.snapshot,
     };
 
-    // Include context in hash envelope when present (v0.11.0+)
-    // The SDK hashes the full top-level `context` object, not extracted signals.
     const context = rawBundle.context as Record<string, unknown> | undefined;
-    if (context && typeof context === 'object' && Object.keys(context).length > 0) {
-      envelope.context = context;
-    } else {
-      // Backward compat: older bundles stored signals at root/snapshot/meta level
-      const signals = rawBundle.signals
-        ?? (rawBundle.snapshot as any)?.signals
-        ?? (rawBundle.meta as any)?.signals;
-      if (Array.isArray(signals) && signals.length > 0) {
-        envelope.signals = signals;
+    const hasContext = context && typeof context === 'object' && Object.keys(context).length > 0;
+
+    // Backward compat: older bundles stored signals at root/snapshot/meta level
+    const legacySignals = rawBundle.signals
+      ?? (rawBundle.snapshot as any)?.signals
+      ?? (rawBundle.meta as any)?.signals;
+    const hasLegacySignals = Array.isArray(legacySignals) && legacySignals.length > 0;
+
+    const normalizedExpected = storedHash.toLowerCase();
+
+    // Strategy 1: Try with context included (v0.11.0+ originals)
+    if (hasContext) {
+      const envelopeWithCtx = { ...baseEnvelope, context };
+      const canonicalJson = JSON.stringify(canonicalizeValue(envelopeWithCtx));
+      const computedHash = await sha256HexWebCrypto(canonicalJson);
+      if (computedHash === normalizedExpected) {
+        return {
+          ok: true,
+          code: 'OK',
+          details: [],
+          errors: [],
+          bundleType,
+          contextIntegrityProtected: true,
+        };
       }
     }
 
-    const canonicalJson = JSON.stringify(canonicalizeValue(envelope));
+    // Strategy 2: Try with legacy signals at envelope root
+    if (!hasContext && hasLegacySignals) {
+      const envelopeWithSignals = { ...baseEnvelope, signals: legacySignals };
+      const canonicalJson = JSON.stringify(canonicalizeValue(envelopeWithSignals));
+      const computedHash = await sha256HexWebCrypto(canonicalJson);
+      if (computedHash === normalizedExpected) {
+        return {
+          ok: true,
+          code: 'OK',
+          details: [],
+          errors: [],
+          bundleType,
+          contextIntegrityProtected: true,
+        };
+      }
+    }
+
+    // Strategy 3: Try without context/signals (resealed artifacts or pre-v0.11.0)
+    {
+      const canonicalJson = JSON.stringify(canonicalizeValue(baseEnvelope));
+      const computedHash = await sha256HexWebCrypto(canonicalJson);
+      if (computedHash === normalizedExpected) {
+        return {
+          ok: true,
+          code: 'OK',
+          details: hasContext
+            ? ['Context signals are present but not covered by this certificate hash (resealed artifact).']
+            : [],
+          errors: [],
+          bundleType,
+          contextIntegrityProtected: false,
+        };
+      }
+    }
+
+    // None matched — compute the most specific hash for the error message
+    const fullEnvelope = hasContext
+      ? { ...baseEnvelope, context }
+      : hasLegacySignals
+        ? { ...baseEnvelope, signals: legacySignals }
+        : baseEnvelope;
+    const canonicalJson = JSON.stringify(canonicalizeValue(fullEnvelope));
     const computedHash = await sha256HexWebCrypto(canonicalJson);
-    const normalizedExpected = storedHash.toLowerCase();
-    const ok = computedHash === normalizedExpected;
 
     return {
-      ok,
-      code: ok ? 'OK' : 'CERTIFICATE_HASH_MISMATCH',
-      details: ok
-        ? []
-        : [`Expected ${normalizedExpected}, computed ${computedHash}`],
-      errors: ok ? [] : ['Certificate hash mismatch'],
+      ok: false,
+      code: 'CERTIFICATE_HASH_MISMATCH',
+      details: [`Expected ${normalizedExpected}, computed ${computedHash}`],
+      errors: ['Certificate hash mismatch'],
       bundleType,
     };
   } catch (err) {
