@@ -21,6 +21,8 @@ export interface BundleVerifyResult {
   details: string[];
   errors: string[];
   bundleType: string;
+  /** True when context signals are covered by the certificate hash */
+  contextIntegrityProtected?: boolean;
 }
 
 /* ------------------------------------------------------------------ */
