@@ -91,7 +91,7 @@ function base64UrlToBytes(b64url: string): ArrayBuffer {
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
   }
-  return bytes;
+  return bytes.buffer as ArrayBuffer;
 }
 
 /**
