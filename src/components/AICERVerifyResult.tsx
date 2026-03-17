@@ -29,7 +29,7 @@ import {
   hasAttestation as hasAICERAttestation,
 } from '@nexart/ai-execution';
 import { extractSignedReceiptEnvelope } from '@/lib/extractSignedReceipt';
-import { hasVerificationEnvelope } from '@/lib/verifyEnvelope';
+import { hasVerificationEnvelope, verifyVerificationEnvelope, type VerificationEnvelopeResult } from '@/lib/verifyEnvelope';
 import { VerificationEnvelopeCard } from './VerificationEnvelopeCard';
 
 interface AICERVerifyResultProps {
