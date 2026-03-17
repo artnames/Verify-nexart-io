@@ -90,7 +90,23 @@ export async function importLocalRecord(
   }
 
   const canonicalJson = canonicalize(bundle);
-  const certificateHash = await computeCertificateHash(bundle);
+
+  // For AI CER bundles, use the bundle's own certificateHash (which covers
+  // the correct protected set: bundleType, version, createdAt, snapshot,
+  // and context when present). Recomputing from the full bundle would
+  // produce a different hash because it includes meta, declaration, etc.
+  const bundleRecord = bundle as Record<string, unknown>;
+  const isAiCer = isAICERBundle(bundle);
+  let certificateHash: string;
+
+  if (isAiCer && typeof bundleRecord.certificateHash === 'string') {
+    // Strip sha256: prefix, lowercase — matches normalizeHash format
+    certificateHash = (bundleRecord.certificateHash as string)
+      .replace(/^sha256:/i, '')
+      .toLowerCase();
+  } else {
+    certificateHash = await computeCertificateHash(bundle);
+  }
 
   // Check duplicate
   if (getLocalRecordByHash(certificateHash)) {
