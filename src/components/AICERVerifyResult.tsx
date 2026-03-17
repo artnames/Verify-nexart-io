@@ -9,7 +9,7 @@
  * Does NOT change CER protocol semantics.
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   ShieldCheck, Fingerprint, Hash, Info, Lock, KeyRound, ExternalLink, Loader2,
   CheckCircle2, Clock, FileText, AlertTriangle, ShieldAlert,
