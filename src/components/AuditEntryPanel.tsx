@@ -123,23 +123,23 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
         ? (bundleRec.certificateHash as string).replace(/^sha256:/i, '').toLowerCase()
         : await computeCertificateHash(result.bundle);
 
-      const existing = await getAuditRecordByHash(certificateHash);
-      if (existing) {
-        toast.success('Bundle already in registry');
-        navigateToAudit(certificateHash);
-        return;
-      }
-
+      // Always import (handles dedup internally)
       const importResult = await importAuditRecord(result.bundle, 'upload');
 
-      if (!importResult.success) {
+      if (!importResult.success && !importResult.error?.includes('already exists')) {
         setError(importResult.error || 'Import failed');
         return;
       }
 
-      toast.success('Bundle imported successfully');
-      if (importResult.certificateHash) {
-        navigateToAudit(importResult.certificateHash);
+      toast.success(importResult.error?.includes('already exists') ? 'Bundle already in registry' : 'Bundle imported successfully');
+
+      // Navigate with the uploaded bundle as source of truth via router state
+      const navHash = importResult.certificateHash || certificateHash;
+      const normalizedNav = normalizeHash(navHash);
+      if (normalizedNav) {
+        navigate(`/audit/${normalizedNav}`, {
+          state: { uploadedBundle: result.bundle },
+        });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
