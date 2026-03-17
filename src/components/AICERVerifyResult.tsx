@@ -9,7 +9,7 @@
  * Does NOT change CER protocol semantics.
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   ShieldCheck, Fingerprint, Hash, Info, Lock, KeyRound, ExternalLink, Loader2,
   CheckCircle2, Clock, FileText, AlertTriangle, ShieldAlert,
@@ -29,7 +29,7 @@ import {
   hasAttestation as hasAICERAttestation,
 } from '@nexart/ai-execution';
 import { extractSignedReceiptEnvelope } from '@/lib/extractSignedReceipt';
-import { hasVerificationEnvelope } from '@/lib/verifyEnvelope';
+import { hasVerificationEnvelope, verifyVerificationEnvelope, type VerificationEnvelopeResult } from '@/lib/verifyEnvelope';
 import { VerificationEnvelopeCard } from './VerificationEnvelopeCard';
 
 interface AICERVerifyResultProps {
@@ -62,6 +62,7 @@ export function AICERVerifyResult({
 }: AICERVerifyResultProps) {
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [hasKey, setHasKey] = useState(hasNodeApiKey());
+  const [envelopeResult, setEnvelopeResult] = useState<VerificationEnvelopeResult | null>(null);
 
   const handleSaveKey = () => {
     if (apiKeyInput.trim()) {
@@ -82,6 +83,29 @@ export function AICERVerifyResult({
   const hasSignedReceipt = !!(envelope || att?.receipt || att?.signature || att?.signatureB64Url);
   const hasLegacyAttestation = !!(att && !hasSignedReceipt && (att.attestationId || att.attestationStatus));
   const hasEnvelope = hasVerificationEnvelope(bundle);
+
+  // Run envelope verification eagerly so we can compute trust warnings
+  useEffect(() => {
+    if (!hasEnvelope) {
+      setEnvelopeResult(null);
+      return;
+    }
+    let cancelled = false;
+    verifyVerificationEnvelope(bundle).then((r) => {
+      if (!cancelled) setEnvelopeResult(r);
+    });
+    return () => { cancelled = true; };
+  }, [bundle, hasEnvelope]);
+
+  // Compute trust warnings for the top-level summary
+  const trustWarnings = useMemo(() => {
+    const warnings: string[] = [];
+    if (envelopeResult && envelopeResult.status !== 'valid' && envelopeResult.status !== 'absent') {
+      const typeLabel = envelopeResult.envelopeType === 'v2' ? 'Full bundle' : 'Legacy';
+      warnings.push(`${typeLabel} verification envelope: ${envelopeResult.status === 'invalid' ? 'signature invalid' : envelopeResult.status}`);
+    }
+    return warnings;
+  }, [envelopeResult]);
 
   // Prepare normalized bundle for NodeAttestationSignature
   let normalizedBundle = bundle;
@@ -111,10 +135,11 @@ export function AICERVerifyResult({
       verifyCode={!passed ? verifyResult.code : undefined}
       verifyDetails={!passed ? verifyResult.errors : undefined}
       contextIntegrityProtected={contextIntegrityProtected}
+      trustWarnings={trustWarnings.length > 0 ? trustWarnings : undefined}
     >
       {/* ─── Layer 2a: Verification Envelope (highest trust) ─── */}
       {hasEnvelope && (
-        <VerificationEnvelopeCard bundle={bundle} />
+        <VerificationEnvelopeCard bundle={bundle} precomputedResult={envelopeResult} />
       )}
 
       {/* ─── Layer 2b: Signed Attestation Verification ─── */}

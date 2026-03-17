@@ -170,7 +170,7 @@ describe('verifyVerificationEnvelope', () => {
     expect(result.envelopeType).toBe('v2');
   });
 
-  it('returns error for missing signature in v2 envelope', async () => {
+  it('returns error for v2 envelope with missing signature', async () => {
     const bundle = {
       meta: {
         verificationEnvelopeType: 'nexart.verification.envelope.v2',
@@ -178,8 +178,8 @@ describe('verifyVerificationEnvelope', () => {
       },
     };
     const result = await verifyVerificationEnvelope(bundle);
-    // Should be absent since detection requires signature
-    expect(result.status).toBe('absent');
+    expect(result.status).toBe('error');
+    expect(result.errorKind).toBe('missing_signature');
   });
 
   it('returns error when node returns empty keys for v1', async () => {

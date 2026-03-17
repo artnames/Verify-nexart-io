@@ -41,6 +41,7 @@ export function CertificationReport({
   verifyCode,
   verifyDetails,
   contextIntegrityProtected,
+  trustWarnings,
   children,
 }: CertificationReportProps) {
   const bundleJson = useMemo(() => JSON.stringify(bundle), [bundle]);
@@ -82,6 +83,7 @@ export function CertificationReport({
         bundleJson={bundleJson}
         verifyCode={verifyCode}
         verifyDetails={verifyDetails}
+        trustWarnings={trustWarnings}
       />
 
       {/* 2. Sticky mini status bar — same width, compact */}
