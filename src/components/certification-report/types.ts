@@ -17,6 +17,12 @@ export interface CertificationReportProps {
   verifyDetails?: string[];
   /** Whether context signals are covered by the certificate hash */
   contextIntegrityProtected?: boolean;
+  /**
+   * Trust warnings from envelope or stamp verification failures.
+   * When present (even if bundle integrity passes), the top-level summary
+   * should indicate the document cannot be fully verified.
+   */
+  trustWarnings?: string[];
   /** Additional children rendered after the report (e.g. Node Attestation, Attestation actions) */
   children?: React.ReactNode;
 }

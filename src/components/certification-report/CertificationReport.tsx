@@ -83,6 +83,7 @@ export function CertificationReport({
         bundleJson={bundleJson}
         verifyCode={verifyCode}
         verifyDetails={verifyDetails}
+        trustWarnings={trustWarnings}
       />
 
       {/* 2. Sticky mini status bar — same width, compact */}
