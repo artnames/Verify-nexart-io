@@ -26,6 +26,8 @@ export interface ContextSignal {
 
 interface ContextSignalsPanelProps {
   signals: ContextSignal[];
+  /** Whether context signals are covered by the certificate hash */
+  integrityProtected?: boolean;
 }
 
 function SignalRow({ signal, index }: { signal: ContextSignal; index: number }) {
