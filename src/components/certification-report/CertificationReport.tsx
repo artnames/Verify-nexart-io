@@ -123,6 +123,9 @@ export function CertificationReport({
         metadata={metadata}
       />
 
+      {/* 3b. Context Signals — only shown if present */}
+      <ContextSignalsPanel signals={contextSignals} />
+
       {/* 4. Children (Independent stamp, Attestation actions, etc.) */}
       {children}
 
