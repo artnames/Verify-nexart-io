@@ -41,6 +41,7 @@ export function CertificationReport({
   verifyCode,
   verifyDetails,
   contextIntegrityProtected,
+  trustWarnings,
   children,
 }: CertificationReportProps) {
   const bundleJson = useMemo(() => JSON.stringify(bundle), [bundle]);
