@@ -40,6 +40,7 @@ interface AICERVerifyResultProps {
   isAttesting?: boolean;
   attestResult?: AttestationResult | null;
   attestError?: string | null;
+  contextIntegrityProtected?: boolean;
 }
 
 export function AICERVerifyResult({
