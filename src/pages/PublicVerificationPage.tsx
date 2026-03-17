@@ -175,6 +175,7 @@ export default function PublicVerificationPage({ lookupKey, mode }: PublicVerifi
           verifyStatus={verifyStatus}
           verifyCode={verifyResult.code}
           verifyDetails={verifyResult.details}
+          contextIntegrityProtected={verifyResult.contextIntegrityProtected}
         />
       </div>
     </AuditLayout>
