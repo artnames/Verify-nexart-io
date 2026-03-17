@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -206,6 +206,10 @@ function extractExistingAICERAttestation(bundle: AICERBundle): {
 export function AuditPage() {
   const { hash } = useParams<{ hash: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // If the user uploaded a bundle, it is passed via router state as source of truth
+  const uploadedBundle = (location.state as { uploadedBundle?: CERBundle } | null)?.uploadedBundle ?? null;
   
   const [record, setRecord] = useState<AuditRecordRow | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -254,12 +258,18 @@ export function AuditPage() {
       const data = await getAuditRecordByHash(normalizedHash || hash);
       
       if (data) {
-        setRecord(data);
-        await verifyCertificate(data);
+        // If an uploaded bundle was passed via router state, overlay it onto
+        // the stored record so all displayed fields reflect the uploaded file.
+        const effectiveRecord: AuditRecordRow = uploadedBundle
+          ? { ...data, bundle_json: uploadedBundle as unknown as AuditRecordRow['bundle_json'] }
+          : data;
+
+        setRecord(effectiveRecord);
+        await verifyCertificate(effectiveRecord);
 
         // AI CER: run async WebCrypto verification
-        if (isAICERBundle(data.bundle_json)) {
-          const vResult = await verifyUploadedBundleAsync(data.bundle_json);
+        if (isAICERBundle(effectiveRecord.bundle_json)) {
+          const vResult = await verifyUploadedBundleAsync(effectiveRecord.bundle_json);
           setAiCerVerifyResult(vResult);
         }
 
