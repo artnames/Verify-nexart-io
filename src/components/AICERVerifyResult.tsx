@@ -112,7 +112,12 @@ export function AICERVerifyResult({
       verifyDetails={!passed ? verifyResult.errors : undefined}
       contextIntegrityProtected={contextIntegrityProtected}
     >
-      {/* ─── Layer 2: Signed Attestation Verification ─── */}
+      {/* ─── Layer 2a: Verification Envelope (highest trust) ─── */}
+      {hasEnvelope && (
+        <VerificationEnvelopeCard bundle={bundle} />
+      )}
+
+      {/* ─── Layer 2b: Signed Attestation Verification ─── */}
       {hasSignedReceipt && (
         <NodeAttestationSignature
           bundle={normalizedBundle}
