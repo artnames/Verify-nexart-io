@@ -29,6 +29,7 @@ import { computeCertificateHash } from '@/lib/canonicalize';
 import { isAICERBundle } from '@/types/aiCerBundle';
 import { normalizeHash } from '@/lib/hashResolver';
 import type { CERBundle } from '@/types/auditRecord';
+import type { PackageEnvelopeData } from '@/types/cerPackage';
 
 interface AuditEntryPanelProps {
   onRecordFound?: (hash: string) => void;
@@ -133,13 +134,18 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
 
       toast.success(importResult.error?.includes('already exists') ? 'Bundle already in registry' : 'Bundle imported successfully');
 
-      // Navigate with the uploaded bundle as source of truth via router state
+      // Navigate with the uploaded bundle as source of truth via router state.
+      // If this was a package upload, also pass the package envelope data.
       const navHash = importResult.certificateHash || certificateHash;
       const normalizedNav = normalizeHash(navHash);
       if (normalizedNav) {
-        navigate(`/audit/${normalizedNav}`, {
-          state: { uploadedBundle: result.bundle },
-        });
+        const routerState: Record<string, unknown> = {
+          uploadedBundle: result.bundle,
+        };
+        if (result.isPackageFormat && result.packageEnvelopeData) {
+          routerState.packageEnvelopeData = result.packageEnvelopeData;
+        }
+        navigate(`/audit/${normalizedNav}`, { state: routerState });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
@@ -310,7 +316,7 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
         {/* Upload CER Bundle */}
         <div className="space-y-2">
           <Label htmlFor="bundle-upload" className="text-sm font-medium">
-            Upload CER Bundle
+            Upload CER Bundle or AI CER Package
           </Label>
           <div className="flex gap-2">
             <Button
@@ -337,7 +343,7 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Upload a .json CER bundle file directly from your device.
+            Upload a .json CER bundle file or an AI CER package file (.json) from your device.
           </p>
         </div>
 

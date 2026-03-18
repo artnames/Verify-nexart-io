@@ -29,6 +29,7 @@ import {
   extractSubject 
 } from '@/types/auditRecord';
 import { isAICERBundle, extractAICERTitle, extractAICERSubject } from '@/types/aiCerBundle';
+import { isCERPackage, extractFromPackage, type PackageEnvelopeData } from '@/types/cerPackage';
 import {
   listLocalRecords,
   getLocalRecordByHash,
@@ -299,22 +300,57 @@ export async function fetchBundleFromUrl(urlOrHash: string): Promise<{
 }
 
 /**
- * Parse and validate a bundle from JSON string
+ * Parse and validate a bundle from JSON string.
+ *
+ * Supports two upload formats:
+ * 1. Legacy/raw bundle — top-level CER object (bundleType, snapshot, etc.)
+ * 2. Official AI CER package — { cer: {...}, verificationEnvelope: {...}, ... }
+ *
+ * Detection: if top-level `cer` exists and is a non-null object → package format.
  */
 export function parseBundleJson(jsonString: string): {
   success: boolean;
   bundle?: CERBundle;
   error?: string;
   validation?: ReturnType<typeof validateCERBundle>;
+  /** Non-null when the upload was an official CER package */
+  packageEnvelopeData?: PackageEnvelopeData;
+  /** True when the upload was detected as official CER package format */
+  isPackageFormat?: boolean;
 } {
-  let bundle: CERBundle;
+  let parsed: unknown;
   
   try {
-    bundle = JSON.parse(jsonString);
+    parsed = JSON.parse(jsonString);
   } catch {
     return { success: false, error: 'Invalid JSON format' };
   }
-  
+
+  // Package format detection: top-level `cer` object
+  if (isCERPackage(parsed)) {
+    const { bundle, envelopeData } = extractFromPackage(parsed);
+
+    const validation = validateCERBundle(bundle);
+    if (!validation.valid) {
+      return {
+        success: false,
+        error: `Invalid CER inside package: ${validation.errors.join(', ')}`,
+        validation,
+        isPackageFormat: true,
+      };
+    }
+
+    return {
+      success: true,
+      bundle,
+      validation,
+      packageEnvelopeData: envelopeData,
+      isPackageFormat: true,
+    };
+  }
+
+  // Legacy/raw bundle format
+  const bundle = parsed as CERBundle;
   const validation = validateCERBundle(bundle);
   
   if (!validation.valid) {
@@ -322,8 +358,9 @@ export function parseBundleJson(jsonString: string): {
       success: false, 
       error: `Missing required fields: ${validation.errors.join(', ')}`,
       validation,
+      isPackageFormat: false,
     };
   }
   
-  return { success: true, bundle, validation };
+  return { success: true, bundle, validation, isPackageFormat: false };
 }

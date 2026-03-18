@@ -29,7 +29,8 @@ import {
   hasAttestation as hasAICERAttestation,
 } from '@nexart/ai-execution';
 import { extractSignedReceiptEnvelope } from '@/lib/extractSignedReceipt';
-import { hasVerificationEnvelope, verifyVerificationEnvelope, type VerificationEnvelopeResult } from '@/lib/verifyEnvelope';
+import { hasVerificationEnvelope, hasVerificationEnvelopeWithPackage, verifyVerificationEnvelope, type VerificationEnvelopeResult } from '@/lib/verifyEnvelope';
+import type { PackageEnvelopeData } from '@/types/cerPackage';
 import { VerificationEnvelopeCard } from './VerificationEnvelopeCard';
 
 interface AICERVerifyResultProps {
@@ -47,6 +48,8 @@ interface AICERVerifyResultProps {
   attestResult?: AttestationResult | null;
   attestError?: string | null;
   contextIntegrityProtected?: boolean;
+  /** Package-level envelope data for official CER package uploads */
+  packageEnvelopeData?: PackageEnvelopeData;
 }
 
 export function AICERVerifyResult({
@@ -59,6 +62,7 @@ export function AICERVerifyResult({
   attestResult,
   attestError,
   contextIntegrityProtected,
+  packageEnvelopeData,
 }: AICERVerifyResultProps) {
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [hasKey, setHasKey] = useState(hasNodeApiKey());
@@ -82,7 +86,7 @@ export function AICERVerifyResult({
   const envelope = extractSignedReceiptEnvelope(bundle);
   const hasSignedReceipt = !!(envelope || att?.receipt || att?.signature || att?.signatureB64Url);
   const hasLegacyAttestation = !!(att && !hasSignedReceipt && (att.attestationId || att.attestationStatus));
-  const hasEnvelope = hasVerificationEnvelope(bundle);
+  const hasEnvelope = hasVerificationEnvelopeWithPackage(bundle, packageEnvelopeData);
 
   // Run envelope verification eagerly so we can compute trust warnings
   useEffect(() => {
@@ -91,11 +95,11 @@ export function AICERVerifyResult({
       return;
     }
     let cancelled = false;
-    verifyVerificationEnvelope(bundle).then((r) => {
+    verifyVerificationEnvelope(bundle, undefined, packageEnvelopeData).then((r) => {
       if (!cancelled) setEnvelopeResult(r);
     });
     return () => { cancelled = true; };
-  }, [bundle, hasEnvelope]);
+  }, [bundle, hasEnvelope, packageEnvelopeData]);
 
   // Compute trust warnings for the top-level summary
   const trustWarnings = useMemo(() => {
@@ -139,7 +143,7 @@ export function AICERVerifyResult({
     >
       {/* ─── Layer 2a: Verification Envelope (highest trust) ─── */}
       {hasEnvelope && (
-        <VerificationEnvelopeCard bundle={bundle} precomputedResult={envelopeResult} />
+        <VerificationEnvelopeCard bundle={bundle} precomputedResult={envelopeResult} packageEnvelopeData={packageEnvelopeData} />
       )}
 
       {/* ─── Layer 2b: Signed Attestation Verification ─── */}

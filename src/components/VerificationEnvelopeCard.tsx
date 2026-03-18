@@ -23,6 +23,7 @@ import {
   type VerificationEnvelopeResult,
   type EnvelopeType,
 } from '@/lib/verifyEnvelope';
+import type { PackageEnvelopeData } from '@/types/cerPackage';
 
 interface VerificationEnvelopeCardProps {
   bundle: unknown;
@@ -30,6 +31,8 @@ interface VerificationEnvelopeCardProps {
   className?: string;
   /** If the parent already ran verification, pass the result to avoid re-running */
   precomputedResult?: VerificationEnvelopeResult | null;
+  /** Package-level envelope data for official CER package uploads */
+  packageEnvelopeData?: PackageEnvelopeData;
 }
 
 const ENVELOPE_TYPE_LABELS: Record<EnvelopeType, string> = {
@@ -50,6 +53,7 @@ export function VerificationEnvelopeCard({
   nodeUrl,
   className,
   precomputedResult,
+  packageEnvelopeData,
 }: VerificationEnvelopeCardProps) {
   const [result, setResult] = useState<VerificationEnvelopeResult | null>(precomputedResult || null);
   const [loading, setLoading] = useState(!precomputedResult);
@@ -65,7 +69,7 @@ export function VerificationEnvelopeCard({
     let cancelled = false;
     setLoading(true);
 
-    verifyVerificationEnvelope(bundle, nodeUrl).then((r) => {
+    verifyVerificationEnvelope(bundle, nodeUrl, packageEnvelopeData).then((r) => {
       if (!cancelled) {
         setResult(r);
         setLoading(false);
@@ -73,7 +77,7 @@ export function VerificationEnvelopeCard({
     });
 
     return () => { cancelled = true; };
-  }, [bundle, nodeUrl, precomputedResult]);
+  }, [bundle, nodeUrl, precomputedResult, packageEnvelopeData]);
 
   if (loading) {
     return (
