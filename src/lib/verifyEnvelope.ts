@@ -184,6 +184,19 @@ function buildV2AttestationFromEnvelope(envelope: Record<string, unknown> | unde
   return attestation;
 }
 
+/**
+ * Response-level envelope fields that are NOT part of the raw CER bundle.
+ * These are injected by the node response or by export/merge tooling.
+ * They must be stripped before the bundle is used in v2 signable payload
+ * reconstruction, because the node never included them in the signed bundle.
+ */
+const RESPONSE_LEVEL_META_FIELDS = [
+  'verificationEnvelope',
+  'verificationEnvelopeType',
+  'verificationEnvelopeSignature',
+  'verificationEnvelopeVerification',
+] as const;
+
 function stripExactV2ExcludedFields(bundle: Record<string, unknown>): {
   cleanedBundle: Record<string, unknown>;
   metaExistedBeforeStrip: boolean;
@@ -197,13 +210,13 @@ function stripExactV2ExcludedFields(bundle: Record<string, unknown>): {
   let metaDroppedAfterStrip = false;
 
   if (isPlainObject(cleanedMeta)) {
-    if ('verificationEnvelopeSignature' in cleanedMeta) {
-      delete cleanedMeta.verificationEnvelopeSignature;
-      removedPaths.push('meta.verificationEnvelopeSignature');
-    }
-    if ('verificationEnvelopeVerification' in cleanedMeta) {
-      delete cleanedMeta.verificationEnvelopeVerification;
-      removedPaths.push('meta.verificationEnvelopeVerification');
+    // Remove all response-level envelope fields from meta.
+    // These were never part of the raw CER bundle that the node signed.
+    for (const field of RESPONSE_LEVEL_META_FIELDS) {
+      if (field in cleanedMeta) {
+        delete cleanedMeta[field];
+        removedPaths.push(`meta.${field}`);
+      }
     }
 
     // Node parity: only remove top-level meta if it became empty plain object.
