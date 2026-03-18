@@ -9,7 +9,18 @@ import {
 type AnyRecord = Record<string, any>;
 
 const V2_TYPE = 'nexart.verification.envelope.v2';
-const V2_EXCLUDED = [
+const V2_EXCLUDED_NODE = [
+  'meta.verificationEnvelopeSignature',
+  'meta.verificationEnvelopeVerification',
+] as const;
+
+/**
+ * Response-level fields stripped from the bundle before v2 reconstruction.
+ * These are NOT part of the raw CER bundle the node signed.
+ */
+const RESPONSE_LEVEL_META_FIELDS = [
+  'meta.verificationEnvelope',
+  'meta.verificationEnvelopeType',
   'meta.verificationEnvelopeSignature',
   'meta.verificationEnvelopeVerification',
 ] as const;
