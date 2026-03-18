@@ -143,7 +143,7 @@ export function AICERVerifyResult({
     >
       {/* ─── Layer 2a: Verification Envelope (highest trust) ─── */}
       {hasEnvelope && (
-        <VerificationEnvelopeCard bundle={bundle} precomputedResult={envelopeResult} />
+        <VerificationEnvelopeCard bundle={bundle} precomputedResult={envelopeResult} packageEnvelopeData={packageEnvelopeData} />
       )}
 
       {/* ─── Layer 2b: Signed Attestation Verification ─── */}
