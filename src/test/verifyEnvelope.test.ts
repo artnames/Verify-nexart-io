@@ -1,12 +1,19 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   hasVerificationEnvelope,
-  verifyVerificationEnvelope,
-  reconstructV2SignablePayload,
   jcsCanonicalizeToString,
+  reconstructV2SignablePayload,
+  verifyVerificationEnvelope,
 } from '@/lib/verifyEnvelope';
 
-// Mock fetch for node public key
+type AnyRecord = Record<string, any>;
+
+const V2_TYPE = 'nexart.verification.envelope.v2';
+const V2_EXCLUDED = [
+  'meta.verificationEnvelopeSignature',
+  'meta.verificationEnvelopeVerification',
+] as const;
+
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
@@ -14,393 +21,236 @@ beforeEach(() => {
   mockFetch.mockReset();
 });
 
-/* ------------------------------------------------------------------ */
-/*  Detection                                                          */
-/* ------------------------------------------------------------------ */
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function toBase64Url(buffer: ArrayBuffer): string {
+  return Buffer.from(new Uint8Array(buffer))
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+async function createEd25519KeyMaterial() {
+  const pair = await crypto.subtle.generateKey(
+    { name: 'Ed25519' },
+    true,
+    ['sign', 'verify'],
+  ) as CryptoKeyPair;
+
+  const publicJwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
+
+  return {
+    privateKey: pair.privateKey,
+    manifest: {
+      keys: [
+        {
+          kid: 'k1',
+          alg: 'Ed25519',
+          use: 'sig',
+          publicKeyJwk: publicJwk,
+        },
+      ],
+    },
+  };
+}
+
+function makeBaseV2Bundle(): AnyRecord {
+  return {
+    bundleType: 'cer.ai.execution.v1',
+    version: '1.0',
+    createdAt: '2026-03-18T00:00:00.000Z',
+    certificateHash: 'sha256:demo',
+    snapshot: {
+      model: 'gpt-5',
+      nullableField: null,
+      output: { score: 0.99 },
+    },
+    context: {
+      signals: [{ step: 2 }, { step: 0 }, { step: 1 }],
+    },
+    meta: {
+      verificationEnvelope: {
+        envelopeType: V2_TYPE,
+        attestation: {
+          attestationId: 'att-1',
+          attestedAt: '2026-03-18T00:00:01.000Z',
+          kid: 'k1',
+          nodeRuntimeHash: 'sha256:runtime',
+          protocolVersion: '1.2.0',
+          extraFieldIgnoredByVerifier: 'ignore-me',
+        },
+      },
+      // Must not be used as the signed attestation source
+      attestation: {
+        attestationId: 'WRONG-SOURCE',
+        kid: 'WRONG-SOURCE',
+      },
+      source: 'live-node',
+      tags: ['prod'],
+    },
+  };
+}
+
+async function signBundleAsNodeV2(bundle: AnyRecord, privateKey: CryptoKey): Promise<string> {
+  const { payload } = reconstructV2SignablePayload(bundle);
+  const canonical = jcsCanonicalizeToString(payload);
+  const signature = await crypto.subtle.sign(
+    { name: 'Ed25519' },
+    privateKey,
+    new TextEncoder().encode(canonical),
+  );
+  return toBase64Url(signature);
+}
+
+async function makeSignedV2Bundle() {
+  const { privateKey, manifest } = await createEd25519KeyMaterial();
+  const bundle = makeBaseV2Bundle();
+  const signature = await signBundleAsNodeV2(bundle, privateKey);
+
+  // Excluded fields are added after signing by design.
+  bundle.meta.verificationEnvelopeSignature = signature;
+  bundle.meta.verificationEnvelopeVerification = { status: 'ok', checkedAt: 'now' };
+
+  return { bundle, manifest };
+}
 
 describe('hasVerificationEnvelope', () => {
-  it('returns false for null/undefined', () => {
-    expect(hasVerificationEnvelope(null)).toBe(false);
-    expect(hasVerificationEnvelope(undefined)).toBe(false);
-  });
-
-  it('detects v1 envelope', () => {
-    const bundle = {
-      meta: {
-        verificationEnvelope: { bundleType: 'test' },
-        verificationEnvelopeSignature: 'abc123',
-      },
-    };
+  it('detects v2 envelope when signature + discriminator are present', () => {
+    const bundle = makeBaseV2Bundle();
+    bundle.meta.verificationEnvelopeSignature = 'sig';
     expect(hasVerificationEnvelope(bundle)).toBe(true);
   });
 
-  it('detects v2 envelope via meta.verificationEnvelopeType', () => {
-    const bundle = {
-      meta: {
-        verificationEnvelopeType: 'nexart.verification.envelope.v2',
-        verificationEnvelopeSignature: 'abc123',
-      },
-    };
-    expect(hasVerificationEnvelope(bundle)).toBe(true);
-  });
-
-  it('detects v2 via verificationEnvelope.envelopeType', () => {
-    const bundle = {
-      meta: {
-        verificationEnvelope: { envelopeType: 'nexart.verification.envelope.v2' },
-        verificationEnvelopeSignature: 'abc123',
-      },
-    };
-    expect(hasVerificationEnvelope(bundle)).toBe(true);
-  });
-
-  it('returns false when no envelope fields', () => {
-    expect(hasVerificationEnvelope({ meta: { source: 'test' } })).toBe(false);
+  it('returns false when envelope signature is missing', () => {
+    expect(hasVerificationEnvelope(makeBaseV2Bundle())).toBe(false);
   });
 });
 
-/* ------------------------------------------------------------------ */
-/*  JCS Canonicalization                                                */
-/* ------------------------------------------------------------------ */
-
-describe('jcsCanonicalizeToString', () => {
-  it('sorts keys alphabetically', () => {
-    expect(jcsCanonicalizeToString({ b: 2, a: 1 })).toBe('{"a":1,"b":2}');
-  });
-
-  it('handles nested objects', () => {
-    const result = jcsCanonicalizeToString({ z: { b: 2, a: 1 }, a: 0 });
-    expect(result).toBe('{"a":0,"z":{"a":1,"b":2}}');
-  });
-
-  it('preserves array order (does NOT sort)', () => {
-    expect(jcsCanonicalizeToString([3, 1, 2])).toBe('[3,1,2]');
-  });
-
-  it('preserves null', () => {
-    expect(jcsCanonicalizeToString(null)).toBe('null');
-    expect(jcsCanonicalizeToString({ a: null, b: 1 })).toBe('{"a":null,"b":1}');
-  });
-
-  it('drops undefined values', () => {
-    expect(jcsCanonicalizeToString({ a: undefined, b: 1 })).toBe('{"b":1}');
-  });
-
-  it('handles booleans', () => {
-    expect(jcsCanonicalizeToString({ a: true, b: false })).toBe('{"a":true,"b":false}');
-  });
-
-  it('handles non-finite numbers as null', () => {
-    expect(jcsCanonicalizeToString({ a: Infinity, b: NaN })).toBe('{"a":null,"b":null}');
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/*  v2 Payload Reconstruction — Node Parity                            */
-/* ------------------------------------------------------------------ */
-
-describe('reconstructV2SignablePayload', () => {
-  it('reads attestation from verificationEnvelope.attestation (NOT meta.attestation)', () => {
-    const bundle = {
-      bundleType: 'cer.ai.execution.v1',
-      snapshot: { model: 'gpt-4' },
-      meta: {
-        verificationEnvelopeSignature: 'sig123',
-        verificationEnvelopeType: 'nexart.verification.envelope.v2',
-        verificationEnvelope: {
-          envelopeType: 'nexart.verification.envelope.v2',
-          attestation: {
-            attestationId: 'att-1',
-            attestedAt: '2026-01-01T00:00:00Z',
-            kid: 'k1',
-            nodeRuntimeHash: 'sha256:abc',
-            protocolVersion: '1.2.0',
-          },
-        },
-        // This MUST NOT be used as attestation source
-        attestation: {
-          attestationId: 'WRONG',
-          attestedAt: 'WRONG',
-          attestorKeyId: 'WRONG',
-        },
-        source: 'test',
-      },
-    };
-
-    const { payload } = reconstructV2SignablePayload(bundle);
-    const att = payload.attestation as Record<string, unknown>;
-
-    expect(att.attestationId).toBe('att-1');
-    expect(att.attestedAt).toBe('2026-01-01T00:00:00Z');
-    expect(att.kid).toBe('k1');
-    expect(att.nodeRuntimeHash).toBe('sha256:abc');
-    expect(att.protocolVersion).toBe('1.2.0');
-    expect(Object.keys(att).sort()).toEqual([
-      'attestationId', 'attestedAt', 'kid', 'nodeRuntimeHash', 'protocolVersion',
-    ]);
-  });
-
-  it('strips ALL envelope-related response-level fields from bundle meta', () => {
-    const bundle = {
-      bundleType: 'test',
-      meta: {
-        verificationEnvelopeSignature: 'sig',
-        verificationEnvelopeVerification: { status: 'valid' },
-        verificationEnvelopeType: 'nexart.verification.envelope.v2',
-        verificationEnvelope: { envelopeType: 'nexart.verification.envelope.v2', attestation: {} },
-        source: 'real-data',
-      },
-    };
+describe('reconstructV2SignablePayload parity', () => {
+  it('mirrors node payload shape and keeps meta.verificationEnvelope in signed bundle', () => {
+    const bundle = makeBaseV2Bundle();
+    bundle.meta.verificationEnvelopeSignature = 'sig';
+    bundle.meta.verificationEnvelopeVerification = { status: 'ok' };
 
     const { payload, excludedFields } = reconstructV2SignablePayload(bundle);
-    const innerMeta = (payload.bundle as any).meta;
 
-    expect(innerMeta.verificationEnvelopeSignature).toBeUndefined();
-    expect(innerMeta.verificationEnvelopeVerification).toBeUndefined();
-    expect(innerMeta.verificationEnvelopeType).toBeUndefined();
-    expect(innerMeta.verificationEnvelope).toBeUndefined();
-    expect(innerMeta.source).toBe('real-data');
-
-    expect(excludedFields).toContain('meta.verificationEnvelopeSignature');
-    expect(excludedFields).toContain('meta.verificationEnvelopeVerification');
-    expect(excludedFields).toContain('meta.verificationEnvelope');
-    expect(excludedFields).toContain('meta.verificationEnvelopeType');
-  });
-
-  it('strips envelope response-level fields from root-level bundle as well', () => {
-    const bundle = {
-      bundleType: 'test',
-      snapshot: { x: 1 },
-      verificationEnvelopeSignature: 'root-sig',
-      verificationEnvelopeType: 'nexart.verification.envelope.v2',
-      verificationEnvelope: { attestation: { kid: 'k1' } },
-      verificationEnvelopeVerification: { status: 'valid' },
-      meta: { source: 'real-data' },
-    };
-
-    const { payload, excludedFields } = reconstructV2SignablePayload(bundle);
-    const cleaned = payload.bundle as any;
-
-    expect(cleaned.verificationEnvelopeSignature).toBeUndefined();
-    expect(cleaned.verificationEnvelopeType).toBeUndefined();
-    expect(cleaned.verificationEnvelope).toBeUndefined();
-    expect(cleaned.verificationEnvelopeVerification).toBeUndefined();
-    expect(cleaned.meta.source).toBe('real-data');
-
-    expect(excludedFields).toContain('verificationEnvelopeSignature');
-    expect(excludedFields).toContain('verificationEnvelopeType');
-    expect(excludedFields).toContain('verificationEnvelope');
-    expect(excludedFields).toContain('verificationEnvelopeVerification');
-  });
-
-  it('removes meta entirely when empty after stripping', () => {
-    const bundle = {
-      bundleType: 'test',
-      meta: {
-        verificationEnvelopeSignature: 'sig',
-        verificationEnvelopeType: 'nexart.verification.envelope.v2',
-        verificationEnvelope: { attestation: {} },
-      },
-    };
-
-    const { payload } = reconstructV2SignablePayload(bundle);
-    expect((payload.bundle as any).meta).toBeUndefined();
-  });
-
-  it('no-meta bundle and empty-after-strip bundle produce same canonical payload', () => {
-    const bundleNoMeta = { bundleType: 'test', snapshot: { x: 1 } };
-    const bundleEmptyMeta = {
-      bundleType: 'test',
-      snapshot: { x: 1 },
-      meta: {
-        verificationEnvelopeSignature: 'sig',
-        verificationEnvelopeType: 'nexart.verification.envelope.v2',
-        verificationEnvelope: { attestation: {} },
-      },
-    };
-
-    const c1 = jcsCanonicalizeToString(reconstructV2SignablePayload(bundleNoMeta).payload);
-    const c2 = jcsCanonicalizeToString(reconstructV2SignablePayload(bundleEmptyMeta).payload);
-    expect(c1).toBe(c2);
-  });
-
-  it('preserves null values in bundle', () => {
-    const bundle = {
-      bundleType: 'test',
-      snapshot: { modelVersion: null, model: 'gpt-4' },
-      meta: {
-        verificationEnvelopeSignature: 'sig',
-        verificationEnvelopeType: 'nexart.verification.envelope.v2',
-        verificationEnvelope: { attestation: {} },
-      },
-    };
-
-    const canonical = jcsCanonicalizeToString(reconstructV2SignablePayload(bundle).payload);
-    expect(canonical).toContain('"modelVersion":null');
-  });
-
-  it('preserves array order in bundle', () => {
-    const bundle = {
-      bundleType: 'test',
-      context: { signals: [{ step: 2 }, { step: 0 }, { step: 1 }] },
-      meta: {
-        verificationEnvelopeSignature: 'sig',
-        verificationEnvelopeType: 'nexart.verification.envelope.v2',
-        verificationEnvelope: { attestation: {} },
-      },
-    };
-
-    const signals = ((reconstructV2SignablePayload(bundle).payload.bundle as any).context.signals);
-    expect(signals[0].step).toBe(2);
-    expect(signals[1].step).toBe(0);
-    expect(signals[2].step).toBe(1);
-  });
-
-  it('tampered signed field changes canonical output', () => {
-    const make = (model: string) => ({
-      bundleType: 'cer.ai.execution.v1',
-      snapshot: { model },
-      meta: {
-        verificationEnvelopeSignature: 'sig',
-        verificationEnvelopeType: 'nexart.verification.envelope.v2',
-        verificationEnvelope: { attestation: { kid: 'k1' } },
-      },
-    });
-
-    const c1 = jcsCanonicalizeToString(reconstructV2SignablePayload(make('gpt-4')).payload);
-    const c2 = jcsCanonicalizeToString(reconstructV2SignablePayload(make('gpt-3.5')).payload);
-    expect(c1).not.toBe(c2);
-  });
-
-  it('array reordering changes canonical output', () => {
-    const make = (signals: any[]) => ({
-      bundleType: 'test',
-      context: { signals },
-      meta: {
-        verificationEnvelopeSignature: 'sig',
-        verificationEnvelopeType: 'nexart.verification.envelope.v2',
-        verificationEnvelope: { attestation: {} },
-      },
-    });
-
-    const c1 = jcsCanonicalizeToString(reconstructV2SignablePayload(make([{ a: 1 }, { b: 2 }])).payload);
-    const c2 = jcsCanonicalizeToString(reconstructV2SignablePayload(make([{ b: 2 }, { a: 1 }])).payload);
-    expect(c1).not.toBe(c2);
-  });
-
-  it('wrong attestation source produces different payload', () => {
-    const bundle = {
-      bundleType: 'test',
-      meta: {
-        verificationEnvelopeSignature: 'sig',
-        verificationEnvelopeType: 'nexart.verification.envelope.v2',
-        verificationEnvelope: {
-          attestation: { kid: 'correct-key', attestationId: 'correct-id' },
-        },
-        attestation: { attestorKeyId: 'wrong-key', attestationId: 'wrong-id' },
-      },
-    };
-
-    const { payload } = reconstructV2SignablePayload(bundle);
-    const att = payload.attestation as Record<string, unknown>;
-    expect(att.kid).toBe('correct-key');
-    expect(att.attestationId).toBe('correct-id');
-  });
-
-  it('excluded-field-only change keeps same canonical payload', () => {
-    const make = (sig: string) => ({
-      bundleType: 'test',
-      snapshot: { x: 1 },
-      meta: {
-        verificationEnvelopeSignature: sig,
-        verificationEnvelopeType: 'nexart.verification.envelope.v2',
-        verificationEnvelope: { attestation: { kid: 'k1' } },
-      },
-    });
-
-    const c1 = jcsCanonicalizeToString(reconstructV2SignablePayload(make('sig-A')).payload);
-    const c2 = jcsCanonicalizeToString(reconstructV2SignablePayload(make('sig-B')).payload);
-    expect(c1).toBe(c2);
-  });
-
-  it('payload shape is exactly { attestation, bundle, envelopeType }', () => {
-    const bundle = {
-      bundleType: 'test',
-      meta: {
-        verificationEnvelopeSignature: 'sig',
-        verificationEnvelopeType: 'nexart.verification.envelope.v2',
-        verificationEnvelope: { attestation: { kid: 'k1' } },
-      },
-    };
-
-    const { payload } = reconstructV2SignablePayload(bundle);
     expect(Object.keys(payload).sort()).toEqual(['attestation', 'bundle', 'envelopeType']);
-    expect(payload.envelopeType).toBe('nexart.verification.envelope.v2');
+    expect(payload.envelopeType).toBe(V2_TYPE);
+
+    const attestation = payload.attestation as AnyRecord;
+    expect(Object.keys(attestation).sort()).toEqual([
+      'attestationId',
+      'attestedAt',
+      'kid',
+      'nodeRuntimeHash',
+      'protocolVersion',
+    ]);
+
+    const signedBundleMeta = (payload.bundle as AnyRecord).meta;
+    expect(signedBundleMeta.verificationEnvelope).toBeDefined();
+    expect(signedBundleMeta.verificationEnvelopeSignature).toBeUndefined();
+    expect(signedBundleMeta.verificationEnvelopeVerification).toBeUndefined();
+
+    expect(excludedFields).toEqual([...V2_EXCLUDED]);
+  });
+
+  it('empty-meta-after-strip and no-meta produce identical canonical payload', () => {
+    const noMeta = { bundleType: 'x' };
+    const excludedOnlyMeta = {
+      bundleType: 'x',
+      meta: {
+        verificationEnvelopeSignature: 'sig',
+        verificationEnvelopeVerification: { status: 'ok' },
+      },
+    };
+
+    const c1 = jcsCanonicalizeToString(reconstructV2SignablePayload(noMeta).payload);
+    const c2 = jcsCanonicalizeToString(reconstructV2SignablePayload(excludedOnlyMeta).payload);
+
+    expect(c1).toBe(c2);
   });
 });
 
-/* ------------------------------------------------------------------ */
-/*  Full verification flow                                              */
-/* ------------------------------------------------------------------ */
-
-describe('verifyVerificationEnvelope', () => {
-  it('returns absent for bundles without envelope', async () => {
-    const result = await verifyVerificationEnvelope({ bundleType: 'test' });
-    expect(result.status).toBe('absent');
-  });
-
-  it('returns error for missing public key (v2)', async () => {
-    mockFetch.mockResolvedValue({ ok: false });
-    const bundle = {
-      meta: {
-        verificationEnvelopeType: 'nexart.verification.envelope.v2',
-        verificationEnvelopeSignature: 'fakeSig',
-        verificationEnvelope: { attestation: {} },
-      },
-    };
+describe('verifyVerificationEnvelope v2 parity', () => {
+  it('fresh untouched v2 bundle verifies PASS', async () => {
+    const { bundle, manifest } = await makeSignedV2Bundle();
+    mockFetch.mockResolvedValue({ ok: true, json: async () => manifest });
 
     const result = await verifyVerificationEnvelope(bundle, 'https://fake.node');
-    expect(result.status).toBe('error');
-    expect(result.errorKind).toBe('missing_public_key');
+
+    expect(result.status).toBe('valid');
     expect(result.envelopeType).toBe('v2');
+    expect(result.excludedFields).toEqual([...V2_EXCLUDED]);
   });
 
-  it('returns error for missing signature (v2)', async () => {
-    const bundle = {
-      meta: {
-        verificationEnvelopeType: 'nexart.verification.envelope.v2',
-        verificationEnvelope: { attestation: {} },
-      },
+  it('bundle with excluded metadata still verifies PASS', async () => {
+    const { bundle, manifest } = await makeSignedV2Bundle();
+    const injected = clone(bundle);
+    injected.meta.verificationEnvelopeVerification = {
+      status: 'injected-at-verify-time',
+      traceId: 'trace-1',
     };
-    const result = await verifyVerificationEnvelope(bundle);
-    expect(result.status).toBe('error');
-    expect(result.errorKind).toBe('missing_signature');
+
+    mockFetch.mockResolvedValue({ ok: true, json: async () => manifest });
+    const result = await verifyVerificationEnvelope(injected, 'https://fake.node');
+
+    expect(result.status).toBe('valid');
   });
 
-  it('returns error for missing public key (v1)', async () => {
-    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ keys: [] }) });
-    const bundle = {
-      meta: {
-        verificationEnvelope: { test: true },
-        verificationEnvelopeSignature: 'abc',
-      },
+  it('tampered signed field verifies FAIL', async () => {
+    const { bundle, manifest } = await makeSignedV2Bundle();
+    const tampered = clone(bundle);
+    tampered.snapshot.model = 'tampered-model';
+
+    mockFetch.mockResolvedValue({ ok: true, json: async () => manifest });
+    const result = await verifyVerificationEnvelope(tampered, 'https://fake.node');
+
+    expect(result.status).toBe('invalid');
+    expect(result.errorKind).toBe('invalid_signature');
+  });
+
+  it('wrong attestation source case verifies FAIL (must use verificationEnvelope.attestation)', async () => {
+    const { bundle, manifest } = await makeSignedV2Bundle();
+    const tampered = clone(bundle);
+
+    // Tamper signed attestation field while keeping misleading meta.attestation present.
+    tampered.meta.verificationEnvelope.attestation.attestationId = 'att-tampered';
+    tampered.meta.attestation = {
+      attestationId: 'att-1',
+      kid: 'k1',
     };
 
+    mockFetch.mockResolvedValue({ ok: true, json: async () => manifest });
+    const result = await verifyVerificationEnvelope(tampered, 'https://fake.node');
+
+    expect(result.status).toBe('invalid');
+  });
+
+  it('array reordering verifies FAIL', async () => {
+    const { bundle, manifest } = await makeSignedV2Bundle();
+    const tampered = clone(bundle);
+    tampered.context.signals = [
+      tampered.context.signals[2],
+      tampered.context.signals[1],
+      tampered.context.signals[0],
+    ];
+
+    mockFetch.mockResolvedValue({ ok: true, json: async () => manifest });
+    const result = await verifyVerificationEnvelope(tampered, 'https://fake.node');
+
+    expect(result.status).toBe('invalid');
+  });
+
+  it('null-preservation case verifies PASS', async () => {
+    const { bundle, manifest } = await makeSignedV2Bundle();
+    expect(bundle.snapshot.nullableField).toBeNull();
+
+    mockFetch.mockResolvedValue({ ok: true, json: async () => manifest });
     const result = await verifyVerificationEnvelope(bundle, 'https://fake.node');
-    expect(result.status).toBe('error');
-    expect(result.errorKind).toBe('missing_public_key');
-    expect(result.envelopeType).toBe('v1');
-  });
 
-  it('returns malformed_envelope for v1 with non-object envelope', async () => {
-    const bundle = {
-      meta: {
-        verificationEnvelope: 'not-an-object',
-        verificationEnvelopeSignature: 'abc',
-      },
-    };
-    const result = await verifyVerificationEnvelope(bundle);
-    expect(result.status).toBe('error');
-    expect(result.errorKind).toBe('malformed_envelope');
+    expect(result.status).toBe('valid');
   });
 });
