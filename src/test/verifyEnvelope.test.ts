@@ -167,6 +167,32 @@ describe('reconstructV2SignablePayload', () => {
     expect(excludedFields).toContain('meta.verificationEnvelopeType');
   });
 
+  it('strips envelope response-level fields from root-level bundle as well', () => {
+    const bundle = {
+      bundleType: 'test',
+      snapshot: { x: 1 },
+      verificationEnvelopeSignature: 'root-sig',
+      verificationEnvelopeType: 'nexart.verification.envelope.v2',
+      verificationEnvelope: { attestation: { kid: 'k1' } },
+      verificationEnvelopeVerification: { status: 'valid' },
+      meta: { source: 'real-data' },
+    };
+
+    const { payload, excludedFields } = reconstructV2SignablePayload(bundle);
+    const cleaned = payload.bundle as any;
+
+    expect(cleaned.verificationEnvelopeSignature).toBeUndefined();
+    expect(cleaned.verificationEnvelopeType).toBeUndefined();
+    expect(cleaned.verificationEnvelope).toBeUndefined();
+    expect(cleaned.verificationEnvelopeVerification).toBeUndefined();
+    expect(cleaned.meta.source).toBe('real-data');
+
+    expect(excludedFields).toContain('verificationEnvelopeSignature');
+    expect(excludedFields).toContain('verificationEnvelopeType');
+    expect(excludedFields).toContain('verificationEnvelope');
+    expect(excludedFields).toContain('verificationEnvelopeVerification');
+  });
+
   it('removes meta entirely when empty after stripping', () => {
     const bundle = {
       bundleType: 'test',
