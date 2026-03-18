@@ -23,6 +23,7 @@ import {
   type VerificationEnvelopeResult,
   type EnvelopeType,
 } from '@/lib/verifyEnvelope';
+import type { PackageEnvelopeData } from '@/types/cerPackage';
 
 interface VerificationEnvelopeCardProps {
   bundle: unknown;
@@ -30,6 +31,8 @@ interface VerificationEnvelopeCardProps {
   className?: string;
   /** If the parent already ran verification, pass the result to avoid re-running */
   precomputedResult?: VerificationEnvelopeResult | null;
+  /** Package-level envelope data for official CER package uploads */
+  packageEnvelopeData?: PackageEnvelopeData;
 }
 
 const ENVELOPE_TYPE_LABELS: Record<EnvelopeType, string> = {
