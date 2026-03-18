@@ -209,7 +209,9 @@ export function AuditPage() {
   const location = useLocation();
 
   // If the user uploaded a bundle, it is passed via router state as source of truth
-  const uploadedBundle = (location.state as { uploadedBundle?: CERBundle } | null)?.uploadedBundle ?? null;
+  const routerState = location.state as { uploadedBundle?: CERBundle; packageEnvelopeData?: import('@/types/cerPackage').PackageEnvelopeData } | null;
+  const uploadedBundle = routerState?.uploadedBundle ?? null;
+  const packageEnvelopeData = routerState?.packageEnvelopeData ?? undefined;
   
   const [record, setRecord] = useState<AuditRecordRow | null>(null);
   const [isLoading, setIsLoading] = useState(true);
