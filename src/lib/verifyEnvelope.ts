@@ -491,7 +491,7 @@ async function verifyV1Envelope(
 }
 
 /* ------------------------------------------------------------------ */
-/*  v2 full-bundle verification                                        */
+/*  v2 full-bundle verification (legacy raw bundle path)               */
 /* ------------------------------------------------------------------ */
 
 async function verifyV2Envelope(
@@ -594,6 +594,142 @@ async function verifyV2Envelope(
 }
 
 /* ------------------------------------------------------------------ */
+/*  v2 package-path verification (direct, no injection)                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Verify a v2 envelope from a CER package.
+ *
+ * This is a CLEAN DIRECT path — no injection of envelope fields into meta,
+ * no synthetic exclusions. The signable payload is built directly from:
+ *   - attestation = packageEnvelope.verificationEnvelope.attestation (5 fields)
+ *   - bundle = raw CER bundle (package.cer) as-is
+ *   - envelopeType = packageEnvelope.verificationEnvelope.envelopeType
+ */
+async function verifyV2PackageEnvelope(
+  rawBundle: Record<string, unknown>,
+  packageEnvelope: {
+    verificationEnvelope: Record<string, unknown>;
+    verificationEnvelopeSignature: string;
+  },
+  nodeUrl: string,
+): Promise<VerificationEnvelopeResult> {
+  const envObj = packageEnvelope.verificationEnvelope;
+
+  if (!isPlainObject(envObj.attestation)) {
+    return {
+      status: 'error',
+      detail: 'Malformed package envelope: missing verificationEnvelope.attestation.',
+      envelopeType: 'v2',
+      errorKind: 'malformed_envelope',
+    };
+  }
+
+  const signatureB64Url = packageEnvelope.verificationEnvelopeSignature;
+
+  try {
+    // Build attestation from the 5 canonical fields
+    const attestation = buildV2AttestationFromEnvelope(envObj);
+
+    // Use the raw CER bundle directly — no stripping, no injection
+    const bundleCopy = JSON.parse(JSON.stringify(rawBundle)) as Record<string, unknown>;
+
+    // Determine envelopeType from the package envelope itself
+    const envelopeType = typeof envObj.envelopeType === 'string'
+      ? envObj.envelopeType
+      : V2_ENVELOPE_TYPE;
+
+    const payload: Record<string, unknown> = {
+      attestation,
+      bundle: bundleCopy,
+      envelopeType,
+    };
+
+    // No excluded fields — the raw CER bundle doesn't contain envelope metadata
+    const excludedFields: string[] = [];
+
+    if (typeof window !== 'undefined' && import.meta.env.DEV) {
+      console.group('[Envelope v2 package-path] Diagnostics');
+      console.log('signable payload (exact):', payload);
+      console.log('excluded fields:', excludedFields, '(none — clean package path)');
+      console.log('bundle top-level keys:', Object.keys(bundleCopy).sort());
+      console.log('meta keys:', isPlainObject(bundleCopy.meta) ? Object.keys(bundleCopy.meta as Record<string, unknown>).sort() : 'N/A');
+      const canonical = jcsCanonicalizeToString(payload);
+      console.log('canonicalized payload length:', canonical.length);
+      if (crypto?.subtle) {
+        crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical)).then((buffer) => {
+          const hex = Array.from(new Uint8Array(buffer))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('');
+          console.log('canonicalized payload SHA-256:', `sha256:${hex}`);
+        });
+      }
+      console.groupEnd();
+    }
+
+    const canonicalJson = jcsCanonicalizeToString(payload);
+    const data = new TextEncoder().encode(canonicalJson);
+    const sigBytes = base64UrlToBytes(signatureB64Url);
+
+    const kid = typeof (attestation as Record<string, unknown>).kid === 'string'
+      ? (attestation as Record<string, unknown>).kid as string
+      : undefined;
+
+    const keyResult = await fetchNodePublicKey(nodeUrl, kid);
+    if (!keyResult) {
+      return {
+        status: 'error',
+        detail: 'Could not fetch node public key for v2 package envelope verification.',
+        envelopeType: 'v2',
+        kid,
+        errorKind: 'missing_public_key',
+        excludedFields,
+      };
+    }
+
+    if (keyResult.alg !== 'Ed25519') {
+      return {
+        status: 'error',
+        detail: `Unsupported v2 envelope algorithm: ${keyResult.alg}. Expected Ed25519.`,
+        envelopeType: 'v2',
+        kid: keyResult.kid || kid,
+        algorithm: keyResult.alg,
+        excludedFields,
+        errorKind: 'unsupported_type',
+      };
+    }
+
+    const valid = await crypto.subtle.verify(
+      { name: 'Ed25519' },
+      keyResult.key,
+      sigBytes,
+      data,
+    );
+
+    return {
+      status: valid ? 'valid' : 'invalid',
+      detail: valid
+        ? 'Full bundle envelope verified (package path). The node signed the exact CER bundle payload. Any modification causes verification to fail.'
+        : 'Full bundle envelope invalid (package path). The reconstructed payload does not match the node signature.',
+      envelopeType: 'v2',
+      envelope: payload,
+      kid: keyResult.kid || kid,
+      algorithm: keyResult.alg,
+      excludedFields,
+      errorKind: valid ? undefined : 'invalid_signature',
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      status: 'error',
+      detail: `v2 package envelope verification error: ${msg}`,
+      envelopeType: 'v2',
+      errorKind: 'canonicalization_error',
+    };
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main entry point                                                   */
 /* ------------------------------------------------------------------ */
 
@@ -606,9 +742,8 @@ async function verifyV2Envelope(
  *    and bundle.meta.verificationEnvelopeSignature. This path is completely unchanged.
  *
  * 2. Official CER package — envelope data is passed via `packageEnvelope`.
- *    The bundle itself is the raw CER (no envelope fields inside meta).
- *    The verifier injects package-level envelope data into a working copy
- *    so the existing v2 reconstruction logic works transparently.
+ *    Uses a clean direct verification path: no injection into meta, no synthetic
+ *    exclusions. The raw CER bundle is used as-is for the signable payload.
  */
 export async function verifyVerificationEnvelope(
   bundle: unknown,
@@ -622,33 +757,42 @@ export async function verifyVerificationEnvelope(
     return { status: 'absent', detail: 'No bundle provided.' };
   }
 
-  let b = bundle as Record<string, unknown>;
+  const resolvedUrl = nodeUrl || DEFAULT_NODE_URL;
+  const b = bundle as Record<string, unknown>;
 
-  // If package-level envelope data was provided, build a working copy
-  // with envelope fields injected into meta — so the existing detection
-  // and reconstruction logic works without changes.
-  if (packageEnvelope?.verificationEnvelopeSignature) {
-    b = JSON.parse(JSON.stringify(b)) as Record<string, unknown>;
-    const meta = (isPlainObject(b.meta) ? { ...b.meta as Record<string, unknown> } : {}) as Record<string, unknown>;
-    if (packageEnvelope.verificationEnvelope) {
-      meta.verificationEnvelope = packageEnvelope.verificationEnvelope;
-      // Detect envelope type from the envelope object itself
-      const envObj = packageEnvelope.verificationEnvelope as Record<string, unknown>;
-      if (envObj.envelopeType === V2_ENVELOPE_TYPE) {
-        meta.verificationEnvelopeType = V2_ENVELOPE_TYPE;
-      }
+  // ── Package path: clean direct verification ──
+  if (
+    packageEnvelope?.verificationEnvelopeSignature &&
+    packageEnvelope?.verificationEnvelope
+  ) {
+    const envObj = packageEnvelope.verificationEnvelope as Record<string, unknown>;
+    const envType = envObj.envelopeType;
+
+    if (envType === V2_ENVELOPE_TYPE) {
+      return verifyV2PackageEnvelope(
+        b,
+        {
+          verificationEnvelope: envObj,
+          verificationEnvelopeSignature: packageEnvelope.verificationEnvelopeSignature,
+        },
+        resolvedUrl,
+      );
     }
-    meta.verificationEnvelopeSignature = packageEnvelope.verificationEnvelopeSignature;
-    b.meta = meta;
+
+    // Non-v2 package envelope — not yet supported
+    return {
+      status: 'unsupported',
+      detail: `Package envelope type "${envType}" is not supported.`,
+      envelopeType: undefined,
+    };
   }
 
+  // ── Legacy path: unchanged ──
   const type = detectEnvelopeType(b);
 
   if (!type) {
     return { status: 'absent', detail: 'No verification envelope present.' };
   }
-
-  const resolvedUrl = nodeUrl || DEFAULT_NODE_URL;
 
   if (type === 'v2') {
     return verifyV2Envelope(b, resolvedUrl);
