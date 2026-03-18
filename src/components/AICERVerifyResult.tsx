@@ -29,7 +29,8 @@ import {
   hasAttestation as hasAICERAttestation,
 } from '@nexart/ai-execution';
 import { extractSignedReceiptEnvelope } from '@/lib/extractSignedReceipt';
-import { hasVerificationEnvelope, verifyVerificationEnvelope, type VerificationEnvelopeResult } from '@/lib/verifyEnvelope';
+import { hasVerificationEnvelope, hasVerificationEnvelopeWithPackage, verifyVerificationEnvelope, type VerificationEnvelopeResult } from '@/lib/verifyEnvelope';
+import type { PackageEnvelopeData } from '@/types/cerPackage';
 import { VerificationEnvelopeCard } from './VerificationEnvelopeCard';
 
 interface AICERVerifyResultProps {
