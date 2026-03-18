@@ -316,7 +316,7 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
         {/* Upload CER Bundle */}
         <div className="space-y-2">
           <Label htmlFor="bundle-upload" className="text-sm font-medium">
-            Upload CER Bundle
+            Upload CER Bundle or AI CER Package
           </Label>
           <div className="flex gap-2">
             <Button
