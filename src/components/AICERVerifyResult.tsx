@@ -86,7 +86,7 @@ export function AICERVerifyResult({
   const envelope = extractSignedReceiptEnvelope(bundle);
   const hasSignedReceipt = !!(envelope || att?.receipt || att?.signature || att?.signatureB64Url);
   const hasLegacyAttestation = !!(att && !hasSignedReceipt && (att.attestationId || att.attestationStatus));
-  const hasEnvelope = hasVerificationEnvelope(bundle);
+  const hasEnvelope = hasVerificationEnvelopeWithPackage(bundle, packageEnvelopeData);
 
   // Run envelope verification eagerly so we can compute trust warnings
   useEffect(() => {
@@ -95,11 +95,11 @@ export function AICERVerifyResult({
       return;
     }
     let cancelled = false;
-    verifyVerificationEnvelope(bundle).then((r) => {
+    verifyVerificationEnvelope(bundle, undefined, packageEnvelopeData).then((r) => {
       if (!cancelled) setEnvelopeResult(r);
     });
     return () => { cancelled = true; };
-  }, [bundle, hasEnvelope]);
+  }, [bundle, hasEnvelope, packageEnvelopeData]);
 
   // Compute trust warnings for the top-level summary
   const trustWarnings = useMemo(() => {
