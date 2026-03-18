@@ -163,12 +163,9 @@ export function jcsCanonicalizeToString(value: unknown): string {
 function getVerificationEnvelopeObject(bundle: Record<string, unknown>): Record<string, unknown> | undefined {
   const meta = bundle.meta as Record<string, unknown> | undefined;
   const metaEnvelope = meta?.verificationEnvelope;
-  if (isPlainObject(metaEnvelope)) return metaEnvelope;
-
-  const rootEnvelope = bundle.verificationEnvelope;
-  if (isPlainObject(rootEnvelope)) return rootEnvelope;
-
-  return undefined;
+  return isPlainObject(metaEnvelope)
+    ? metaEnvelope
+    : undefined;
 }
 
 function buildV2AttestationFromEnvelope(envelope: Record<string, unknown> | undefined): Record<string, unknown> {
