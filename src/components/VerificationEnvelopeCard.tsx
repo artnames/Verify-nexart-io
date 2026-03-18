@@ -173,7 +173,7 @@ export function VerificationEnvelopeCard({
           {/* Metadata table */}
           <div className="text-xs space-y-1">
             <MetaRow label="Envelope type" value={isV2 ? 'v2 · Full Bundle' : 'v1 · Legacy Summary'} />
-            <MetaRow label="Scope" value={isV2 ? 'Full canonical CER bundle payload' : 'Signed summary subset'} />
+            <MetaRow label="Scope" value={isV2 ? 'Top-level attestation descriptor + full CER bundle payload' : 'Signed summary subset'} />
             {result.algorithm && <MetaRow label="Algorithm" value={result.algorithm} />}
             <MetaRow label="Canonicalization" value={isV2 ? 'JCS / RFC 8785' : 'JSON sorted-keys'} />
             {result.kid && <MetaRow label="Key ID" value={result.kid} mono />}
