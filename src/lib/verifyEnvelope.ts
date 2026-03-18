@@ -597,15 +597,51 @@ async function verifyV2Envelope(
 /*  Main entry point                                                   */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Main entry point for envelope verification.
+ *
+ * Supports two upload formats:
+ *
+ * 1. Legacy/raw bundle — envelope data lives at bundle.meta.verificationEnvelope
+ *    and bundle.meta.verificationEnvelopeSignature. This path is completely unchanged.
+ *
+ * 2. Official CER package — envelope data is passed via `packageEnvelope`.
+ *    The bundle itself is the raw CER (no envelope fields inside meta).
+ *    The verifier injects package-level envelope data into a working copy
+ *    so the existing v2 reconstruction logic works transparently.
+ */
 export async function verifyVerificationEnvelope(
   bundle: unknown,
   nodeUrl?: string,
+  packageEnvelope?: {
+    verificationEnvelope?: Record<string, unknown>;
+    verificationEnvelopeSignature?: string;
+  },
 ): Promise<VerificationEnvelopeResult> {
   if (!bundle || typeof bundle !== 'object') {
     return { status: 'absent', detail: 'No bundle provided.' };
   }
 
-  const b = bundle as Record<string, unknown>;
+  let b = bundle as Record<string, unknown>;
+
+  // If package-level envelope data was provided, build a working copy
+  // with envelope fields injected into meta — so the existing detection
+  // and reconstruction logic works without changes.
+  if (packageEnvelope?.verificationEnvelopeSignature) {
+    b = JSON.parse(JSON.stringify(b)) as Record<string, unknown>;
+    const meta = (isPlainObject(b.meta) ? { ...b.meta as Record<string, unknown> } : {}) as Record<string, unknown>;
+    if (packageEnvelope.verificationEnvelope) {
+      meta.verificationEnvelope = packageEnvelope.verificationEnvelope;
+      // Detect envelope type from the envelope object itself
+      const envObj = packageEnvelope.verificationEnvelope as Record<string, unknown>;
+      if (envObj.envelopeType === V2_ENVELOPE_TYPE) {
+        meta.verificationEnvelopeType = V2_ENVELOPE_TYPE;
+      }
+    }
+    meta.verificationEnvelopeSignature = packageEnvelope.verificationEnvelopeSignature;
+    b.meta = meta;
+  }
+
   const type = detectEnvelopeType(b);
 
   if (!type) {
@@ -619,6 +655,24 @@ export async function verifyVerificationEnvelope(
   }
 
   return verifyV1Envelope(b, resolvedUrl);
+}
+
+/**
+ * Detect whether a bundle (or bundle + package envelope) has a verification envelope.
+ * Accepts the same packageEnvelope parameter as verifyVerificationEnvelope.
+ */
+export function hasVerificationEnvelopeWithPackage(
+  bundle: unknown,
+  packageEnvelope?: {
+    verificationEnvelope?: Record<string, unknown>;
+    verificationEnvelopeSignature?: string;
+  },
+): boolean {
+  // Package-level envelope data takes priority
+  if (packageEnvelope?.verificationEnvelopeSignature && packageEnvelope?.verificationEnvelope) {
+    return true;
+  }
+  return hasVerificationEnvelope(bundle);
 }
 
 /* ------------------------------------------------------------------ */
