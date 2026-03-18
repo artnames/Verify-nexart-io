@@ -26,8 +26,13 @@ function clone<T>(value: T): T {
 }
 
 function toBase64Url(buffer: ArrayBuffer): string {
-  return Buffer.from(new Uint8Array(buffer))
-    .toString('base64')
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+
+  return btoa(binary)
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/g, '');
