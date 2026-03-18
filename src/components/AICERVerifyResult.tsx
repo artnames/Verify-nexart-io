@@ -48,6 +48,8 @@ interface AICERVerifyResultProps {
   attestResult?: AttestationResult | null;
   attestError?: string | null;
   contextIntegrityProtected?: boolean;
+  /** Package-level envelope data for official CER package uploads */
+  packageEnvelopeData?: PackageEnvelopeData;
 }
 
 export function AICERVerifyResult({
