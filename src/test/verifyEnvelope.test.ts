@@ -209,9 +209,10 @@ describe('verifyVerificationEnvelope v2 parity', () => {
 
     expect(result.status).toBe('valid');
     expect(result.envelopeType).toBe('v2');
-    for (const f of RESPONSE_LEVEL_META_FIELDS) {
-      expect(result.excludedFields).toContain(f);
-    }
+    // excludedFields lists what was actually removed from this specific bundle
+    expect(result.excludedFields).toContain('meta.verificationEnvelope');
+    expect(result.excludedFields).toContain('meta.verificationEnvelopeSignature');
+    expect(result.excludedFields).toContain('meta.verificationEnvelopeVerification');
   });
 
   it('bundle with excluded metadata still verifies PASS', async () => {
