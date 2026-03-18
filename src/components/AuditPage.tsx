@@ -663,6 +663,7 @@ export function AuditPage() {
               attestResult={null}
               attestError={null}
               contextIntegrityProtected={vResult.contextIntegrityProtected}
+              packageEnvelopeData={packageEnvelopeData}
             />
           );
         })()}
