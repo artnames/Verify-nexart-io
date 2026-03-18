@@ -495,11 +495,12 @@ async function verifyV2Envelope(
     };
   }
 
-  const signatureB64Url = meta.verificationEnvelopeSignature;
+  const signatureB64Url = (meta.verificationEnvelopeSignature as string | undefined)
+    || (bundle.verificationEnvelopeSignature as string | undefined);
   if (!signatureB64Url || typeof signatureB64Url !== 'string') {
     return {
       status: 'error',
-      detail: 'Missing v2 envelope signature (meta.verificationEnvelopeSignature).',
+      detail: 'Missing v2 envelope signature (verificationEnvelopeSignature).',
       envelopeType: 'v2',
       errorKind: 'missing_signature',
     };
@@ -512,11 +513,17 @@ async function verifyV2Envelope(
     const data = new TextEncoder().encode(canonicalJson);
     const sigBytes = base64UrlToBytes(signatureB64Url);
 
-    // Determine kid
-    const att = meta.attestation as Record<string, unknown> | undefined;
-    const kid = att?.attestorKeyId as string | undefined ||
-                att?.kid as string | undefined ||
-                undefined;
+    // Determine kid from envelope attestation (source-of-truth), fallback to legacy attestation paths
+    const metaEnv = meta.verificationEnvelope as Record<string, unknown> | undefined;
+    const rootEnv = bundle.verificationEnvelope as Record<string, unknown> | undefined;
+    const envObj = (metaEnv && typeof metaEnv === 'object') ? metaEnv : (rootEnv && typeof rootEnv === 'object' ? rootEnv : undefined);
+    const envAtt = envObj?.attestation as Record<string, unknown> | undefined;
+    const fallbackAtt = meta.attestation as Record<string, unknown> | undefined;
+    const kid = (envAtt?.kid as string | undefined)
+      || (envAtt?.attestorKeyId as string | undefined)
+      || (fallbackAtt?.attestorKeyId as string | undefined)
+      || (fallbackAtt?.kid as string | undefined)
+      || undefined;
 
     const keyResult = await fetchNodePublicKey(nodeUrl, kid);
     if (!keyResult) {
