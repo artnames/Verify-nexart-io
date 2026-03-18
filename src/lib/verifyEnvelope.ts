@@ -263,7 +263,7 @@ export function reconstructV2SignablePayload(bundle: Record<string, unknown>): {
     envelopeType: V2_ENVELOPE_TYPE,
   };
 
-  const excludedFields = [...V2_EXCLUDED_META_FIELDS];
+  const excludedFields = removedPaths.length > 0 ? removedPaths : [...V2_EXCLUDED_META_FIELDS];
 
   if (typeof window !== 'undefined' && import.meta.env.DEV && !hasLoggedV2ParityDebug) {
     hasLoggedV2ParityDebug = true;
