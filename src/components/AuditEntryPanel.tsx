@@ -343,7 +343,7 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Upload a .json CER bundle file directly from your device.
+            Upload a .json CER bundle file or an AI CER package file (.json) from your device.
           </p>
         </div>
 
