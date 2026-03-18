@@ -518,35 +518,36 @@ async function verifyV2Envelope(
     };
   }
 
-  const signatureB64Url = (meta.verificationEnvelopeSignature as string | undefined)
-    || (bundle.verificationEnvelopeSignature as string | undefined);
+  const envelope = getVerificationEnvelopeObject(bundle);
+  if (!isPlainObject(envelope?.attestation)) {
+    return {
+      status: 'error',
+      detail: 'Malformed v2 envelope: missing verificationEnvelope.attestation.',
+      envelopeType: 'v2',
+      errorKind: 'malformed_envelope',
+    };
+  }
+
+  const signatureB64Url = meta.verificationEnvelopeSignature as string | undefined;
   if (!signatureB64Url || typeof signatureB64Url !== 'string') {
     return {
       status: 'error',
-      detail: 'Missing v2 envelope signature (verificationEnvelopeSignature).',
+      detail: 'Missing v2 envelope signature (meta.verificationEnvelopeSignature).',
       envelopeType: 'v2',
       errorKind: 'missing_signature',
     };
   }
 
   try {
-    // Reconstruct the exact signable payload
     const { payload, excludedFields } = reconstructV2SignablePayload(bundle);
     const canonicalJson = jcsCanonicalizeToString(payload);
     const data = new TextEncoder().encode(canonicalJson);
     const sigBytes = base64UrlToBytes(signatureB64Url);
 
-    // Determine kid from envelope attestation (source-of-truth), fallback to legacy attestation paths
-    const metaEnv = meta.verificationEnvelope as Record<string, unknown> | undefined;
-    const rootEnv = bundle.verificationEnvelope as Record<string, unknown> | undefined;
-    const envObj = (metaEnv && typeof metaEnv === 'object') ? metaEnv : (rootEnv && typeof rootEnv === 'object' ? rootEnv : undefined);
-    const envAtt = envObj?.attestation as Record<string, unknown> | undefined;
-    const fallbackAtt = meta.attestation as Record<string, unknown> | undefined;
-    const kid = (envAtt?.kid as string | undefined)
-      || (envAtt?.attestorKeyId as string | undefined)
-      || (fallbackAtt?.attestorKeyId as string | undefined)
-      || (fallbackAtt?.kid as string | undefined)
-      || undefined;
+    const payloadAttestation = payload.attestation as Record<string, unknown>;
+    const kid = typeof payloadAttestation?.kid === 'string'
+      ? payloadAttestation.kid
+      : undefined;
 
     const keyResult = await fetchNodePublicKey(nodeUrl, kid);
     if (!keyResult) {
@@ -560,12 +561,20 @@ async function verifyV2Envelope(
       };
     }
 
-    const verifyAlgo = keyResult.alg === 'Ed25519'
-      ? { name: 'Ed25519' }
-      : { name: 'ECDSA', hash: 'SHA-256' };
+    if (keyResult.alg !== 'Ed25519') {
+      return {
+        status: 'error',
+        detail: `Unsupported v2 envelope algorithm from node key set: ${keyResult.alg}. Expected Ed25519.`,
+        envelopeType: 'v2',
+        kid: keyResult.kid || kid,
+        algorithm: keyResult.alg,
+        excludedFields,
+        errorKind: 'unsupported_type',
+      };
+    }
 
     const valid = await crypto.subtle.verify(
-      verifyAlgo,
+      { name: 'Ed25519' },
       keyResult.key,
       sigBytes,
       data,
@@ -631,19 +640,10 @@ export function getEnvelopeCoveredFields(
   envelopeType?: EnvelopeType,
 ): string[] {
   if (envelopeType === 'v2') {
-    // v2 covers the full bundle minus excluded fields
     return [
-      'bundleType',
-      'certificateHash',
-      'createdAt',
-      'version',
-      'snapshot.*',
-      'context.*',
-      'meta.attestation (summary)',
-      'meta.source',
-      'meta.tags',
+      'attestation (top-level descriptor: attestationId, attestedAt, kid, nodeRuntimeHash, protocolVersion)',
+      'bundle (full CER payload after exact exclusions)',
     ];
   }
-  // v1: keys of the envelope object
   return Object.keys(envelope).sort();
 }
