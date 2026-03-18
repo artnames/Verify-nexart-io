@@ -134,13 +134,18 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
 
       toast.success(importResult.error?.includes('already exists') ? 'Bundle already in registry' : 'Bundle imported successfully');
 
-      // Navigate with the uploaded bundle as source of truth via router state
+      // Navigate with the uploaded bundle as source of truth via router state.
+      // If this was a package upload, also pass the package envelope data.
       const navHash = importResult.certificateHash || certificateHash;
       const normalizedNav = normalizeHash(navHash);
       if (normalizedNav) {
-        navigate(`/audit/${normalizedNav}`, {
-          state: { uploadedBundle: result.bundle },
-        });
+        const routerState: Record<string, unknown> = {
+          uploadedBundle: result.bundle,
+        };
+        if (result.isPackageFormat && result.packageEnvelopeData) {
+          routerState.packageEnvelopeData = result.packageEnvelopeData;
+        }
+        navigate(`/audit/${normalizedNav}`, { state: routerState });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
