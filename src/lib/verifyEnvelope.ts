@@ -55,11 +55,25 @@ export interface VerificationEnvelopeResult {
 
 const V2_ENVELOPE_TYPE = 'nexart.verification.envelope.v2';
 
-/** Fields excluded from the v2 signable payload (self-referential / runtime) */
+/** Fields excluded from the v2 signable payload (exact node constant). */
 const V2_EXCLUDED_META_FIELDS = [
   'meta.verificationEnvelopeSignature',
   'meta.verificationEnvelopeVerification',
 ] as const;
+
+const V2_ATTESTATION_FIELDS = [
+  'attestationId',
+  'attestedAt',
+  'kid',
+  'nodeRuntimeHash',
+  'protocolVersion',
+] as const;
+
+let hasLoggedV2ParityDebug = false;
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && Object.prototype.toString.call(value) === '[object Object]';
+}
 
 /* ------------------------------------------------------------------ */
 /*  Detection                                                          */
@@ -69,54 +83,34 @@ export function hasVerificationEnvelope(bundle: unknown): boolean {
   if (!bundle || typeof bundle !== 'object') return false;
   const b = bundle as Record<string, unknown>;
   const meta = b.meta as Record<string, unknown> | undefined;
+  if (!isPlainObject(meta)) return false;
 
-  const metaEnv = (meta && typeof meta === 'object')
-    ? (meta.verificationEnvelope as Record<string, unknown> | undefined)
+  const metaEnv = isPlainObject(meta.verificationEnvelope)
+    ? meta.verificationEnvelope as Record<string, unknown>
     : undefined;
-  const rootEnv = b.verificationEnvelope as Record<string, unknown> | undefined;
-  const hasSignature =
-    (typeof meta?.verificationEnvelopeSignature === 'string' && !!meta.verificationEnvelopeSignature)
-    || (typeof b.verificationEnvelopeSignature === 'string' && !!b.verificationEnvelopeSignature);
+  const hasMetaSignature = typeof meta.verificationEnvelopeSignature === 'string' && !!meta.verificationEnvelopeSignature;
 
-  const metaType = meta?.verificationEnvelopeType;
-  const rootType = b.verificationEnvelopeType;
+  if (!hasMetaSignature) return false;
+  if (meta.verificationEnvelopeType === V2_ENVELOPE_TYPE) return true;
+  if (metaEnv?.envelopeType === V2_ENVELOPE_TYPE) return true;
 
-  // v2 via explicit discriminator
-  if ((metaType === V2_ENVELOPE_TYPE || rootType === V2_ENVELOPE_TYPE) && hasSignature) {
-    return true;
-  }
-
-  // v2 via envelope object discriminator
-  if (metaEnv && typeof metaEnv === 'object' && metaEnv.envelopeType === V2_ENVELOPE_TYPE && hasSignature) {
-    return true;
-  }
-  if (rootEnv && typeof rootEnv === 'object' && rootEnv.envelopeType === V2_ENVELOPE_TYPE && hasSignature) {
-    return true;
-  }
-
-  // v1 legacy fallback
-  if ((metaEnv || rootEnv) && hasSignature) {
-    return true;
-  }
-
-  return false;
+  // v1 legacy envelope (metadata object + signature)
+  return !!metaEnv;
 }
 
 function detectEnvelopeType(bundle: Record<string, unknown>): EnvelopeType | null {
   const meta = bundle.meta as Record<string, unknown> | undefined;
-  const metaEnv = meta?.verificationEnvelope as Record<string, unknown> | undefined;
-  const rootEnv = bundle.verificationEnvelope as Record<string, unknown> | undefined;
+  if (!isPlainObject(meta)) return null;
 
-  if (meta?.verificationEnvelopeType === V2_ENVELOPE_TYPE) return 'v2';
-  if (bundle.verificationEnvelopeType === V2_ENVELOPE_TYPE) return 'v2';
+  const metaEnv = isPlainObject(meta.verificationEnvelope)
+    ? meta.verificationEnvelope as Record<string, unknown>
+    : undefined;
+  const hasMetaSignature = typeof meta.verificationEnvelopeSignature === 'string' && !!meta.verificationEnvelopeSignature;
 
-  if (metaEnv && typeof metaEnv === 'object' && metaEnv.envelopeType === V2_ENVELOPE_TYPE) return 'v2';
-  if (rootEnv && typeof rootEnv === 'object' && rootEnv.envelopeType === V2_ENVELOPE_TYPE) return 'v2';
-
-  const hasSignature =
-    (typeof meta?.verificationEnvelopeSignature === 'string' && !!meta.verificationEnvelopeSignature)
-    || (typeof bundle.verificationEnvelopeSignature === 'string' && !!bundle.verificationEnvelopeSignature);
-  if ((metaEnv || rootEnv) && hasSignature) return 'v1';
+  if (!hasMetaSignature) return null;
+  if (meta.verificationEnvelopeType === V2_ENVELOPE_TYPE) return 'v2';
+  if (metaEnv?.envelopeType === V2_ENVELOPE_TYPE) return 'v2';
+  if (metaEnv) return 'v1';
 
   return null;
 }
@@ -165,112 +159,118 @@ export function jcsCanonicalizeToString(value: unknown): string {
 /* ------------------------------------------------------------------ */
 /*  v2: Signable payload reconstruction                                */
 /* ------------------------------------------------------------------ */
+
+function getVerificationEnvelopeObject(bundle: Record<string, unknown>): Record<string, unknown> | undefined {
+  const meta = bundle.meta as Record<string, unknown> | undefined;
+  const metaEnvelope = meta?.verificationEnvelope;
+  return isPlainObject(metaEnvelope)
+    ? metaEnvelope
+    : undefined;
+}
+
+function buildV2AttestationFromEnvelope(envelope: Record<string, unknown> | undefined): Record<string, unknown> {
+  const envelopeAttestation = isPlainObject(envelope?.attestation)
+    ? envelope.attestation as Record<string, unknown>
+    : {};
+
+  const attestation: Record<string, unknown> = {};
+  for (const field of V2_ATTESTATION_FIELDS) {
+    const value = envelopeAttestation[field];
+    if (value !== undefined) {
+      attestation[field] = value;
+    }
+  }
+
+  return attestation;
+}
+
+function stripExactV2ExcludedFields(bundle: Record<string, unknown>): {
+  cleanedBundle: Record<string, unknown>;
+  metaExistedBeforeStrip: boolean;
+  metaDroppedAfterStrip: boolean;
+  removedPaths: string[];
+} {
+  const cleanedBundle = JSON.parse(JSON.stringify(bundle)) as Record<string, unknown>;
+  const removedPaths: string[] = [];
+  const cleanedMeta = cleanedBundle.meta;
+  const metaExistedBeforeStrip = isPlainObject(cleanedMeta);
+  let metaDroppedAfterStrip = false;
+
+  if (isPlainObject(cleanedMeta)) {
+    if ('verificationEnvelopeSignature' in cleanedMeta) {
+      delete cleanedMeta.verificationEnvelopeSignature;
+      removedPaths.push('meta.verificationEnvelopeSignature');
+    }
+    if ('verificationEnvelopeVerification' in cleanedMeta) {
+      delete cleanedMeta.verificationEnvelopeVerification;
+      removedPaths.push('meta.verificationEnvelopeVerification');
+    }
+
+    // Node parity: only remove top-level meta if it became empty plain object.
+    if (Object.keys(cleanedMeta).length === 0) {
+      delete cleanedBundle.meta;
+      metaDroppedAfterStrip = true;
+    }
+  }
+
+  return {
+    cleanedBundle,
+    metaExistedBeforeStrip,
+    metaDroppedAfterStrip,
+    removedPaths,
+  };
+}
+
 /**
  * Reconstruct the v2 signable payload from a live CER bundle.
- * Mirrors the node-side derivation exactly.
- *
- * The node signs: { attestation, bundle (cleaned CER), envelopeType }
- * - attestation comes from verificationEnvelope.attestation (exactly 5 fields)
- * - bundle is the CER with envelope response fields stripped (meta or root)
- * - if meta becomes empty after stripping, it is removed entirely
+ * Mirrors the published node semantics exactly:
+ * {
+ *   attestation: verificationEnvelope.attestation (5 fields only),
+ *   bundle: CER bundle with exact two exclusions,
+ *   envelopeType: "nexart.verification.envelope.v2"
+ * }
  */
 export function reconstructV2SignablePayload(bundle: Record<string, unknown>): {
   payload: Record<string, unknown>;
   excludedFields: string[];
 } {
-  const meta = bundle.meta as Record<string, unknown> | undefined;
-  const metaEnv = meta?.verificationEnvelope as Record<string, unknown> | undefined;
-  const rootEnv = bundle.verificationEnvelope as Record<string, unknown> | undefined;
-  const envObj = (metaEnv && typeof metaEnv === 'object')
-    ? metaEnv
-    : (rootEnv && typeof rootEnv === 'object' ? rootEnv : undefined);
+  const envelope = getVerificationEnvelopeObject(bundle);
+  const attestation = buildV2AttestationFromEnvelope(envelope);
 
-  // 1) Attestation source of truth: verificationEnvelope.attestation
-  const envAtt = envObj?.attestation as Record<string, unknown> | undefined;
-  const attestationSummary: Record<string, unknown> = {};
-  if (envAtt && typeof envAtt === 'object') {
-    if (envAtt.attestationId !== undefined) attestationSummary.attestationId = envAtt.attestationId;
-    if (envAtt.attestedAt !== undefined) attestationSummary.attestedAt = envAtt.attestedAt;
-    if (envAtt.kid !== undefined) attestationSummary.kid = envAtt.kid;
-    if (envAtt.nodeRuntimeHash !== undefined) attestationSummary.nodeRuntimeHash = envAtt.nodeRuntimeHash;
-    if (envAtt.protocolVersion !== undefined) attestationSummary.protocolVersion = envAtt.protocolVersion;
-  }
+  const {
+    cleanedBundle,
+    metaExistedBeforeStrip,
+    metaDroppedAfterStrip,
+    removedPaths,
+  } = stripExactV2ExcludedFields(bundle);
 
-  // 2) Clone bundle, then strip envelope response-level fields
-  const cleaned = JSON.parse(JSON.stringify(bundle)) as Record<string, unknown>;
-  const cleanedMeta = cleaned.meta as Record<string, unknown> | undefined;
-  const excludedFields: string[] = [];
-
-  // Strip from meta.* (common injected location)
-  if (cleanedMeta && typeof cleanedMeta === 'object') {
-    if ('verificationEnvelopeSignature' in cleanedMeta) {
-      delete cleanedMeta.verificationEnvelopeSignature;
-      excludedFields.push('meta.verificationEnvelopeSignature');
-    }
-    if ('verificationEnvelopeVerification' in cleanedMeta) {
-      delete cleanedMeta.verificationEnvelopeVerification;
-      excludedFields.push('meta.verificationEnvelopeVerification');
-    }
-    if ('verificationEnvelope' in cleanedMeta) {
-      delete cleanedMeta.verificationEnvelope;
-      excludedFields.push('meta.verificationEnvelope');
-    }
-    if ('verificationEnvelopeType' in cleanedMeta) {
-      delete cleanedMeta.verificationEnvelopeType;
-      excludedFields.push('meta.verificationEnvelopeType');
-    }
-
-    // Node parity: only prune top-level meta when empty
-    if (Object.keys(cleanedMeta).length === 0) {
-      delete cleaned.meta;
-    }
-  }
-
-  // Strip from root-level too (response-level fields on wrapper-shaped bundles)
-  if ('verificationEnvelopeSignature' in cleaned) {
-    delete cleaned.verificationEnvelopeSignature;
-    excludedFields.push('verificationEnvelopeSignature');
-  }
-  if ('verificationEnvelopeVerification' in cleaned) {
-    delete cleaned.verificationEnvelopeVerification;
-    excludedFields.push('verificationEnvelopeVerification');
-  }
-  if ('verificationEnvelope' in cleaned) {
-    delete cleaned.verificationEnvelope;
-    excludedFields.push('verificationEnvelope');
-  }
-  if ('verificationEnvelopeType' in cleaned) {
-    delete cleaned.verificationEnvelopeType;
-    excludedFields.push('verificationEnvelopeType');
-  }
-
-  // 3) Build exact signable payload
   const payload: Record<string, unknown> = {
-    attestation: attestationSummary,
-    bundle: cleaned,
+    attestation,
+    bundle: cleanedBundle,
     envelopeType: V2_ENVELOPE_TYPE,
   };
 
-  // Dev diagnostics
-  if (typeof window !== 'undefined' && import.meta.env.DEV) {
+  const excludedFields = [...V2_EXCLUDED_META_FIELDS];
+
+  if (typeof window !== 'undefined' && import.meta.env.DEV && !hasLoggedV2ParityDebug) {
+    hasLoggedV2ParityDebug = true;
     const canonical = jcsCanonicalizeToString(payload);
-    console.group('[Envelope v2] Reconstruction diagnostics');
-    console.log('attestation source:', envAtt ? 'verificationEnvelope.attestation' : 'MISSING');
-    console.log('attestation summary:', attestationSummary);
-    console.log('meta existed before stripping:', !!meta);
-    console.log('meta removed after stripping:', !cleaned.meta);
-    console.log('root envelope fields present before stripping:', {
-      verificationEnvelope: 'verificationEnvelope' in bundle,
-      verificationEnvelopeSignature: 'verificationEnvelopeSignature' in bundle,
-      verificationEnvelopeType: 'verificationEnvelopeType' in bundle,
-      verificationEnvelopeVerification: 'verificationEnvelopeVerification' in bundle,
-    });
-    console.log('excluded fields:', excludedFields);
-    console.log('canonical string length:', canonical.length);
+
+    console.group('[Envelope v2 parity] One-shot diagnostics');
+    console.log('signable payload (exact):', payload);
+    console.log('excluded field paths (exact constant):', excludedFields);
+    console.log('excluded field paths removed in this bundle:', removedPaths);
+    console.log('meta existed before stripping:', metaExistedBeforeStrip);
+    console.log('meta dropped after stripping:', metaDroppedAfterStrip);
+    console.log('bundle top-level keys:', Object.keys(cleanedBundle).sort());
+    console.log('canonicalized payload length:', canonical.length);
+
     if (crypto?.subtle) {
-      crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical)).then(buf => {
-        const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-        console.log('canonical SHA-256:', `sha256:${hex}`);
+      crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical)).then((buffer) => {
+        const hex = Array.from(new Uint8Array(buffer))
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('');
+        console.log('canonicalized payload SHA-256:', `sha256:${hex}`);
       });
     }
     console.groupEnd();
@@ -495,35 +495,36 @@ async function verifyV2Envelope(
     };
   }
 
-  const signatureB64Url = (meta.verificationEnvelopeSignature as string | undefined)
-    || (bundle.verificationEnvelopeSignature as string | undefined);
+  const envelope = getVerificationEnvelopeObject(bundle);
+  if (!isPlainObject(envelope?.attestation)) {
+    return {
+      status: 'error',
+      detail: 'Malformed v2 envelope: missing verificationEnvelope.attestation.',
+      envelopeType: 'v2',
+      errorKind: 'malformed_envelope',
+    };
+  }
+
+  const signatureB64Url = meta.verificationEnvelopeSignature as string | undefined;
   if (!signatureB64Url || typeof signatureB64Url !== 'string') {
     return {
       status: 'error',
-      detail: 'Missing v2 envelope signature (verificationEnvelopeSignature).',
+      detail: 'Missing v2 envelope signature (meta.verificationEnvelopeSignature).',
       envelopeType: 'v2',
       errorKind: 'missing_signature',
     };
   }
 
   try {
-    // Reconstruct the exact signable payload
     const { payload, excludedFields } = reconstructV2SignablePayload(bundle);
     const canonicalJson = jcsCanonicalizeToString(payload);
     const data = new TextEncoder().encode(canonicalJson);
     const sigBytes = base64UrlToBytes(signatureB64Url);
 
-    // Determine kid from envelope attestation (source-of-truth), fallback to legacy attestation paths
-    const metaEnv = meta.verificationEnvelope as Record<string, unknown> | undefined;
-    const rootEnv = bundle.verificationEnvelope as Record<string, unknown> | undefined;
-    const envObj = (metaEnv && typeof metaEnv === 'object') ? metaEnv : (rootEnv && typeof rootEnv === 'object' ? rootEnv : undefined);
-    const envAtt = envObj?.attestation as Record<string, unknown> | undefined;
-    const fallbackAtt = meta.attestation as Record<string, unknown> | undefined;
-    const kid = (envAtt?.kid as string | undefined)
-      || (envAtt?.attestorKeyId as string | undefined)
-      || (fallbackAtt?.attestorKeyId as string | undefined)
-      || (fallbackAtt?.kid as string | undefined)
-      || undefined;
+    const payloadAttestation = payload.attestation as Record<string, unknown>;
+    const kid = typeof payloadAttestation?.kid === 'string'
+      ? payloadAttestation.kid
+      : undefined;
 
     const keyResult = await fetchNodePublicKey(nodeUrl, kid);
     if (!keyResult) {
@@ -537,12 +538,20 @@ async function verifyV2Envelope(
       };
     }
 
-    const verifyAlgo = keyResult.alg === 'Ed25519'
-      ? { name: 'Ed25519' }
-      : { name: 'ECDSA', hash: 'SHA-256' };
+    if (keyResult.alg !== 'Ed25519') {
+      return {
+        status: 'error',
+        detail: `Unsupported v2 envelope algorithm from node key set: ${keyResult.alg}. Expected Ed25519.`,
+        envelopeType: 'v2',
+        kid: keyResult.kid || kid,
+        algorithm: keyResult.alg,
+        excludedFields,
+        errorKind: 'unsupported_type',
+      };
+    }
 
     const valid = await crypto.subtle.verify(
-      verifyAlgo,
+      { name: 'Ed25519' },
       keyResult.key,
       sigBytes,
       data,
@@ -608,19 +617,10 @@ export function getEnvelopeCoveredFields(
   envelopeType?: EnvelopeType,
 ): string[] {
   if (envelopeType === 'v2') {
-    // v2 covers the full bundle minus excluded fields
     return [
-      'bundleType',
-      'certificateHash',
-      'createdAt',
-      'version',
-      'snapshot.*',
-      'context.*',
-      'meta.attestation (summary)',
-      'meta.source',
-      'meta.tags',
+      'attestation (top-level descriptor: attestationId, attestedAt, kid, nodeRuntimeHash, protocolVersion)',
+      'bundle (full CER payload after exact exclusions)',
     ];
   }
-  // v1: keys of the envelope object
   return Object.keys(envelope).sort();
 }
