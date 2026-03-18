@@ -9,7 +9,18 @@ import {
 type AnyRecord = Record<string, any>;
 
 const V2_TYPE = 'nexart.verification.envelope.v2';
-const V2_EXCLUDED = [
+const V2_EXCLUDED_NODE = [
+  'meta.verificationEnvelopeSignature',
+  'meta.verificationEnvelopeVerification',
+] as const;
+
+/**
+ * Response-level fields stripped from the bundle before v2 reconstruction.
+ * These are NOT part of the raw CER bundle the node signed.
+ */
+const RESPONSE_LEVEL_META_FIELDS = [
+  'meta.verificationEnvelope',
+  'meta.verificationEnvelopeType',
   'meta.verificationEnvelopeSignature',
   'meta.verificationEnvelopeVerification',
 ] as const;
@@ -135,10 +146,11 @@ describe('hasVerificationEnvelope', () => {
 });
 
 describe('reconstructV2SignablePayload parity', () => {
-  it('mirrors node payload shape and keeps meta.verificationEnvelope in signed bundle', () => {
+  it('strips response-level envelope fields from signed bundle', () => {
     const bundle = makeBaseV2Bundle();
     bundle.meta.verificationEnvelopeSignature = 'sig';
     bundle.meta.verificationEnvelopeVerification = { status: 'ok' };
+    bundle.meta.verificationEnvelopeType = V2_TYPE;
 
     const { payload, excludedFields } = reconstructV2SignablePayload(bundle);
 
@@ -155,11 +167,20 @@ describe('reconstructV2SignablePayload parity', () => {
     ]);
 
     const signedBundleMeta = (payload.bundle as AnyRecord).meta;
-    expect(signedBundleMeta.verificationEnvelope).toBeDefined();
+    // Response-level fields must NOT be in the signed bundle
+    expect(signedBundleMeta.verificationEnvelope).toBeUndefined();
+    expect(signedBundleMeta.verificationEnvelopeType).toBeUndefined();
     expect(signedBundleMeta.verificationEnvelopeSignature).toBeUndefined();
     expect(signedBundleMeta.verificationEnvelopeVerification).toBeUndefined();
+    // Non-envelope meta fields must remain
+    expect(signedBundleMeta.attestation).toBeDefined();
+    expect(signedBundleMeta.source).toBe('live-node');
+    expect(signedBundleMeta.tags).toEqual(['prod']);
 
-    expect(excludedFields).toEqual([...V2_EXCLUDED]);
+    // excludedFields should list what was actually removed
+    for (const f of RESPONSE_LEVEL_META_FIELDS) {
+      expect(excludedFields).toContain(f);
+    }
   });
 
   it('empty-meta-after-strip and no-meta produce identical canonical payload', () => {
@@ -188,7 +209,10 @@ describe('verifyVerificationEnvelope v2 parity', () => {
 
     expect(result.status).toBe('valid');
     expect(result.envelopeType).toBe('v2');
-    expect(result.excludedFields).toEqual([...V2_EXCLUDED]);
+    // excludedFields lists what was actually removed from this specific bundle
+    expect(result.excludedFields).toContain('meta.verificationEnvelope');
+    expect(result.excludedFields).toContain('meta.verificationEnvelopeSignature');
+    expect(result.excludedFields).toContain('meta.verificationEnvelopeVerification');
   });
 
   it('bundle with excluded metadata still verifies PASS', async () => {
