@@ -29,6 +29,7 @@ import {
   extractSubject 
 } from '@/types/auditRecord';
 import { isAICERBundle, extractAICERTitle, extractAICERSubject } from '@/types/aiCerBundle';
+import { isCERPackage, extractFromPackage, type PackageEnvelopeData } from '@/types/cerPackage';
 import {
   listLocalRecords,
   getLocalRecordByHash,
