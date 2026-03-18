@@ -53,6 +53,7 @@ export function VerificationEnvelopeCard({
   nodeUrl,
   className,
   precomputedResult,
+  packageEnvelopeData,
 }: VerificationEnvelopeCardProps) {
   const [result, setResult] = useState<VerificationEnvelopeResult | null>(precomputedResult || null);
   const [loading, setLoading] = useState(!precomputedResult);
@@ -68,7 +69,7 @@ export function VerificationEnvelopeCard({
     let cancelled = false;
     setLoading(true);
 
-    verifyVerificationEnvelope(bundle, nodeUrl).then((r) => {
+    verifyVerificationEnvelope(bundle, nodeUrl, packageEnvelopeData).then((r) => {
       if (!cancelled) {
         setResult(r);
         setLoading(false);
@@ -76,7 +77,7 @@ export function VerificationEnvelopeCard({
     });
 
     return () => { cancelled = true; };
-  }, [bundle, nodeUrl, precomputedResult]);
+  }, [bundle, nodeUrl, precomputedResult, packageEnvelopeData]);
 
   if (loading) {
     return (
