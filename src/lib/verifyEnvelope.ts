@@ -83,54 +83,34 @@ export function hasVerificationEnvelope(bundle: unknown): boolean {
   if (!bundle || typeof bundle !== 'object') return false;
   const b = bundle as Record<string, unknown>;
   const meta = b.meta as Record<string, unknown> | undefined;
+  if (!isPlainObject(meta)) return false;
 
-  const metaEnv = (meta && typeof meta === 'object')
-    ? (meta.verificationEnvelope as Record<string, unknown> | undefined)
+  const metaEnv = isPlainObject(meta.verificationEnvelope)
+    ? meta.verificationEnvelope as Record<string, unknown>
     : undefined;
-  const rootEnv = b.verificationEnvelope as Record<string, unknown> | undefined;
-  const hasSignature =
-    (typeof meta?.verificationEnvelopeSignature === 'string' && !!meta.verificationEnvelopeSignature)
-    || (typeof b.verificationEnvelopeSignature === 'string' && !!b.verificationEnvelopeSignature);
+  const hasMetaSignature = typeof meta.verificationEnvelopeSignature === 'string' && !!meta.verificationEnvelopeSignature;
 
-  const metaType = meta?.verificationEnvelopeType;
-  const rootType = b.verificationEnvelopeType;
+  if (!hasMetaSignature) return false;
+  if (meta.verificationEnvelopeType === V2_ENVELOPE_TYPE) return true;
+  if (metaEnv?.envelopeType === V2_ENVELOPE_TYPE) return true;
 
-  // v2 via explicit discriminator
-  if ((metaType === V2_ENVELOPE_TYPE || rootType === V2_ENVELOPE_TYPE) && hasSignature) {
-    return true;
-  }
-
-  // v2 via envelope object discriminator
-  if (metaEnv && typeof metaEnv === 'object' && metaEnv.envelopeType === V2_ENVELOPE_TYPE && hasSignature) {
-    return true;
-  }
-  if (rootEnv && typeof rootEnv === 'object' && rootEnv.envelopeType === V2_ENVELOPE_TYPE && hasSignature) {
-    return true;
-  }
-
-  // v1 legacy fallback
-  if ((metaEnv || rootEnv) && hasSignature) {
-    return true;
-  }
-
-  return false;
+  // v1 legacy envelope (metadata object + signature)
+  return !!metaEnv;
 }
 
 function detectEnvelopeType(bundle: Record<string, unknown>): EnvelopeType | null {
   const meta = bundle.meta as Record<string, unknown> | undefined;
-  const metaEnv = meta?.verificationEnvelope as Record<string, unknown> | undefined;
-  const rootEnv = bundle.verificationEnvelope as Record<string, unknown> | undefined;
+  if (!isPlainObject(meta)) return null;
 
-  if (meta?.verificationEnvelopeType === V2_ENVELOPE_TYPE) return 'v2';
-  if (bundle.verificationEnvelopeType === V2_ENVELOPE_TYPE) return 'v2';
+  const metaEnv = isPlainObject(meta.verificationEnvelope)
+    ? meta.verificationEnvelope as Record<string, unknown>
+    : undefined;
+  const hasMetaSignature = typeof meta.verificationEnvelopeSignature === 'string' && !!meta.verificationEnvelopeSignature;
 
-  if (metaEnv && typeof metaEnv === 'object' && metaEnv.envelopeType === V2_ENVELOPE_TYPE) return 'v2';
-  if (rootEnv && typeof rootEnv === 'object' && rootEnv.envelopeType === V2_ENVELOPE_TYPE) return 'v2';
-
-  const hasSignature =
-    (typeof meta?.verificationEnvelopeSignature === 'string' && !!meta.verificationEnvelopeSignature)
-    || (typeof bundle.verificationEnvelopeSignature === 'string' && !!bundle.verificationEnvelopeSignature);
-  if ((metaEnv || rootEnv) && hasSignature) return 'v1';
+  if (!hasMetaSignature) return null;
+  if (meta.verificationEnvelopeType === V2_ENVELOPE_TYPE) return 'v2';
+  if (metaEnv?.envelopeType === V2_ENVELOPE_TYPE) return 'v2';
+  if (metaEnv) return 'v1';
 
   return null;
 }
