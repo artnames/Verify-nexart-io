@@ -37,7 +37,7 @@ export function MobileHeader({ activeView, onViewChange }: MobileHeaderProps) {
   return (
     <header className="md:hidden sticky top-0 z-50 bg-sidebar border-b border-sidebar-border px-4 py-3">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <a href="https://nexart.io" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
           <img src={nexartIcon} alt="NexArt" className="h-7 w-7" />
           <div>
             <div className="font-semibold text-sm">NexArt</div>
@@ -45,7 +45,7 @@ export function MobileHeader({ activeView, onViewChange }: MobileHeaderProps) {
               {currentItem?.label || 'Menu'}
             </div>
           </div>
-        </div>
+        </a>
 
         <div className="flex items-center gap-1">
           <ThemeToggle className="h-8 w-8 text-muted-foreground" />
@@ -60,7 +60,7 @@ export function MobileHeader({ activeView, onViewChange }: MobileHeaderProps) {
             <div className="flex flex-col h-full">
               {/* Header */}
               <div className="p-4 border-b border-sidebar-border">
-                <div className="flex items-center gap-3">
+                <a href="https://nexart.io" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                   <img src={nexartIcon} alt="NexArt" className="h-8 w-8" />
                   <div>
                     <div className="font-semibold text-sm">NexArt</div>
@@ -68,7 +68,7 @@ export function MobileHeader({ activeView, onViewChange }: MobileHeaderProps) {
                       Verification Portal
                     </div>
                   </div>
-                </div>
+                </a>
               </div>
 
               {/* Main Nav */}

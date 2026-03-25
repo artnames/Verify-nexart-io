@@ -35,13 +35,13 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
     <aside className="hidden md:flex w-56 h-screen bg-sidebar border-r border-sidebar-border flex-col sticky top-0">
       {/* Logo */}
       <div className="p-4 border-b border-sidebar-border">
-        <div className="flex items-center gap-3">
+        <a href="https://nexart.io" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
           <img src={nexartIcon} alt="NexArt" className="h-8 w-8" />
           <div>
             <div className="font-semibold text-sm">NexArt</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Verification Portal</div>
           </div>
-        </div>
+        </a>
       </div>
 
       {/* Main Nav */}
