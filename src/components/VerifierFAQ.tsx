@@ -30,7 +30,7 @@ const FAQ_ITEMS = [
   {
     question: "What happens if verification fails?",
     answer:
-      'If any check fails, the record is marked "Not Verified." This may indicate the bundle has been modified after certification, is incomplete, or contains mismatched hashes. A failed verification does not necessarily mean fraud — it can also result from truncated exports or format errors.',
+      'If any check fails, the record is marked "Not Verified." This may indicate the bundle has been modified after certification, is incomplete, or contains mismatched hashes. A failed verification does not necessarily mean fraud. It can also result from truncated exports or format errors.',
   },
   {
     question: "What is the difference between logs and verification?",
