@@ -17,6 +17,7 @@ interface SidebarProps {
 const navItems = [
   { id: 'guide', label: 'Start Here', icon: BookOpen },
   { id: 'audit-log', label: 'Verification Log', icon: ScrollText, route: '/audit-log' },
+  { id: 'about', label: 'About', icon: Info, route: '/about' },
 ];
 
 const bottomItems: typeof navItems = [];
