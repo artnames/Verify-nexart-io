@@ -1,6 +1,7 @@
 import { 
   BookOpen,
-  ScrollText
+  ScrollText,
+  Info
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import nexartIcon from "@/assets/nexart-icon.png";
