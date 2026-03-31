@@ -1,8 +1,8 @@
-import { ShieldCheck, CheckCircle2, ArrowRight, ScrollText, Fingerprint, FileCheck } from "lucide-react";
+import { ShieldCheck, CheckCircle2, ArrowRight, ScrollText, Fingerprint, FileCheck, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { AuditEntryPanel } from "./AuditEntryPanel";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   Collapsible,
   CollapsibleContent,
@@ -13,15 +13,54 @@ export function HowItWorksPanel() {
   const navigate = useNavigate();
 
   return (
-    <div className="space-y-6">
-      {/* Hero */}
-      <div>
-        <h1 className="text-2xl font-bold mb-2">NexArt Verification Portal</h1>
-        <p className="text-muted-foreground">
-          Independently verify Certified Execution Records (CERs). Look up a record by execution ID
-          or certificate hash, or upload a bundle to validate integrity and inspect evidence.
+    <div className="space-y-8">
+      {/* Hero — SEO-optimized with quotable definitions */}
+      <header>
+        <h1 className="text-2xl font-bold mb-3">
+          AI Execution Verification — Independently Verify Certified Execution Records
+        </h1>
+        <p className="text-muted-foreground leading-relaxed max-w-3xl">
+          <strong className="text-foreground">verify.nexart.io</strong> is the independent verification surface for{" "}
+          <a href="https://nexart.io/protocol" target="_blank" rel="noopener noreferrer" className="text-link hover:underline">
+            Certified Execution Records (CERs)
+          </a>{" "}
+          produced by the NexArt deterministic execution runtime.
+          Look up a record by execution ID or certificate hash, upload a CER bundle,
+          and validate integrity — without relying on the system that created it.
         </p>
-      </div>
+        <p className="text-sm text-muted-foreground mt-3 max-w-3xl">
+          Verification does not require a NexArt account. Anyone with a record identifier or bundle file can verify independently.
+        </p>
+      </header>
+
+      {/* Quotable definitions — GEO-friendly */}
+      <section aria-labelledby="definitions-heading">
+        <h2 id="definitions-heading" className="sr-only">Key Definitions</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card className="border-border/60">
+            <CardContent className="pt-5 pb-4">
+              <dl>
+                <dt className="font-semibold text-sm mb-1">Certified Execution Record (CER)</dt>
+                <dd className="text-sm text-muted-foreground">
+                  A cryptographically sealed record proving that a specific output was produced from specific inputs,
+                  under a specific policy and runtime. CERs are designed to be independently verifiable by any party.
+                </dd>
+              </dl>
+            </CardContent>
+          </Card>
+          <Card className="border-border/60">
+            <CardContent className="pt-5 pb-4">
+              <dl>
+                <dt className="font-semibold text-sm mb-1">Independent Verification</dt>
+                <dd className="text-sm text-muted-foreground">
+                  The process of validating a record's integrity, attestation, and evidence without trusting
+                  or relying on the originating system. verify.nexart.io operates as a separate verification surface.
+                </dd>
+              </dl>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
 
       {/* What this portal verifies */}
       <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-transparent">
@@ -44,6 +83,13 @@ export function HowItWorksPanel() {
           <p className="text-muted-foreground">
             <strong className="text-foreground">Evidence Review:</strong> Displays the full execution record — inputs, conditions, outputs, and cryptographic proof.
           </p>
+          <div className="pt-2 border-t border-border/50">
+            <p className="text-xs text-muted-foreground italic">
+              <strong className="text-foreground not-italic">What it does not claim:</strong>{" "}
+              Verification confirms structural integrity and cryptographic consistency.
+              It does not guarantee the correctness of the underlying model or the business logic that produced the output.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
@@ -66,7 +112,7 @@ export function HowItWorksPanel() {
             </div>
             <div className="flex-1 p-4 rounded-lg bg-muted/50 text-center">
               <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center mx-auto mb-3 font-bold">2</div>
-              <div className="font-medium mb-1">Verify & Validate</div>
+              <div className="font-medium mb-1">Verify &amp; Validate</div>
               <p className="text-xs text-muted-foreground">
                 Certificate hash, node signature, and receipt consistency are checked
               </p>
@@ -87,6 +133,27 @@ export function HowItWorksPanel() {
 
       {/* Verify a Record — primary action */}
       <AuditEntryPanel />
+
+      {/* Who is this for */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Who Uses This Verification Surface</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground space-y-2">
+          <p>
+            <strong className="text-foreground">Auditors &amp; compliance teams</strong> reviewing AI execution evidence for governed workflows.
+          </p>
+          <p>
+            <strong className="text-foreground">Counterparties &amp; reviewers</strong> independently confirming that a record is intact and unaltered.
+          </p>
+          <p>
+            <strong className="text-foreground">Developers &amp; integrators</strong> validating CER bundles during integration testing.
+          </p>
+          <p>
+            <strong className="text-foreground">Anyone</strong> who needs to verify without relying on the system that created the record.
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Advanced: Canonical Re-Certification (collapsed) */}
       <Collapsible>
@@ -168,6 +235,31 @@ export function HowItWorksPanel() {
           </ol>
         </CardContent>
       </Card>
+
+      {/* Ecosystem links — internal linking for SEO */}
+      <nav aria-label="NexArt ecosystem" className="pt-2 border-t border-border">
+        <h2 className="text-sm font-medium mb-3">NexArt Ecosystem</h2>
+        <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs">
+          <a href="https://nexart.io" target="_blank" rel="noopener noreferrer" className="text-link hover:underline inline-flex items-center gap-1">
+            NexArt Home <ExternalLink className="w-3 h-3" />
+          </a>
+          <a href="https://nexart.io/protocol" target="_blank" rel="noopener noreferrer" className="text-link hover:underline inline-flex items-center gap-1">
+            Protocol <ExternalLink className="w-3 h-3" />
+          </a>
+          <a href="https://nexart.io/cer" target="_blank" rel="noopener noreferrer" className="text-link hover:underline inline-flex items-center gap-1">
+            Certified Execution Records <ExternalLink className="w-3 h-3" />
+          </a>
+          <a href="https://nexart.io/integrity" target="_blank" rel="noopener noreferrer" className="text-link hover:underline inline-flex items-center gap-1">
+            AI Execution Integrity <ExternalLink className="w-3 h-3" />
+          </a>
+          <a href="https://docs.nexart.io" target="_blank" rel="noopener noreferrer" className="text-link hover:underline inline-flex items-center gap-1">
+            Documentation <ExternalLink className="w-3 h-3" />
+          </a>
+          <Link to="/about" className="text-link hover:underline">
+            What is verify.nexart.io?
+          </Link>
+        </div>
+      </nav>
     </div>
   );
 }
