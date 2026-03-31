@@ -59,7 +59,7 @@ export default function AboutVerifier() {
             <p className="text-sm text-muted-foreground leading-relaxed">
               Producing a record is not enough. For a record to be trustworthy, it must be checkable
               by a party that did not create it. verify.nexart.io is architecturally separate from
-              the NexArt execution infrastructure — it receives records and validates them independently,
+              the NexArt execution infrastructure. It receives records and validates them independently,
               without privileged access to the originating runtime.
             </p>
             <blockquote className="mt-3 pl-4 border-l-2 border-primary/40 text-sm text-foreground italic">
