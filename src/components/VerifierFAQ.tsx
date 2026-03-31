@@ -20,7 +20,7 @@ const FAQ_ITEMS = [
   {
     question: 'What does "verified" mean?',
     answer:
-      'When a record shows "Verified" on verify.nexart.io, it means the certificate hash matches the canonical representation of the bundle contents, the node attestation signature is cryptographically valid, and all required attestation fields are present and well-formed. Verification confirms structural integrity and cryptographic consistency — it does not evaluate the correctness of the underlying model.',
+      'When a record shows "Verified" on verify.nexart.io, it means the certificate hash matches the canonical representation of the bundle contents, the node attestation signature is cryptographically valid, and all required attestation fields are present and well-formed. Verification confirms structural integrity and cryptographic consistency. It does not evaluate the correctness of the underlying model.',
   },
   {
     question: "What is being checked during verification?",
