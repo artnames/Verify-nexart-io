@@ -80,7 +80,7 @@ export function HowItWorksPanel() {
             <strong className="text-foreground">Receipt Consistency:</strong> Confirms attestation fields, runtime hashes, and protocol versions are present and well-formed.
           </p>
           <p className="text-muted-foreground">
-            <strong className="text-foreground">Evidence Review:</strong> Displays the full execution record — inputs, conditions, outputs, and cryptographic proof.
+            <strong className="text-foreground">Execution Record Review:</strong> Presents the full execution record for inspection, including inputs, conditions, outputs, and cryptographic proof.
           </p>
           <div className="pt-2 border-t border-border/50">
             <p className="text-xs text-muted-foreground italic">

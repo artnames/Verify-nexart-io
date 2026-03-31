@@ -126,7 +126,7 @@ export default function AboutVerifier() {
                     <dt className="font-semibold text-sm mb-1">AI Execution Verification</dt>
                     <dd className="text-sm text-muted-foreground">
                       The process of independently confirming that an AI execution record is structurally intact,
-                      cryptographically consistent, and properly attested — without trusting the originating system.
+                      cryptographically consistent, and properly attested, without trusting the originating system.
                     </dd>
                   </dl>
                 </CardContent>

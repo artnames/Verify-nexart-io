@@ -40,7 +40,7 @@ const FAQ_ITEMS = [
   {
     question: "What is the difference between a CER and a verification result?",
     answer:
-      "A CER (Certified Execution Record) is the sealed record itself — it contains inputs, outputs, conditions, and cryptographic proof. A verification result is the outcome of checking that CER on verify.nexart.io: Verified, Not Verified, or Record Not Found.",
+      "A CER (Certified Execution Record) is the sealed record itself, containing inputs, outputs, conditions, and cryptographic proof. A verification result is the outcome of checking that CER on verify.nexart.io: Verified, Not Verified, or Record Not Found.",
   },
   {
     question: "Why does verification need a separate surface?",
