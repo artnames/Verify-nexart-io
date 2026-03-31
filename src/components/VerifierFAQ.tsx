@@ -20,7 +20,7 @@ const FAQ_ITEMS = [
   {
     question: 'What does "verified" mean?',
     answer:
-      'When a record shows "Verified" on verify.nexart.io, it means the certificate hash matches the canonical representation of the bundle contents, the node attestation signature is cryptographically valid, and all required attestation fields are present and well-formed. Verification confirms structural integrity and cryptographic consistency — it does not evaluate the correctness of the underlying model.',
+      'When a record shows "Verified" on verify.nexart.io, it means the certificate hash matches the canonical representation of the bundle contents, the node attestation signature is cryptographically valid, and all required attestation fields are present and well-formed. Verification confirms structural integrity and cryptographic consistency. It does not evaluate the correctness of the underlying model.',
   },
   {
     question: "What is being checked during verification?",
@@ -30,17 +30,17 @@ const FAQ_ITEMS = [
   {
     question: "What happens if verification fails?",
     answer:
-      'If any check fails, the record is marked "Not Verified." This may indicate the bundle has been modified after certification, is incomplete, or contains mismatched hashes. A failed verification does not necessarily mean fraud — it can also result from truncated exports or format errors.',
+      'If any check fails, the record is marked "Not Verified." This may indicate the bundle has been modified after certification, is incomplete, or contains mismatched hashes. A failed verification does not necessarily mean fraud. It can also result from truncated exports or format errors.',
   },
   {
     question: "What is the difference between logs and verification?",
     answer:
-      "Logs record what happened within a system. Verification confirms that a record is structurally intact and cryptographically consistent, independently of the system that created it. verify.nexart.io is not a log viewer — it is a proof-checking surface.",
+      "Logs record what happened within a system. Verification confirms that a record is structurally intact and cryptographically consistent, independently of the system that created it. verify.nexart.io is not a log viewer. It is a proof-checking surface.",
   },
   {
     question: "What is the difference between a CER and a verification result?",
     answer:
-      "A CER (Certified Execution Record) is the sealed record itself — it contains inputs, outputs, conditions, and cryptographic proof. A verification result is the outcome of checking that CER on verify.nexart.io: Verified, Not Verified, or Record Not Found.",
+      "A CER (Certified Execution Record) is the sealed record itself, containing inputs, outputs, conditions, and cryptographic proof. A verification result is the outcome of checking that CER on verify.nexart.io: Verified, Not Verified, or Record Not Found.",
   },
   {
     question: "Why does verification need a separate surface?",

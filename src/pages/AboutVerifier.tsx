@@ -59,7 +59,7 @@ export default function AboutVerifier() {
             <p className="text-sm text-muted-foreground leading-relaxed">
               Producing a record is not enough. For a record to be trustworthy, it must be checkable
               by a party that did not create it. verify.nexart.io is architecturally separate from
-              the NexArt execution infrastructure — it receives records and validates them independently,
+              the NexArt execution infrastructure. It receives records and validates them independently,
               without privileged access to the originating runtime.
             </p>
             <blockquote className="mt-3 pl-4 border-l-2 border-primary/40 text-sm text-foreground italic">
@@ -98,19 +98,19 @@ export default function AboutVerifier() {
             <h2 className="text-lg font-semibold mb-2">What Is Checked During Verification</h2>
             <div className="space-y-3 text-sm text-muted-foreground">
               <p>
-                <strong className="text-foreground">Certificate hash integrity</strong> — the SHA-256 hash is recomputed
+                <strong className="text-foreground">Certificate hash integrity:</strong> The SHA-256 hash is recomputed
                 from the record's canonical JSON and compared against the declared certificate hash.
               </p>
               <p>
-                <strong className="text-foreground">Attestation receipt</strong> — if present, the Ed25519 node signature
-                is verified against the attesting node's public key. This confirms the record was attested by a specific node.
+                <strong className="text-foreground">Attestation receipt:</strong> If present, the Ed25519 node signature
+                is verified against the attesting node's public key, confirming the record was attested by a specific node.
               </p>
               <p>
-                <strong className="text-foreground">Receipt consistency</strong> — protocol version, runtime hash,
+                <strong className="text-foreground">Receipt consistency:</strong> Protocol version, runtime hash,
                 and structural fields are checked for completeness and well-formedness.
               </p>
               <p>
-                <strong className="text-foreground">Evidence review</strong> — the full execution record is presented
+                <strong className="text-foreground">Execution record review:</strong> The full execution record is presented
                 for inspection, including inputs, outputs, conditions, and cryptographic proof layers.
               </p>
             </div>
@@ -126,7 +126,7 @@ export default function AboutVerifier() {
                     <dt className="font-semibold text-sm mb-1">AI Execution Verification</dt>
                     <dd className="text-sm text-muted-foreground">
                       The process of independently confirming that an AI execution record is structurally intact,
-                      cryptographically consistent, and properly attested — without trusting the originating system.
+                      cryptographically consistent, and properly attested, without trusting the originating system.
                     </dd>
                   </dl>
                 </CardContent>

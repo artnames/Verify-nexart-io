@@ -21,8 +21,8 @@ export default function Index() {
   }, []);
 
   useSEO({
-    title: 'AI Execution Verification — Independently Verify Certified Execution Records | verify.nexart.io',
-    description: 'Independently verify Certified Execution Records (CERs) on verify.nexart.io. Check certificate hashes, validate node attestations, inspect execution evidence, and confirm AI execution integrity — without trusting the originating system.',
+    title: 'Verify Certified Execution Records Independently | verify.nexart.io',
+    description: 'Independently verify Certified Execution Records (CERs) on verify.nexart.io. Check certificate hashes, validate node attestations, and inspect execution evidence without trusting the originating system.',
     path: '/',
   });
 
