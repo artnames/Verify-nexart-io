@@ -17,19 +17,18 @@ export function HowItWorksPanel() {
       {/* Hero — SEO-optimized with quotable definitions */}
       <header>
         <h1 className="text-2xl font-bold mb-3">
-          AI Execution Verification — Independently Verify Certified Execution Records
+          Verify Certified Execution Records Independently
         </h1>
         <p className="text-muted-foreground leading-relaxed max-w-3xl">
           <strong className="text-foreground">verify.nexart.io</strong> is the independent verification surface for{" "}
           <a href="https://nexart.io/protocol" target="_blank" rel="noopener noreferrer" className="text-link hover:underline">
             Certified Execution Records (CERs)
-          </a>{" "}
-          produced by the NexArt deterministic execution runtime.
-          Look up a record by execution ID or certificate hash, upload a CER bundle,
-          and validate integrity — without relying on the system that created it.
+          </a>.{" "}
+          Look up any record by execution ID or certificate hash, upload a CER bundle,
+          and validate its integrity without relying on the system that created it.
         </p>
         <p className="text-sm text-muted-foreground mt-3 max-w-3xl">
-          Verification does not require a NexArt account. Anyone with a record identifier or bundle file can verify independently.
+          No account required. Anyone with a record identifier or bundle file can verify independently.
         </p>
       </header>
 
