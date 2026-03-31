@@ -21,8 +21,8 @@ export default function Index() {
   }, []);
 
   useSEO({
-    title: 'NexArt Verification Portal — Verify Certified Execution Records',
-    description: 'Independently verify Certified Execution Records (CERs). Upload bundles, validate integrity, check node signatures, and inspect execution evidence.',
+    title: 'AI Execution Verification — Independently Verify Certified Execution Records | verify.nexart.io',
+    description: 'Independently verify Certified Execution Records (CERs) on verify.nexart.io. Check certificate hashes, validate node attestations, inspect execution evidence, and confirm AI execution integrity — without trusting the originating system.',
     path: '/',
   });
 
