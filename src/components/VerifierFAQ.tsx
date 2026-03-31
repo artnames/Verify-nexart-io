@@ -35,7 +35,7 @@ const FAQ_ITEMS = [
   {
     question: "What is the difference between logs and verification?",
     answer:
-      "Logs record what happened within a system. Verification confirms that a record is structurally intact and cryptographically consistent, independently of the system that created it. verify.nexart.io is not a log viewer — it is a proof-checking surface.",
+      "Logs record what happened within a system. Verification confirms that a record is structurally intact and cryptographically consistent, independently of the system that created it. verify.nexart.io is not a log viewer. It is a proof-checking surface.",
   },
   {
     question: "What is the difference between a CER and a verification result?",
