@@ -306,7 +306,7 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, t
                 {summary.tags && summary.tags.length > 0 && (
                   <FactRow label="Tags" value={summary.tags.join(', ')} mono={false} />
                 )}
-                <FactRow label="Certificate ID" value={summary.certificateHash} truncate copyable />
+                <FactRow label="Certificate hash" value={summary.certificateHash} truncate copyable />
                 {/* Node Attestation status */}
                 <tr className="border-b border-border/30">
                   <td className="py-2 text-muted-foreground pr-4 whitespace-nowrap text-xs uppercase tracking-wider">Attestation</td>
