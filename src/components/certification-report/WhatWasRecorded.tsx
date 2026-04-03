@@ -122,19 +122,14 @@ export function WhatWasRecorded({ kind, inputs, conditions, outputs, metadata }:
                 <tbody>
                   {kind === 'ai-execution' ? (
                     <>
-                      <KVRow label="Provider" value={conditions.provider} />
-                      <KVRow label="Model" value={conditions.model} />
-                      <KVRow label="Model version" value={conditions.modelVersion} />
                       <KVRow label="Temperature" value={conditions.temperature} />
                       <KVRow label="Max tokens" value={conditions.maxTokens} />
                       <KVRow label="Top P" value={conditions.topP} />
                       <KVRow label="Seed" value={conditions.seed} />
-                      <KVRow label="Execution ID" value={conditions.executionId} />
                       <KVRow label="Surface" value={conditions.executionSurface} />
                       <KVRow label="Step" value={conditions.stepIndex} />
-                      <KVRow label="Workflow" value={conditions.workflowId} />
                       {conditions.parameters && Object.entries(conditions.parameters)
-                        .filter(([k]) => !['temperature', 'maxTokens', 'max_tokens', 'topP', 'top_p', 'seed'].includes(k))
+                        .filter(([k]) => !['temperature', 'maxTokens', 'max_tokens', 'topP', 'top_p', 'seed', 'provider', 'model', 'modelVersion'].includes(k))
                         .map(([k, v]) => (
                           <KVRow key={k} label={k} value={typeof v === 'object' ? JSON.stringify(v) : v} />
                         ))
