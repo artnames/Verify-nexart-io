@@ -111,7 +111,7 @@ export function ContextSignalsPanel({ signals, integrityProtected }: ContextSign
         )}
         {integrityProtected === false && (
           <Badge variant="outline" className="text-[10px] h-5 text-muted-foreground">
-            not hash-covered
+            outside certificate hash scope
           </Badge>
         )}
       </div>
@@ -125,9 +125,9 @@ export function ContextSignalsPanel({ signals, integrityProtected }: ContextSign
       </Card>
 
       <p className="text-[11px] text-muted-foreground/70 leading-relaxed">
-        Signals are recorded as part of the execution context. NexArt does not interpret or enforce them.
+        Signals are included as contextual review data. NexArt records them but does not interpret or enforce them.
         {integrityProtected === false && (
-          <> This artifact's certificate hash does not cover context signals (resealed public artifact).</>
+          <> In this resealed public artifact, context signals are outside the certificate hash scope.</>
         )}
       </p>
     </div>
