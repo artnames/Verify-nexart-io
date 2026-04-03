@@ -140,13 +140,10 @@ export function CertificationReport({
         metadata={metadata}
       />
 
-      {/* 3b. Context Signals — only shown if present */}
+      {/* Context Signals */}
       <ContextSignalsPanel signals={contextSignals} integrityProtected={contextIntegrityProtected} />
 
-      {/* 4. Children (Independent stamp, Attestation actions, etc.) */}
-      {children}
-
-      {/* 5. Technical details — bottom, visually lighter */}
+      {/* 6. Technical details — bottom, visually lighter */}
       <TechnicalDetails
         evidence={evidence}
         bundleJson={bundleJson}
