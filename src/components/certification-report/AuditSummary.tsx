@@ -95,7 +95,7 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, t
   const handleCopyHash = () => {
     if (summary.certificateHash) {
       navigator.clipboard.writeText(summary.certificateHash);
-      toast.success('Certificate ID copied');
+      toast.success('Certificate hash copied');
     }
   };
 
