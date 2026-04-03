@@ -20,6 +20,8 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { AuditSummary } from './AuditSummary';
+import { ExecutionSummary } from './ExecutionSummary';
+import { WhatWasVerified } from './WhatWasVerified';
 import { WhatWasRecorded } from './WhatWasRecorded';
 import { TechnicalDetails } from './TechnicalDetails';
 import {
