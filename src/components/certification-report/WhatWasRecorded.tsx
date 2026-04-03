@@ -90,7 +90,7 @@ export function WhatWasRecorded({ kind, inputs, conditions, outputs, metadata }:
           </CardHeader>
           <CardContent className="px-5 pb-4 space-y-3">
             {!hasOutputs ? (
-              <p className="text-xs text-muted-foreground/50 italic">No output data in this record.</p>
+              <p className="text-xs text-muted-foreground/50 italic">Output data is not included in the public view of this record.</p>
             ) : (
               <>
                 {outputs.output !== undefined && (
