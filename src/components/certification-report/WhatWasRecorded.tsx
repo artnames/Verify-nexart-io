@@ -59,7 +59,7 @@ export function WhatWasRecorded({ kind, inputs, conditions, outputs, metadata }:
           </CardHeader>
           <CardContent className="px-5 pb-4 space-y-3">
             {!hasInputs ? (
-              <p className="text-xs text-muted-foreground/50 italic">No input data in this record.</p>
+              <p className="text-xs text-muted-foreground/50 italic">Input data is not included in the public view of this record.</p>
             ) : kind === 'ai-execution' ? (
               <SensitiveFieldViewer label="Prompt / input data" value={inputs.prompt ?? inputs.input} />
             ) : (
@@ -90,7 +90,7 @@ export function WhatWasRecorded({ kind, inputs, conditions, outputs, metadata }:
           </CardHeader>
           <CardContent className="px-5 pb-4 space-y-3">
             {!hasOutputs ? (
-              <p className="text-xs text-muted-foreground/50 italic">No output data in this record.</p>
+              <p className="text-xs text-muted-foreground/50 italic">Output data is not included in the public view of this record.</p>
             ) : (
               <>
                 {outputs.output !== undefined && (
@@ -116,25 +116,20 @@ export function WhatWasRecorded({ kind, inputs, conditions, outputs, metadata }:
           </CardHeader>
           <CardContent className="px-5 pb-4">
             {!hasAnyValue(conditions as unknown as Record<string, unknown>) ? (
-              <p className="text-xs text-muted-foreground/50 italic">No execution settings found.</p>
+              <p className="text-xs text-muted-foreground/50 italic">Execution settings are not available in this record.</p>
             ) : (
               <table className="w-full">
                 <tbody>
                   {kind === 'ai-execution' ? (
                     <>
-                      <KVRow label="Provider" value={conditions.provider} />
-                      <KVRow label="Model" value={conditions.model} />
-                      <KVRow label="Model version" value={conditions.modelVersion} />
                       <KVRow label="Temperature" value={conditions.temperature} />
                       <KVRow label="Max tokens" value={conditions.maxTokens} />
                       <KVRow label="Top P" value={conditions.topP} />
                       <KVRow label="Seed" value={conditions.seed} />
-                      <KVRow label="Execution ID" value={conditions.executionId} />
                       <KVRow label="Surface" value={conditions.executionSurface} />
                       <KVRow label="Step" value={conditions.stepIndex} />
-                      <KVRow label="Workflow" value={conditions.workflowId} />
                       {conditions.parameters && Object.entries(conditions.parameters)
-                        .filter(([k]) => !['temperature', 'maxTokens', 'max_tokens', 'topP', 'top_p', 'seed'].includes(k))
+                        .filter(([k]) => !['temperature', 'maxTokens', 'max_tokens', 'topP', 'top_p', 'seed', 'provider', 'model', 'modelVersion'].includes(k))
                         .map(([k, v]) => (
                           <KVRow key={k} label={k} value={typeof v === 'object' ? JSON.stringify(v) : v} />
                         ))
@@ -167,7 +162,7 @@ export function WhatWasRecorded({ kind, inputs, conditions, outputs, metadata }:
           </CardHeader>
           <CardContent className="px-5 pb-4">
             {!hasMetadata ? (
-              <p className="text-xs text-muted-foreground/50 italic">No metadata in this record.</p>
+              <p className="text-xs text-muted-foreground/50 italic">Metadata is not available in the public view of this record.</p>
             ) : (
               <table className="w-full">
                 <tbody>

@@ -14,7 +14,7 @@
 
 import { useMemo } from 'react';
 import { VerifyDebugBlock } from '@/components/VerifyDebugBlock';
-import { ShieldCheck, AlertTriangle, Stamp, Link2 } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Stamp, Link2, GitBranch } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -56,6 +56,17 @@ export function CertificationReport({
   const evidence = useMemo(() => extractEvidence(bundle, bundleKind), [bundle, bundleKind]);
   const contextSignals = useMemo(() => extractContextSignals(bundle) as ContextSignal[], [bundle]);
 
+  // Provenance detection
+  const provenance = useMemo(() => {
+    const meta = bundle.meta as Record<string, unknown> | undefined;
+    const isReseal = bundle.redacted_reseal === true || meta?.redacted_reseal === true;
+    const originalHash = (bundle.originalCertificateHash as string)
+      || (meta?.originalCertificateHash as string)
+      || undefined;
+    if (!isReseal && !originalHash) return null;
+    return { isReseal, originalHash };
+  }, [bundle]);
+
   const passed = verifyStatus === 'pass';
 
   const nodeStampLabel = summary.attestation
@@ -90,6 +101,21 @@ export function CertificationReport({
 
       {/* 2. Execution Summary — human-readable overview */}
       <ExecutionSummary summary={summary} passed={passed} />
+
+      {/* Provenance note (redacted reseal, etc.) */}
+      {provenance && (
+        <div className="rounded-lg border border-border/60 bg-muted/5 px-5 py-3 flex items-start gap-3">
+          <GitBranch className="w-3.5 h-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+          <div className="text-xs text-muted-foreground leading-relaxed space-y-1">
+            {provenance.isReseal && (
+              <p>This record is a redacted reseal of an earlier certified record. Some fields may have been removed or replaced before re-certification.</p>
+            )}
+            {provenance.originalHash && (
+              <p>Original certificate hash: <code className="font-mono text-foreground">{provenance.originalHash}</code></p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 2b. What was verified — plain-language trust explanation (pass only) */}
       <WhatWasVerified summary={summary} passed={passed} />

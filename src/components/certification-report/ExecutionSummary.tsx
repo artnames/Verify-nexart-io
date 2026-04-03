@@ -71,7 +71,7 @@ export function ExecutionSummary({ summary, passed }: Props) {
           <SummaryItem icon={Cpu} label="Provider / Model" value={modelDisplay} />
         )}
         {timestamp && (
-          <SummaryItem icon={Calendar} label="Certified" value={timestamp} />
+          <SummaryItem icon={Calendar} label="Recorded" value={timestamp} />
         )}
         <div className="flex items-start gap-2.5 min-w-0">
           {passed ? (
