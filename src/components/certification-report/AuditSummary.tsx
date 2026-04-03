@@ -268,7 +268,7 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, t
               {summary.certificateHash && (
                 <Button variant="outline" size="sm" onClick={handleCopyHash} className="gap-1.5 text-xs h-8">
                   <Copy className="w-3.5 h-3.5" />
-                  Copy certificate ID
+                  Copy certificate hash
                 </Button>
               )}
             </div>
