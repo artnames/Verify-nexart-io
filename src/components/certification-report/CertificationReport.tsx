@@ -56,6 +56,17 @@ export function CertificationReport({
   const evidence = useMemo(() => extractEvidence(bundle, bundleKind), [bundle, bundleKind]);
   const contextSignals = useMemo(() => extractContextSignals(bundle) as ContextSignal[], [bundle]);
 
+  // Provenance detection
+  const provenance = useMemo(() => {
+    const meta = bundle.meta as Record<string, unknown> | undefined;
+    const isReseal = bundle.redacted_reseal === true || meta?.redacted_reseal === true;
+    const originalHash = (bundle.originalCertificateHash as string)
+      || (meta?.originalCertificateHash as string)
+      || undefined;
+    if (!isReseal && !originalHash) return null;
+    return { isReseal, originalHash };
+  }, [bundle]);
+
   const passed = verifyStatus === 'pass';
 
   const nodeStampLabel = summary.attestation
