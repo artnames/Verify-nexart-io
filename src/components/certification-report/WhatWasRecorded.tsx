@@ -116,7 +116,7 @@ export function WhatWasRecorded({ kind, inputs, conditions, outputs, metadata }:
           </CardHeader>
           <CardContent className="px-5 pb-4">
             {!hasAnyValue(conditions as unknown as Record<string, unknown>) ? (
-              <p className="text-xs text-muted-foreground/50 italic">No execution settings found.</p>
+              <p className="text-xs text-muted-foreground/50 italic">Execution settings are not available in this record.</p>
             ) : (
               <table className="w-full">
                 <tbody>
