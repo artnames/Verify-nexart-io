@@ -45,12 +45,9 @@ export function WhatWasRecorded({ kind, inputs, conditions, outputs, metadata }:
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold tracking-tight">What was recorded</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Data locked at certification time. Private fields are hidden by default.
-        </p>
-      </div>
+      <p className="text-xs text-muted-foreground">
+        Data locked at certification time. Private fields are hidden by default and can be revealed for auditing.
+      </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Panel A: Input */}

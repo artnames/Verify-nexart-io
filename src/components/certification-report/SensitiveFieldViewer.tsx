@@ -41,7 +41,7 @@ export function SensitiveFieldViewer({ label, value, defaultHidden = true, class
       </div>
       {!revealed ? (
         <div className="py-3 px-4 rounded-md bg-muted/20 border border-border/50 text-xs text-muted-foreground">
-          Hidden (may contain private data).
+          <span className="font-medium">Hidden.</span> This field may contain sensitive or private data. Integrity verification still applies to the hashed content. Use "Reveal" to inspect.
         </div>
       ) : isLong ? (
         <Collapsible>
