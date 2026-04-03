@@ -111,7 +111,7 @@ export function ContextSignalsPanel({ signals, integrityProtected }: ContextSign
         )}
         {integrityProtected === false && (
           <Badge variant="outline" className="text-[10px] h-5 text-muted-foreground">
-            not hash-covered
+            outside certificate hash scope
           </Badge>
         )}
       </div>
