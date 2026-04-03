@@ -167,7 +167,7 @@ export function WhatWasRecorded({ kind, inputs, conditions, outputs, metadata }:
           </CardHeader>
           <CardContent className="px-5 pb-4">
             {!hasMetadata ? (
-              <p className="text-xs text-muted-foreground/50 italic">No metadata in this record.</p>
+              <p className="text-xs text-muted-foreground/50 italic">Metadata is not available in the public view of this record.</p>
             ) : (
               <table className="w-full">
                 <tbody>

@@ -281,31 +281,9 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, t
                 <FactRow label="Record type" value={summary.certType} mono={false} />
                 <FactRow label="Bundle type" value={summary.bundleType} />
                 <FactRow label="Version" value={summary.bundleVersion} />
-                <FactRow label="Created" value={summary.issuedAt ? new Date(summary.issuedAt).toLocaleString() : null} />
-                {isAI && summary.snapshotTimestamp && summary.snapshotTimestamp !== summary.issuedAt && (
-                  <FactRow label="Snapshot" value={new Date(summary.snapshotTimestamp).toLocaleString()} />
-                )}
-                <FactRow label="Application" value={summary.application} truncate />
-                {isAI && (
-                  <>
-                    <FactRow label="Provider" value={summary.provider} />
-                    <FactRow label="Model" value={summary.model} />
-                    {summary.modelVersion && <FactRow label="Model ver." value={summary.modelVersion} />}
-                    <FactRow label="Execution ID" value={summary.executionId} truncate />
-                    {summary.workflowId && <FactRow label="Workflow" value={summary.workflowId} truncate />}
-                    {summary.conversationId && <FactRow label="Conversation" value={summary.conversationId} truncate />}
-                    {summary.executionSurface && <FactRow label="Surface" value={summary.executionSurface} />}
-                  </>
-                )}
+                <FactRow label="Recorded" value={summary.issuedAt ? new Date(summary.issuedAt).toLocaleString() : null} />
                 <FactRow label="Protocol" value={summary.protocolVersion} />
                 <FactRow label="SDK" value={summary.sdkVersion} />
-                {isAI && summary.stepIndex !== undefined && (
-                  <FactRow label="Step" value={summary.stepIndex} />
-                )}
-                {summary.source && <FactRow label="Source" value={summary.source} />}
-                {summary.tags && summary.tags.length > 0 && (
-                  <FactRow label="Tags" value={summary.tags.join(', ')} mono={false} />
-                )}
                 <FactRow label="Certificate hash" value={summary.certificateHash} truncate copyable />
                 {/* Node Attestation status */}
                 <tr className="border-b border-border/30">
