@@ -88,17 +88,22 @@ export function CertificationReport({
         trustWarnings={trustWarnings}
       />
 
-      {/* 2. Sticky mini status bar — same width, compact */}
-      <div className="sticky top-0 z-10 -mt-2 bg-background/95 backdrop-blur-sm border border-border rounded-lg px-4 py-2 flex items-center justify-between gap-3">
+      {/* 2. Execution Summary — human-readable overview */}
+      <ExecutionSummary summary={summary} passed={passed} />
+
+      {/* 2b. What was verified — plain-language trust explanation (pass only) */}
+      <WhatWasVerified summary={summary} passed={passed} />
+
+      {/* 3. Sticky mini status bar */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border border-border rounded-lg px-4 py-2 flex items-center justify-between gap-3">
         <div className="flex items-center gap-5 text-xs">
-          {/* Integrity */}
           <div className="flex items-center gap-1.5">
             {passed ? (
               <ShieldCheck className="w-3.5 h-3.5 text-verified" />
             ) : (
               <AlertTriangle className="w-3.5 h-3.5 text-destructive" />
             )}
-            <span className="text-muted-foreground">Record integrity:</span>
+            <span className="text-muted-foreground">Integrity:</span>
             <Badge variant={passed ? 'default' : 'destructive'} className={cn(
               "text-[10px] h-5 px-1.5",
               passed && "bg-verified text-verified-foreground"
@@ -106,7 +111,6 @@ export function CertificationReport({
               {passed ? 'PASS' : 'FAIL'}
             </Badge>
           </div>
-          {/* Node stamp */}
           <div className="flex items-center gap-1.5">
             <Stamp className="w-3.5 h-3.5 text-muted-foreground" />
             <span className="text-muted-foreground">Stamp:</span>
@@ -119,7 +123,15 @@ export function CertificationReport({
         </Button>
       </div>
 
-      {/* 3. What was recorded */}
+      {/* 4. Attestation & trust layers (children slot) */}
+      {children}
+
+      {/* 5. Recorded evidence */}
+      <div className="space-y-1">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Recorded Evidence
+        </h2>
+      </div>
       <WhatWasRecorded
         kind={bundleKind}
         inputs={inputs}
