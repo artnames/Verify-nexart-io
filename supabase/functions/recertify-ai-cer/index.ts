@@ -406,7 +406,6 @@ serve(async (req) => {
       errorMessage,
       durationMs,
       requestId,
-      upstreamBody,
       nodeRequestId,
       reason: status === 'fail' ? errorMessage : undefined,
     }),
