@@ -107,9 +107,9 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
         <div className="flex flex-wrap gap-x-2 gap-y-1 text-[10px]">
           <a href="https://nexart.io/protocol" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">Protocol</a>
           <span className="text-muted-foreground/40">·</span>
-          <a href="https://nexart.io/cer" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">CERs</a>
+          <a href="https://nexart.io/certified-execution-records" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">CERs</a>
           <span className="text-muted-foreground/40">·</span>
-          <a href="https://nexart.io/integrity" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">Integrity</a>
+          <a href="https://nexart.io/protocol/ai-execution-integrity" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">Integrity</a>
           <span className="text-muted-foreground/40">·</span>
           <a href="https://docs.nexart.io" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">Docs</a>
         </div>
