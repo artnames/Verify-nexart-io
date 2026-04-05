@@ -10,7 +10,7 @@ export interface CertificationReportProps {
   /** Detected bundle kind */
   bundleKind: BundleKind;
   /** Verification status */
-  verifyStatus: 'pass' | 'fail' | 'error';
+  verifyStatus: 'pass' | 'fail' | 'error' | 'degraded';
   /** Reason code on failure */
   verifyCode?: string;
   /** Detail lines on failure */
@@ -30,7 +30,7 @@ export interface CertificationReportProps {
 /** Extracted summary fields common to both bundle types */
 export interface CertSummary {
   certType: string;
-  status: 'pass' | 'fail' | 'error';
+  status: 'pass' | 'fail' | 'error' | 'degraded';
   issuedAt: string | null;
   application: string | null;
   protocolVersion: string | null;

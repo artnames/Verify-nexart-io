@@ -77,6 +77,7 @@ export function AICERVerifyResult({
   };
 
   const passed = verifyResult.ok;
+  const degraded = !verifyResult.ok && (verifyResult as any).code === 'CONTEXT_NOT_PROTECTED';
 
   // Determine attestation layer state
   const metaAtt = bundle?.meta?.attestation && typeof bundle.meta.attestation === 'object' ? bundle.meta.attestation : null;
@@ -131,13 +132,15 @@ export function AICERVerifyResult({
     normalizedBundle = cloned;
   }
 
-  return (
+    const reportVerifyStatus = passed ? 'pass' as const : degraded ? 'degraded' as const : 'fail' as const;
+
+    return (
     <CertificationReport
       bundle={bundle}
       bundleKind="ai-execution"
-      verifyStatus={passed ? 'pass' : 'fail'}
-      verifyCode={!passed ? verifyResult.code : undefined}
-      verifyDetails={!passed ? verifyResult.errors : undefined}
+      verifyStatus={reportVerifyStatus}
+      verifyCode={!passed && !degraded ? verifyResult.code : degraded ? 'CONTEXT_NOT_PROTECTED' : undefined}
+      verifyDetails={!passed ? verifyResult.errors : degraded ? (verifyResult as any).details : undefined}
       contextIntegrityProtected={contextIntegrityProtected}
       trustWarnings={trustWarnings.length > 0 ? trustWarnings : undefined}
     >

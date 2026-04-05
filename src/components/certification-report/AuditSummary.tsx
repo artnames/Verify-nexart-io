@@ -182,15 +182,20 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, t
   }, [bundleJson, summary.certificateHash, summary.bundleType]);
 
   const passed = summary.status === 'pass';
+  const degraded = summary.status === 'degraded';
   const hasTrustWarnings = trustWarnings && trustWarnings.length > 0;
   const fullyTrusted = passed && !hasTrustWarnings;
   const isAI = summary.certType === 'AI Execution Record';
 
+  // Visual state: green (full pass), amber (degraded), red (fail/error)
+  const borderColor = fullyTrusted
+    ? "border-verified/20"
+    : degraded
+      ? "border-warning/30"
+      : "border-destructive/20";
+
   return (
-    <Card className={cn(
-      "border-2",
-      fullyTrusted ? "border-verified/20" : "border-destructive/20",
-    )}>
+    <Card className={cn("border-2", borderColor)}>
       <CardContent className="pt-6 pb-5 px-6">
         {/* 2-column grid: Status + Facts */}
         <div className="space-y-6">
@@ -201,6 +206,10 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, t
                 <div className="w-12 h-12 rounded-full bg-verified/10 flex items-center justify-center shrink-0">
                   <ShieldCheck className="w-6 h-6 text-verified" />
                 </div>
+              ) : degraded ? (
+                <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-6 h-6 text-warning" />
+                </div>
               ) : (
                 <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
                   <AlertTriangle className="w-6 h-6 text-destructive" />
@@ -209,17 +218,24 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, t
               <div>
                 <h1 className={cn(
                   "text-2xl font-semibold tracking-tight",
-                  fullyTrusted ? "text-verified" : "text-destructive",
+                  fullyTrusted ? "text-verified" : degraded ? "text-warning" : "text-destructive",
                 )}>
-                  {fullyTrusted ? 'Verified' : 'Not verified'}
+                  {fullyTrusted ? 'Fully Verified' : degraded ? 'Partially Verified' : 'Not Verified'}
                 </h1>
                 <p className="text-sm text-muted-foreground mt-1">
                   {fullyTrusted
-                    ? 'This record has not been altered since certification.'
-                    : !passed
-                      ? 'This record may have been modified after certification.'
-                      : 'Bundle integrity passed, but one or more trust layers failed verification.'}
+                    ? 'All fields are integrity-protected. This record has not been altered since certification.'
+                    : degraded
+                      ? 'Core record integrity passed, but context data is NOT covered by the certificate hash.'
+                      : !passed
+                        ? 'This record may have been modified after certification.'
+                        : 'Bundle integrity passed, but one or more trust layers failed verification.'}
                 </p>
+                {degraded && (
+                  <p className="text-xs text-warning mt-2 font-medium">
+                    ⚠ Context data may have been modified after certification. Do not treat it as integrity-protected.
+                  </p>
+                )}
                 {hasTrustWarnings && (
                   <ul className="mt-2 space-y-1 text-xs text-destructive list-disc list-inside">
                     {trustWarnings.map((w, i) => <li key={i}>{w}</li>)}

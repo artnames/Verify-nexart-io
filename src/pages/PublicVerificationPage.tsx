@@ -136,6 +136,7 @@ export default function PublicVerificationPage({ lookupKey, mode }: PublicVerifi
       code: verifyResult.code as any,
       errors: verifyResult.errors,
       details: verifyResult.details,
+      degraded: verifyResult.degraded,
     };
 
     return (
@@ -159,7 +160,7 @@ export default function PublicVerificationPage({ lookupKey, mode }: PublicVerifi
   }
 
   // Code Mode bundle
-  const verifyStatus = verifyResult.ok ? 'pass' as const : 'fail' as const;
+  const verifyStatus = verifyResult.ok ? 'pass' as const : verifyResult.degraded ? 'degraded' as const : 'fail' as const;
 
   return (
     <AuditLayout>
