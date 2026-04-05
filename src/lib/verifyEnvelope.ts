@@ -17,6 +17,47 @@
 const DEFAULT_NODE_URL = 'https://node.nexart.io';
 
 /* ------------------------------------------------------------------ */
+/*  Node URL allowlist (SSRF prevention)                               */
+/* ------------------------------------------------------------------ */
+
+const ALLOWED_NODE_HOSTS = [
+  'node.nexart.io',
+] as const;
+
+/**
+ * Validate that a nodeUrl is on the strict allowlist.
+ * Blocks localhost, IPs, internal hosts, and arbitrary domains.
+ * Returns the validated URL or null if rejected.
+ */
+function validateNodeUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+
+    // Must be HTTPS
+    if (parsed.protocol !== 'https:') return null;
+
+    // Must not contain auth info
+    if (parsed.username || parsed.password) return null;
+
+    const hostname = parsed.hostname.toLowerCase();
+
+    // Block IP addresses (IPv4 and IPv6)
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) return null;
+    if (hostname.startsWith('[') || hostname === '::1') return null;
+
+    // Block localhost and internal
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.local') || hostname.endsWith('.internal')) return null;
+
+    // Must be on the allowlist
+    if (!ALLOWED_NODE_HOSTS.some(allowed => hostname === allowed)) return null;
+
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -128,7 +169,12 @@ function detectEnvelopeType(bundle: Record<string, unknown>): EnvelopeType | nul
  * - No whitespace
  * - Recursive
  */
-function jcsCanonicalizeValue(value: unknown): unknown {
+const JCS_MAX_DEPTH = 100;
+
+function jcsCanonicalizeValue(value: unknown, depth: number = 0): unknown {
+  if (depth > JCS_MAX_DEPTH) {
+    throw new Error(`JCS canonicalization aborted: nesting depth exceeds ${JCS_MAX_DEPTH}`);
+  }
   if (value === null) return null;
   if (value === undefined) return undefined;
   if (typeof value === 'boolean' || typeof value === 'string') return value;
@@ -137,14 +183,14 @@ function jcsCanonicalizeValue(value: unknown): unknown {
     return value;
   }
   if (Array.isArray(value)) {
-    return value.map(v => jcsCanonicalizeValue(v));
+    return value.map(v => jcsCanonicalizeValue(v, depth + 1));
   }
   if (typeof value === 'object') {
     const sorted: Record<string, unknown> = {};
     for (const key of Object.keys(value as Record<string, unknown>).sort()) {
       const v = (value as Record<string, unknown>)[key];
       if (v !== undefined) {
-        sorted[key] = jcsCanonicalizeValue(v);
+        sorted[key] = jcsCanonicalizeValue(v, depth + 1);
       }
     }
     return sorted;
@@ -312,8 +358,15 @@ async function fetchNodePublicKey(
   nodeUrl: string,
   kid?: string,
 ): Promise<{ key: CryptoKey; alg: string; kid?: string } | null> {
+  // SSRF guard: validate nodeUrl against strict allowlist
+  const validatedUrl = validateNodeUrl(nodeUrl);
+  if (!validatedUrl) {
+    console.warn(`[verifyEnvelope] Blocked nodeUrl not on allowlist: ${nodeUrl}`);
+    return null;
+  }
+
   try {
-    const res = await fetch(`${nodeUrl}/.well-known/nexart-node.json`, {
+    const res = await fetch(`${validatedUrl}/.well-known/nexart-node.json`, {
       cache: 'force-cache',
     });
     if (!res.ok) return null;
@@ -758,6 +811,16 @@ export async function verifyVerificationEnvelope(
   }
 
   const resolvedUrl = nodeUrl || DEFAULT_NODE_URL;
+
+  // Fail closed: reject invalid node URLs before any verification
+  if (!validateNodeUrl(resolvedUrl)) {
+    return {
+      status: 'error',
+      detail: `Node URL "${resolvedUrl}" is not on the allowed hosts list. Only trusted NexArt nodes are permitted.`,
+      errorKind: 'fetch_error',
+    };
+  }
+
   const b = bundle as Record<string, unknown>;
 
   // ── Package path: clean direct verification ──

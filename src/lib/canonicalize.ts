@@ -23,10 +23,15 @@ function normalizeMoneyValue(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+const MAX_CANONICALIZE_DEPTH = 100;
+
 /**
  * Recursively process a value for canonicalization
  */
-function processValue(value: unknown, parentKey?: string): unknown {
+function processValue(value: unknown, parentKey?: string, depth: number = 0): unknown {
+  if (depth > MAX_CANONICALIZE_DEPTH) {
+    throw new Error(`Canonicalization aborted: nesting depth exceeds ${MAX_CANONICALIZE_DEPTH}`);
+  }
   if (value === null || value === undefined) {
     return null;
   }
@@ -53,7 +58,7 @@ function processValue(value: unknown, parentKey?: string): unknown {
 
   if (Array.isArray(value)) {
     // Preserve array order, process each element
-    return value.map((item, index) => processValue(item, `[${index}]`));
+    return value.map((item, index) => processValue(item, `[${index}]`, depth + 1));
   }
 
   if (typeof value === 'object') {
@@ -62,7 +67,7 @@ function processValue(value: unknown, parentKey?: string): unknown {
     const result: Record<string, unknown> = {};
     
     for (const key of sortedKeys) {
-      const processedValue = processValue((value as Record<string, unknown>)[key], key);
+      const processedValue = processValue((value as Record<string, unknown>)[key], key, depth + 1);
       // Only include non-undefined values
       if (processedValue !== undefined) {
         result[key] = processedValue;

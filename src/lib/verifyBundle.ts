@@ -62,16 +62,21 @@ async function sha256HexWebCrypto(input: string): Promise<string> {
  * Canonicalize a value: sorted keys recursively, no whitespace.
  * Matches the algorithm used by @nexart/ai-execution for certificate hashing.
  */
-function canonicalizeValue(value: unknown): unknown {
+const MAX_DEPTH = 100;
+
+function canonicalizeValue(value: unknown, depth: number = 0): unknown {
+  if (depth > MAX_DEPTH) {
+    throw new Error(`Canonicalization aborted: nesting depth exceeds ${MAX_DEPTH}`);
+  }
   if (value === null || value === undefined) return null;
   if (typeof value === 'boolean' || typeof value === 'string') return value;
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-  if (Array.isArray(value)) return value.map(v => canonicalizeValue(v));
+  if (Array.isArray(value)) return value.map(v => canonicalizeValue(v, depth + 1));
   if (typeof value === 'object') {
     const sorted: Record<string, unknown> = {};
     for (const key of Object.keys(value as Record<string, unknown>).sort()) {
       const v = (value as Record<string, unknown>)[key];
-      if (v !== undefined) sorted[key] = canonicalizeValue(v);
+      if (v !== undefined) sorted[key] = canonicalizeValue(v, depth + 1);
     }
     return sorted;
   }
@@ -313,6 +318,9 @@ export async function verifyUploadedBundleAsync(rawBundle: unknown): Promise<Bun
   }
 
   // Code Mode — async hash via SubtleCrypto
+  // IMPORTANT: The certificateHash field is excluded from the hash input
+  // because it is the output of the hashing process (self-referential).
+  // The hash envelope consists of all bundle fields EXCEPT certificateHash.
   const storedHash = bundle.certificateHash as string | undefined;
   if (!storedHash) {
     return {
@@ -324,9 +332,18 @@ export async function verifyUploadedBundleAsync(rawBundle: unknown): Promise<Bun
     };
   }
 
-  const computedHash = await computeCertificateHash(bundle);
+  // Build hash input: full bundle minus the certificateHash field itself
+  const { certificateHash: _excluded, ...hashInput } = bundle;
+  const computedHash = await computeCertificateHash(hashInput);
   const normalizedExpected = storedHash.replace(/^sha256:/i, '').toLowerCase();
-  const ok = computedHash === normalizedExpected;
+
+  // Also try with the full bundle for backward compatibility with records
+  // that were hashed including certificateHash (legacy producer behavior)
+  let ok = computedHash === normalizedExpected;
+  if (!ok) {
+    const legacyHash = await computeCertificateHash(bundle);
+    ok = legacyHash === normalizedExpected;
+  }
 
   return {
     ok,
