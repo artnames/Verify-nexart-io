@@ -142,6 +142,12 @@ serve(async (req) => {
 
   const { recordId, bundle } = body;
 
+  // Validate recordId format if provided
+  if (recordId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recordId)) {
+    return createErrorResponse(400, 'INVALID_RECORD_ID', 'recordId must be a valid UUID');
+  }
+
+
   if (!bundle) {
     return createErrorResponse(400, 'MISSING_FIELDS', 'bundle is required');
   }
@@ -289,10 +295,12 @@ serve(async (req) => {
       try {
         const parsed = JSON.parse(rawBody);
         if (parsed.error && typeof parsed.error === 'string') {
-          errorMessage = `${errorMessage}: ${parsed.error}`;
+          // Log full detail server-side, return only safe code to client
+          console.error(`[recertify-ai-cer] Node error detail: ${parsed.error}`);
         }
       } catch {
-        // Body is not JSON
+        // Body is not JSON — log server-side only
+        console.error(`[recertify-ai-cer] Non-JSON error body: ${rawBody.slice(0, 300)}`);
       }
 
       console.error(`[recertify-ai-cer] Attestation error: ${httpStatus} - ${errorCode}`);
@@ -399,7 +407,6 @@ serve(async (req) => {
       errorMessage,
       durationMs,
       requestId,
-      upstreamBody,
       nodeRequestId,
       reason: status === 'fail' ? errorMessage : undefined,
     }),

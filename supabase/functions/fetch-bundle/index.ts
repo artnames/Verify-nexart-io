@@ -518,15 +518,16 @@ async function processResponse(response: Response, fetchedFrom: string, requestI
 
   // Check response status
   if (!response.ok) {
-    const bodyPreview = await response.text().then(t => t.slice(0, 300));
+    // Log full upstream body server-side only
+    const rawBody = await response.text().catch(() => '');
+    console.error(`[fetch-bundle] Upstream error: ${upstreamStatus} from ${fetchedFrom} — ${rawBody.slice(0, 500)}`);
     return new Response(
       JSON.stringify({
         ok: false,
         error: 'Upstream error',
-        message: `The server returned status ${upstreamStatus}`,
+        message: `The verification service returned an error (status ${upstreamStatus}). Please try again or contact the administrator.`,
         upstreamStatus,
         fetchedFrom,
-        bodyPreview,
         requestId,
       }),
       { 
@@ -544,17 +545,16 @@ async function processResponse(response: Response, fetchedFrom: string, requestI
   // Check content-type - MUST be application/json
   const contentType = response.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
-    const bodyPreview = await response.text().then(t => t.slice(0, 300));
+    const rawBody = await response.text().catch(() => '');
+    console.error(`[fetch-bundle] Invalid content-type "${contentType}" from ${fetchedFrom}: ${rawBody.slice(0, 300)}`);
     return new Response(
       JSON.stringify({
         ok: false,
         error: 'Invalid content type',
-        message: `Expected application/json but received "${contentType}"`,
+        message: 'The verification service returned an unexpected response format. This may indicate the endpoint requires authentication or is misconfigured.',
         upstreamStatus,
         fetchedFrom,
-        bodyPreview,
         requestId,
-        suggestion: 'The endpoint must return application/json. HTML responses indicate auth redirects or incorrect endpoint.',
       }),
       { 
         status: 422, 
@@ -621,14 +621,14 @@ async function processResponse(response: Response, fetchedFrom: string, requestI
   try {
     parsedJson = JSON.parse(text);
   } catch {
+    console.error(`[fetch-bundle] Non-JSON response from ${fetchedFrom}: ${text.slice(0, 300)}`);
     return new Response(
       JSON.stringify({
         ok: false,
         error: 'Invalid JSON',
-        message: 'The response body is not valid JSON',
+        message: 'The verification service returned a non-JSON response. The endpoint may be misconfigured.',
         upstreamStatus,
         fetchedFrom,
-        bodyPreview: text.slice(0, 300),
         requestId,
       }),
       { 
