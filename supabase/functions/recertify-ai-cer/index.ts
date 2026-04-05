@@ -8,7 +8,34 @@ const corsHeaders = {
 
 const ATTEST_TIMEOUT_MS = 30000;
 
-// ---------------------------------------------------------------------------
+// ============================================================
+// LIGHTWEIGHT RATE LIMITING (in-memory, per-instance)
+// ============================================================
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 10; // stricter — attestation is expensive
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+  entry.count++;
+  if (entry.count > RATE_LIMIT_MAX_REQUESTS) {
+    console.warn(`[recertify-ai-cer] Rate limited IP: ${ip} (${entry.count} requests in window)`);
+    return true;
+  }
+  return false;
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of rateLimitMap) {
+    if (now > entry.resetAt) rateLimitMap.delete(ip);
+  }
+}, 300_000);
 // Helpers: remove undefined values from payloads before JSON.stringify
 // ---------------------------------------------------------------------------
 
@@ -74,6 +101,14 @@ serve(async (req) => {
 
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Rate limiting
+  const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || req.headers.get('cf-connecting-ip')
+    || 'unknown';
+  if (isRateLimited(clientIp)) {
+    return createErrorResponse(429, 'RATE_LIMITED', 'Too many attestation requests. Please try again later.');
   }
 
   if (req.method !== 'POST') {

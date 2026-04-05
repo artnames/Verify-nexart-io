@@ -62,6 +62,36 @@ const FETCH_TIMEOUT_MS = 10000;
 const MAX_RESPONSE_SIZE = 1024 * 1024;
 
 // ============================================================
+// LIGHTWEIGHT RATE LIMITING (in-memory, per-instance)
+// ============================================================
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 60;   // per IP per window
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+  entry.count++;
+  if (entry.count > RATE_LIMIT_MAX_REQUESTS) {
+    console.warn(`[fetch-bundle] Rate limited IP: ${ip} (${entry.count} requests in window)`);
+    return true;
+  }
+  return false;
+}
+
+// Periodic cleanup of stale entries (every 5 minutes)
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of rateLimitMap) {
+    if (now > entry.resetAt) rateLimitMap.delete(ip);
+  }
+}, 300_000);
+
+// ============================================================
 // HELPER FUNCTIONS
 // ============================================================
 
@@ -217,6 +247,14 @@ serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Rate limiting
+  const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || req.headers.get('cf-connecting-ip')
+    || 'unknown';
+  if (isRateLimited(clientIp)) {
+    return createErrorResponse(429, 'RATE_LIMITED', 'Too many requests. Please try again later.');
   }
 
   // Only allow GET requests
