@@ -45,7 +45,7 @@ export default function AboutVerifier() {
             </h1>
             <p className="text-muted-foreground leading-relaxed">
               <strong className="text-foreground">verify.nexart.io</strong> is the independent verification surface for{" "}
-              <a href="https://nexart.io/cer" target="_blank" rel="noopener noreferrer" className="text-link hover:underline">
+               <a href="https://nexart.io/certified-execution-records" target="_blank" rel="noopener noreferrer" className="text-link hover:underline">
                 Certified Execution Records
               </a>{" "}
               (CERs) produced by the NexArt execution runtime.
@@ -180,10 +180,10 @@ export default function AboutVerifier() {
               <a href="https://nexart.io/protocol" target="_blank" rel="noopener noreferrer" className="text-link hover:underline inline-flex items-center gap-1">
                 Protocol <ExternalLink className="w-3 h-3" />
               </a>
-              <a href="https://nexart.io/cer" target="_blank" rel="noopener noreferrer" className="text-link hover:underline inline-flex items-center gap-1">
+              <a href="https://nexart.io/certified-execution-records" target="_blank" rel="noopener noreferrer" className="text-link hover:underline inline-flex items-center gap-1">
                 Certified Execution Records <ExternalLink className="w-3 h-3" />
               </a>
-              <a href="https://nexart.io/integrity" target="_blank" rel="noopener noreferrer" className="text-link hover:underline inline-flex items-center gap-1">
+              <a href="https://nexart.io/protocol/ai-execution-integrity" target="_blank" rel="noopener noreferrer" className="text-link hover:underline inline-flex items-center gap-1">
                 AI Execution Integrity <ExternalLink className="w-3 h-3" />
               </a>
               <a href="https://docs.nexart.io" target="_blank" rel="noopener noreferrer" className="text-link hover:underline inline-flex items-center gap-1">
