@@ -205,7 +205,7 @@ describe('verifyVerificationEnvelope v2 parity', () => {
     const { bundle, manifest } = await makeSignedV2Bundle();
     mockFetch.mockResolvedValue({ ok: true, json: async () => manifest });
 
-    const result = await verifyVerificationEnvelope(bundle, 'https://fake.node');
+    const result = await verifyVerificationEnvelope(bundle, 'https://node.nexart.io');
 
     expect(result.status).toBe('valid');
     expect(result.envelopeType).toBe('v2');
@@ -224,7 +224,7 @@ describe('verifyVerificationEnvelope v2 parity', () => {
     };
 
     mockFetch.mockResolvedValue({ ok: true, json: async () => manifest });
-    const result = await verifyVerificationEnvelope(injected, 'https://fake.node');
+    const result = await verifyVerificationEnvelope(injected, 'https://node.nexart.io');
 
     expect(result.status).toBe('valid');
   });
@@ -235,7 +235,7 @@ describe('verifyVerificationEnvelope v2 parity', () => {
     tampered.snapshot.model = 'tampered-model';
 
     mockFetch.mockResolvedValue({ ok: true, json: async () => manifest });
-    const result = await verifyVerificationEnvelope(tampered, 'https://fake.node');
+    const result = await verifyVerificationEnvelope(tampered, 'https://node.nexart.io');
 
     expect(result.status).toBe('invalid');
     expect(result.errorKind).toBe('invalid_signature');
@@ -253,7 +253,7 @@ describe('verifyVerificationEnvelope v2 parity', () => {
     };
 
     mockFetch.mockResolvedValue({ ok: true, json: async () => manifest });
-    const result = await verifyVerificationEnvelope(tampered, 'https://fake.node');
+    const result = await verifyVerificationEnvelope(tampered, 'https://node.nexart.io');
 
     expect(result.status).toBe('invalid');
   });
@@ -268,7 +268,7 @@ describe('verifyVerificationEnvelope v2 parity', () => {
     ];
 
     mockFetch.mockResolvedValue({ ok: true, json: async () => manifest });
-    const result = await verifyVerificationEnvelope(tampered, 'https://fake.node');
+    const result = await verifyVerificationEnvelope(tampered, 'https://node.nexart.io');
 
     expect(result.status).toBe('invalid');
   });
@@ -278,7 +278,7 @@ describe('verifyVerificationEnvelope v2 parity', () => {
     expect(bundle.snapshot.nullableField).toBeNull();
 
     mockFetch.mockResolvedValue({ ok: true, json: async () => manifest });
-    const result = await verifyVerificationEnvelope(bundle, 'https://fake.node');
+    const result = await verifyVerificationEnvelope(bundle, 'https://node.nexart.io');
 
     expect(result.status).toBe('valid');
   });
