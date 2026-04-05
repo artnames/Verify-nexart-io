@@ -142,12 +142,17 @@ serve(async (req) => {
 
   const { recordId, bundle } = body;
 
+  // Validate recordId format if provided
+  if (recordId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recordId)) {
+    return createErrorResponse(400, 'INVALID_RECORD_ID', 'recordId must be a valid UUID');
+  }
+
+
   if (!bundle) {
     return createErrorResponse(400, 'MISSING_FIELDS', 'bundle is required');
   }
 
   // Validate this is an AI CER bundle
-  if (bundle.bundleType !== 'cer.ai.execution.v1') {
     return createErrorResponse(400, 'INVALID_BUNDLE_TYPE', 'Bundle must be of type cer.ai.execution.v1');
   }
 
