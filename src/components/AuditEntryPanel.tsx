@@ -100,9 +100,18 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
     setError('Enter a valid certificate hash (e.g. sha256:d25a3557...).');
   };
 
+  const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    // Reject oversized files before reading into memory
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+      setError(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum upload size is 10 MB.`);
+      event.target.value = '';
+      return;
+    }
 
     setIsUploading(true);
     setError(null);
