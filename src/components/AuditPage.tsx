@@ -642,6 +642,7 @@ export function AuditPage() {
             code: vResult.code as any,
             errors: vResult.errors,
             details: vResult.details,
+            degraded: vResult.degraded,
           };
           const att = (aiBundle as any).meta?.attestation || (aiBundle as any).attestation;
           const attPresent = !!(att && typeof att === 'object' && (att.attestationId || att.attestationStatus));
