@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Menu, BookOpen, ScrollText } from "lucide-react";
+import { Menu, BookOpen, ScrollText, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ interface MobileHeaderProps {
 const navItems = [
   { id: 'guide', label: 'Start Here', icon: BookOpen },
   { id: 'audit-log', label: 'Verification Log', icon: ScrollText, route: '/audit-log' },
+  { id: 'guarantees', label: 'Guarantees', icon: ShieldCheck, route: '/verification-guarantees' },
 ];
 
 const bottomItems: typeof navItems = [];

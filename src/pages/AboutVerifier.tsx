@@ -189,6 +189,9 @@ export default function AboutVerifier() {
               <a href="https://docs.nexart.io" target="_blank" rel="noopener noreferrer" className="text-link hover:underline inline-flex items-center gap-1">
                 Documentation <ExternalLink className="w-3 h-3" />
               </a>
+              <Link to="/verification-guarantees" className="text-link hover:underline">
+                Verification Guarantees
+              </Link>
               <Link to="/" className="text-link hover:underline">
                 ← Back to Verification Portal
               </Link>
