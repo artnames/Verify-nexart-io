@@ -296,13 +296,12 @@ serve(async (req) => {
 
       if (!renderResponse.ok) {
         const errorText = await renderResponse.text();
-        console.error(`[canonical-proxy] Verify render failed: ${renderResponse.status} - ${errorText}`);
+        console.error(`[canonical-proxy] Verify render failed: ${renderResponse.status} — ${errorText.substring(0, 500)}`);
         return new Response(
           JSON.stringify({
             verified: false,
             error: 'Render failed during verification',
             upstreamStatus: renderResponse.status,
-            details: errorText.substring(0, 300),
             requestId: crypto.randomUUID(),
           }),
           { 
@@ -353,7 +352,7 @@ serve(async (req) => {
 
     } catch (err) {
       console.error(`[canonical-proxy] Verify error:`, err);
-      return createErrorResponse(400, 'Invalid request', err instanceof Error ? err.message : 'Failed to parse verify request', rateCheck.remaining);
+      return createErrorResponse(400, 'Invalid request', 'Failed to process verification request', rateCheck.remaining);
     }
   } else {
     // This shouldn't happen due to allowlist check above, but just in case
@@ -404,16 +403,15 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[canonical-proxy] Upstream error: ${response.status} - ${errorText}`);
+      console.error(`[canonical-proxy] Upstream error: ${response.status} — ${errorText.substring(0, 500)}`);
       
-      // Return 502 for upstream server errors
+      // Return 502 for upstream server errors — no raw details to client
       if (response.status >= 500) {
         return new Response(
           JSON.stringify({ 
             error: 'Bad Gateway', 
-            message: 'Canonical renderer returned an error',
+            message: 'Canonical renderer returned an error. Please try again later.',
             upstreamStatus: response.status,
-            details: errorText.substring(0, 500) // Limit error text length
           }),
           { 
             status: 502, 
@@ -504,8 +502,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         error: 'Bad Gateway', 
-        message: 'Failed to reach canonical renderer',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        message: 'Failed to reach canonical renderer. Please try again later.',
       }),
       { 
         status: 502, 

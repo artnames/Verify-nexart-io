@@ -126,6 +126,11 @@ serve(async (req) => {
     return createErrorResponse(400, 'MISSING_FIELDS', 'recordId and bundle are required');
   }
 
+  // Validate recordId is a UUID
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recordId)) {
+    return createErrorResponse(400, 'INVALID_RECORD_ID', 'recordId must be a valid UUID');
+  }
+
   // Check domain allowlist for source URL
   if (sourceUrl && !isSourceDomainAllowed(sourceUrl)) {
     console.log(`[recertify] Source URL domain not allowed: ${sourceUrl}`);
@@ -322,18 +327,19 @@ serve(async (req) => {
     console.log(`[recertify] Renderer response: ${httpStatus}, protocol: ${protocolVersion}`);
 
     if (!renderResponse.ok) {
-      // Handle error responses
+      // Handle error responses — log details server-side, return safe message to client
       const errorText = await renderResponse.text();
+      console.error(`[recertify] Render error: ${httpStatus} — ${errorText.substring(0, 500)}`);
       
       if (httpStatus === 429) {
         errorCode = 'QUOTA_EXCEEDED';
-        errorMessage = 'NexArt renderer quota exceeded';
+        errorMessage = 'Canonical renderer quota exceeded';
       } else if (httpStatus === 401 || httpStatus === 403) {
         errorCode = 'UNAUTHORIZED';
-        errorMessage = 'Invalid API credentials';
+        errorMessage = 'Invalid API credentials for canonical renderer';
       } else {
         errorCode = 'RENDER_FAILED';
-        errorMessage = errorText.substring(0, 500);
+        errorMessage = 'Canonical renderer returned an error';
       }
 
       console.error(`[recertify] Render error: ${httpStatus} - ${errorCode}`);
