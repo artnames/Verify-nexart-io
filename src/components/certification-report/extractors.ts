@@ -21,7 +21,7 @@ const get = (obj: Record<string, unknown>, path: string): unknown => {
 export function extractSummary(
   bundle: Record<string, unknown>,
   kind: BundleKind,
-  status: 'pass' | 'fail' | 'error',
+  status: 'pass' | 'fail' | 'error' | 'degraded',
 ): CertSummary {
   const snapshot = bundle.snapshot as Record<string, unknown> | undefined;
   const meta = bundle.meta as Record<string, unknown> | undefined;
