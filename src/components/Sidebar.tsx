@@ -1,7 +1,8 @@
 import { 
   BookOpen,
   ScrollText,
-  Info
+  Info,
+  ShieldCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import nexartIcon from "@/assets/nexart-icon.png";
@@ -18,6 +19,7 @@ const navItems = [
   { id: 'guide', label: 'Start Here', icon: BookOpen },
   { id: 'audit-log', label: 'Verification Log', icon: ScrollText, route: '/audit-log' },
   { id: 'about', label: 'About', icon: Info, route: '/about' },
+  { id: 'guarantees', label: 'Guarantees', icon: ShieldCheck, route: '/verification-guarantees' },
 ];
 
 const bottomItems: typeof navItems = [];
