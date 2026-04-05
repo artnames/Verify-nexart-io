@@ -14,7 +14,7 @@
 
 import { useMemo } from 'react';
 import { VerifyDebugBlock } from '@/components/VerifyDebugBlock';
-import { ShieldCheck, AlertTriangle, Stamp, Link2, GitBranch } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, ShieldAlert, Stamp, Link2, GitBranch } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -68,6 +68,7 @@ export function CertificationReport({
   }, [bundle]);
 
   const passed = verifyStatus === 'pass';
+  const degraded = verifyStatus === 'degraded';
 
   const nodeStampLabel = summary.attestation
     ? summary.attestation.hasSignedReceipt
@@ -88,6 +89,12 @@ export function CertificationReport({
     toast.success('Link copied');
   };
 
+  // Integrity badge logic
+  const integrityLabel = passed ? 'PASS' : degraded ? 'PARTIAL' : 'FAIL';
+  const integrityVariant = passed ? 'default' : degraded ? 'outline' : 'destructive';
+  const IntegrityIcon = passed ? ShieldCheck : degraded ? ShieldAlert : AlertTriangle;
+  const integrityIconColor = passed ? 'text-verified' : degraded ? 'text-warning' : 'text-destructive';
+
   return (
     <div className="space-y-6">
       {/* 1. Audit Summary */}
@@ -100,7 +107,7 @@ export function CertificationReport({
       />
 
       {/* 2. Execution Summary — human-readable overview */}
-      <ExecutionSummary summary={summary} passed={passed} />
+      <ExecutionSummary summary={summary} passed={passed || degraded} />
 
       {/* Provenance note (redacted reseal, etc.) */}
       {provenance && (
@@ -117,24 +124,21 @@ export function CertificationReport({
         </div>
       )}
 
-      {/* 2b. What was verified — plain-language trust explanation (pass only) */}
-      <WhatWasVerified summary={summary} passed={passed} />
+      {/* 2b. What was verified — plain-language trust explanation */}
+      <WhatWasVerified summary={summary} passed={passed} degraded={degraded} verifyDetails={verifyDetails} />
 
       {/* 3. Sticky mini status bar */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border border-border rounded-lg px-4 py-2 flex items-center justify-between gap-3">
         <div className="flex items-center gap-5 text-xs">
           <div className="flex items-center gap-1.5">
-            {passed ? (
-              <ShieldCheck className="w-3.5 h-3.5 text-verified" />
-            ) : (
-              <AlertTriangle className="w-3.5 h-3.5 text-destructive" />
-            )}
+            <IntegrityIcon className={cn("w-3.5 h-3.5", integrityIconColor)} />
             <span className="text-muted-foreground">Integrity:</span>
-            <Badge variant={passed ? 'default' : 'destructive'} className={cn(
+            <Badge variant={integrityVariant as any} className={cn(
               "text-[10px] h-5 px-1.5",
-              passed && "bg-verified text-verified-foreground"
+              passed && "bg-verified text-verified-foreground",
+              degraded && "border-warning text-warning bg-warning/10",
             )}>
-              {passed ? 'PASS' : 'FAIL'}
+              {integrityLabel}
             </Badge>
           </div>
           <div className="flex items-center gap-1.5">
