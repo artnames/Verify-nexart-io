@@ -425,8 +425,13 @@ serve(async (req) => {
       }
 
       // Forward client errors as-is (400-499)
+      // For 4xx client errors, return safe generic message
       return new Response(
-        errorText,
+        JSON.stringify({
+          error: 'Request rejected',
+          message: 'The canonical renderer rejected the request.',
+          upstreamStatus: response.status,
+        }),
         { 
           status: response.status, 
           headers: { 
