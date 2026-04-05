@@ -15,6 +15,8 @@ import { canonicalize, computeCertificateHash } from '@/lib/canonicalize';
 /*  Normalised result returned to the UI                              */
 /* ------------------------------------------------------------------ */
 
+export type VerificationScope = 'full' | 'core-only';
+
 export interface BundleVerifyResult {
   ok: boolean;
   code: string;
@@ -23,6 +25,21 @@ export interface BundleVerifyResult {
   bundleType: string;
   /** True when context signals are covered by the certificate hash */
   contextIntegrityProtected?: boolean;
+  /**
+   * Verification scope.
+   * - "full": all present fields (snapshot + context/signals) are hash-covered
+   * - "core-only": only core fields (snapshot) matched; context/signals present but NOT protected
+   */
+  verificationScope?: VerificationScope;
+  /**
+   * Which field groups are covered by the certificate hash.
+   */
+  integrityCoverage?: string[];
+  /**
+   * True when the bundle is technically valid but context/signals are present
+   * and NOT covered by the hash (degraded trust).
+   */
+  degraded?: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -66,6 +83,11 @@ function canonicalizeValue(value: unknown): unknown {
  * Certificate hash is computed over exactly:
  *   { bundleType, version, createdAt, snapshot }
  * meta and attestation are excluded — matching @nexart/ai-execution rules.
+ *
+ * SECURITY FIX: When context/signals are present in the bundle but only the
+ * core-only (no-context) strategy matches, the result is DEGRADED — not a
+ * clean PASS. This prevents context stripping/modification from appearing
+ * as a fully verified record.
  */
 async function verifyAiCerBrowser(rawBundle: Record<string, unknown>): Promise<BundleVerifyResult> {
   const bundleType = (rawBundle.bundleType as string) || 'unknown';
@@ -99,6 +121,8 @@ async function verifyAiCerBrowser(rawBundle: Record<string, unknown>): Promise<B
       ?? (rawBundle.meta as any)?.signals;
     const hasLegacySignals = Array.isArray(legacySignals) && legacySignals.length > 0;
 
+    const hasContextualData = hasContext || hasLegacySignals;
+
     const normalizedExpected = storedHash.toLowerCase();
 
     // Strategy 1: Try with context included (v0.11.0+ originals)
@@ -114,6 +138,9 @@ async function verifyAiCerBrowser(rawBundle: Record<string, unknown>): Promise<B
           errors: [],
           bundleType,
           contextIntegrityProtected: true,
+          verificationScope: 'full',
+          integrityCoverage: ['bundleType', 'version', 'createdAt', 'snapshot', 'context'],
+          degraded: false,
         };
       }
     }
@@ -131,6 +158,9 @@ async function verifyAiCerBrowser(rawBundle: Record<string, unknown>): Promise<B
           errors: [],
           bundleType,
           contextIntegrityProtected: true,
+          verificationScope: 'full',
+          integrityCoverage: ['bundleType', 'version', 'createdAt', 'snapshot', 'signals'],
+          degraded: false,
         };
       }
     }
@@ -140,15 +170,41 @@ async function verifyAiCerBrowser(rawBundle: Record<string, unknown>): Promise<B
       const canonicalJson = JSON.stringify(canonicalizeValue(baseEnvelope));
       const computedHash = await sha256HexWebCrypto(canonicalJson);
       if (computedHash === normalizedExpected) {
+        const baseCoverage = ['bundleType', 'version', 'createdAt', 'snapshot'];
+
+        // SECURITY: If context/signals ARE present but NOT hash-covered,
+        // return DEGRADED — not a clean PASS.
+        if (hasContextualData) {
+          return {
+            ok: false,
+            degraded: true,
+            code: 'CONTEXT_NOT_PROTECTED',
+            details: [
+              'Core record integrity verified (snapshot, bundleType, version, createdAt).',
+              hasContext
+                ? 'Context data is present but NOT covered by the certificate hash.'
+                : 'Signals data is present but NOT covered by the certificate hash.',
+              'Context or signals may have been added, modified, or replaced after certification.',
+              'This does not necessarily indicate tampering, but contextual data cannot be independently verified.',
+            ],
+            errors: [],
+            bundleType,
+            contextIntegrityProtected: false,
+            verificationScope: 'core-only',
+            integrityCoverage: baseCoverage,
+          };
+        }
+
+        // No context/signals at all — clean PASS (legacy or intentionally context-free)
         return {
           ok: true,
           code: 'OK',
-          details: hasContext
-            ? ['Context signals are present but not covered by this certificate hash (resealed artifact).']
-            : [],
+          details: [],
           errors: [],
           bundleType,
           contextIntegrityProtected: false,
+          verificationScope: 'full',
+          integrityCoverage: baseCoverage,
         };
       }
     }
@@ -280,5 +336,6 @@ export async function verifyUploadedBundleAsync(rawBundle: unknown): Promise<Bun
       : [`Expected ${normalizedExpected}, computed ${computedHash}`],
     errors: ok ? [] : ['Certificate hash mismatch'],
     bundleType: bundleType || 'code-mode',
+    verificationScope: ok ? 'full' : undefined,
   };
 }
