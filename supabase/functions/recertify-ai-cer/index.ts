@@ -153,6 +153,7 @@ serve(async (req) => {
   }
 
   // Validate this is an AI CER bundle
+  if (bundle.bundleType !== 'cer.ai.execution.v1') {
     return createErrorResponse(400, 'INVALID_BUNDLE_TYPE', 'Bundle must be of type cer.ai.execution.v1');
   }
 
