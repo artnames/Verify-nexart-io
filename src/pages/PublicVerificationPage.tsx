@@ -136,6 +136,7 @@ export default function PublicVerificationPage({ lookupKey, mode }: PublicVerifi
       code: verifyResult.code as any,
       errors: verifyResult.errors,
       details: verifyResult.details,
+      degraded: verifyResult.degraded,
     };
 
     return (
