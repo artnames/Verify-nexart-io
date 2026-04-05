@@ -294,10 +294,12 @@ serve(async (req) => {
       try {
         const parsed = JSON.parse(rawBody);
         if (parsed.error && typeof parsed.error === 'string') {
-          errorMessage = `${errorMessage}: ${parsed.error}`;
+          // Log full detail server-side, return only safe code to client
+          console.error(`[recertify-ai-cer] Node error detail: ${parsed.error}`);
         }
       } catch {
-        // Body is not JSON
+        // Body is not JSON — log server-side only
+        console.error(`[recertify-ai-cer] Non-JSON error body: ${rawBody.slice(0, 300)}`);
       }
 
       console.error(`[recertify-ai-cer] Attestation error: ${httpStatus} - ${errorCode}`);
