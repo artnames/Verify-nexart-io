@@ -1,0 +1,197 @@
+{
+  "bundleType": "cer.project.bundle.v1",
+  "version": "0.1",
+  "protocolVersion": "1.2.0",
+  "projectBundleId": "63bc27a8-dfd2-4206-96d5-6749dd4ab3e7",
+  "projectTitle": "Q4 2025 Customer Churn Analysis",
+  "startedAt": "2026-04-06T20:34:54.645Z",
+  "completedAt": "2026-04-06T20:34:54.645Z",
+  "totalSteps": 3,
+  "stepRegistry": [
+    {
+      "stepId": "361591e3-862a-4de7-92ba-edb0d529c9f7",
+      "sequence": 0,
+      "stepLabel": "Churn Risk Analysis",
+      "stepType": "decision",
+      "executionId": "7a3fdce1-87ff-4f0e-af5c-042cedfdab75",
+      "certificateHash": "sha256:c803da5116472437adfc485c8f84cbd8526cc79b55e0a0c68981f2759d333f8c",
+      "recordedAt": "2026-04-06T20:34:54.645Z",
+      "modelIdentity": {
+        "provider": "openai",
+        "model": "gpt-4o",
+        "modelVersion": "2024-08-06"
+      }
+    },
+    {
+      "stepId": "7e7f4662-5858-44b7-b91e-bbba2b545d3a",
+      "sequence": 1,
+      "stepLabel": "Retention Strategy Generation",
+      "stepType": "decision",
+      "executionId": "7c9cc423-d1f8-4d9b-92fc-336f94d027f9",
+      "certificateHash": "sha256:b353b64bf725b41d678436052c062aa86cf0edbc41ca7acf2f663e86e5dfecbd",
+      "recordedAt": "2026-04-06T20:34:54.645Z",
+      "modelIdentity": {
+        "provider": "openai",
+        "model": "gpt-4o",
+        "modelVersion": "2024-08-06"
+      }
+    },
+    {
+      "stepId": "ecbd6351-3c71-4da2-a1ec-2a0cd973e90e",
+      "sequence": 2,
+      "stepLabel": "Executive Summary Review",
+      "stepType": "decision",
+      "executionId": "11885898-8fb9-4fd6-b01e-94b516a4bb19",
+      "certificateHash": "sha256:71bb984d2356679b6af5a0571b528b352a35e9fed45799f77efd30941a11e609",
+      "recordedAt": "2026-04-06T20:34:54.645Z",
+      "modelIdentity": {
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-20250514"
+      }
+    }
+  ],
+  "embeddedBundles": {
+    "361591e3-862a-4de7-92ba-edb0d529c9f7": {
+      "bundleType": "cer.ai.execution.v1",
+      "certificateHash": "sha256:c803da5116472437adfc485c8f84cbd8526cc79b55e0a0c68981f2759d333f8c",
+      "createdAt": "2026-04-06T20:34:54.645Z",
+      "version": "0.1",
+      "snapshot": {
+        "type": "ai.execution.v1",
+        "protocolVersion": "1.2.0",
+        "executionSurface": "ai",
+        "executionId": "7a3fdce1-87ff-4f0e-af5c-042cedfdab75",
+        "timestamp": "2026-04-06T20:34:54.644Z",
+        "provider": "openai",
+        "model": "gpt-4o",
+        "modelVersion": "2024-08-06",
+        "prompt": "Analyze the customer churn data and identify top 3 risk factors",
+        "input": {
+          "dataset": "customer_churn_q4_2025.csv",
+          "rows": 12450
+        },
+        "inputHash": "sha256:0feba055e8e164db8b33fea549ce12ba4b01e3a4c23b82f5c6386323d07737ff",
+        "parameters": {
+          "temperature": 0.2,
+          "maxTokens": 2048,
+          "topP": 1,
+          "seed": 42
+        },
+        "output": {
+          "riskFactors": [
+            "low_engagement_30d",
+            "support_tickets_escalated",
+            "contract_renewal_pending"
+          ],
+          "confidence": 0.91
+        },
+        "outputHash": "sha256:c26a409faa38dd4ca30c17ffbbc097a6763f9e106066eec43c4988c9cd741bf8",
+        "sdkVersion": "0.8.0",
+        "appId": "churn-analysis-suite",
+        "stepIndex": 0,
+        "workflowId": "wf-churn-q4"
+      }
+    },
+    "7e7f4662-5858-44b7-b91e-bbba2b545d3a": {
+      "bundleType": "cer.ai.execution.v1",
+      "certificateHash": "sha256:b353b64bf725b41d678436052c062aa86cf0edbc41ca7acf2f663e86e5dfecbd",
+      "createdAt": "2026-04-06T20:34:54.645Z",
+      "version": "0.1",
+      "snapshot": {
+        "type": "ai.execution.v1",
+        "protocolVersion": "1.2.0",
+        "executionSurface": "ai",
+        "executionId": "7c9cc423-d1f8-4d9b-92fc-336f94d027f9",
+        "timestamp": "2026-04-06T20:34:54.645Z",
+        "provider": "openai",
+        "model": "gpt-4o",
+        "modelVersion": "2024-08-06",
+        "prompt": "Generate retention strategy recommendations based on identified risk factors",
+        "input": {
+          "riskFactors": [
+            "low_engagement_30d",
+            "support_tickets_escalated",
+            "contract_renewal_pending"
+          ]
+        },
+        "inputHash": "sha256:c28c293f94344c7e979b2aaa0a9b77548c7712ad56021200f50787bf63d65141",
+        "parameters": {
+          "temperature": 0.4,
+          "maxTokens": 4096,
+          "topP": 1,
+          "seed": 99
+        },
+        "output": {
+          "strategies": [
+            "personalized_outreach",
+            "priority_support_upgrade",
+            "early_renewal_incentive"
+          ],
+          "estimatedRetention": "78%"
+        },
+        "outputHash": "sha256:69ea85eeecfb193e10d3637acd824b08f097682c778487dea83765e033df7683",
+        "sdkVersion": "0.8.0",
+        "appId": "churn-analysis-suite",
+        "stepIndex": 1,
+        "workflowId": "wf-churn-q4",
+        "prevStepHash": "sha256:c803da5116472437adfc485c8f84cbd8526cc79b55e0a0c68981f2759d333f8c"
+      }
+    },
+    "ecbd6351-3c71-4da2-a1ec-2a0cd973e90e": {
+      "bundleType": "cer.ai.execution.v1",
+      "certificateHash": "sha256:71bb984d2356679b6af5a0571b528b352a35e9fed45799f77efd30941a11e609",
+      "createdAt": "2026-04-06T20:34:54.645Z",
+      "version": "0.1",
+      "snapshot": {
+        "type": "ai.execution.v1",
+        "protocolVersion": "1.2.0",
+        "executionSurface": "ai",
+        "executionId": "11885898-8fb9-4fd6-b01e-94b516a4bb19",
+        "timestamp": "2026-04-06T20:34:54.645Z",
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-20250514",
+        "modelVersion": null,
+        "prompt": "Review the retention strategies and draft executive summary for stakeholders",
+        "input": {
+          "strategies": [
+            "personalized_outreach",
+            "priority_support_upgrade",
+            "early_renewal_incentive"
+          ]
+        },
+        "inputHash": "sha256:b80badb75dbde3e3f1b0c27c8feb9da211312e43b6e94c3f558700af9f10b766",
+        "parameters": {
+          "temperature": 0.3,
+          "maxTokens": 3000,
+          "topP": 1,
+          "seed": null
+        },
+        "output": {
+          "summary": "Based on Q4 churn analysis, three high-impact retention strategies are recommended targeting the 12,450 customer cohort. Expected retention improvement: 78%.",
+          "approved": true
+        },
+        "outputHash": "sha256:1e48c18a94a8a39f1c82f0c847090e197ffa1d5c93125b9b3dff498cfad68440",
+        "sdkVersion": "0.8.0",
+        "appId": "churn-analysis-suite",
+        "stepIndex": 2,
+        "workflowId": "wf-churn-q4",
+        "prevStepHash": "sha256:b353b64bf725b41d678436052c062aa86cf0edbc41ca7acf2f663e86e5dfecbd"
+      }
+    }
+  },
+  "integrity": {
+    "algorithm": "sha256-canonical-json",
+    "projectHash": "sha256:216e36c26649d55f45acde42e4cc71bea48942c7ed4e8a288a48326df02688cb"
+  },
+  "projectGoal": "Identify churn risk factors and generate actionable retention strategies for the Q4 2025 customer cohort.",
+  "projectSummary": "Three-step AI workflow analyzing 12,450 customers, identifying risk factors, generating strategies, and producing an executive summary.",
+  "finalOutputSummary": "Executive summary with 3 retention strategies targeting 78% estimated retention improvement.",
+  "appName": "churn-analysis-suite",
+  "frameworkName": "NexArt Workflow Engine",
+  "tags": [
+    "churn",
+    "retention",
+    "q4-2025",
+    "customer-success"
+  ]
+}
