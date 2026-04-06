@@ -49,11 +49,15 @@ import { useSEO } from '@/hooks/useSEO';
 /*  Main component                                                            */
 /* -------------------------------------------------------------------------- */
 
-export function ProjectBundlePage() {
+interface ProjectBundlePageProps {
+  projectBundle?: ProjectBundle | null;
+}
+
+export function ProjectBundlePage({ projectBundle: propBundle }: ProjectBundlePageProps = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const routerState = location.state as { projectBundle?: ProjectBundle } | null;
-  const projectBundle = routerState?.projectBundle ?? null;
+  const projectBundle = propBundle ?? routerState?.projectBundle ?? null;
 
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [verifyResult, setVerifyResult] = useState<ProjectBundleVerifyResult | null>(null);
