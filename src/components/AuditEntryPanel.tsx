@@ -119,6 +119,20 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
 
     try {
       const text = await file.text();
+      
+      // Try to detect project bundle before standard parsing
+      try {
+        const rawJson = JSON.parse(text);
+        if (isProjectBundle(rawJson)) {
+          // Route to project bundle verification page
+          navigate('/project', { state: { projectBundle: rawJson } });
+          setIsUploading(false);
+          return;
+        }
+      } catch {
+        // Not valid JSON — fall through to standard parsing
+      }
+
       const result = parseBundleJson(text);
 
       if (!result.success || !result.bundle) {
