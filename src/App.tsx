@@ -3,13 +3,14 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import Index from "./pages/Index";
 import AboutVerifier from "./pages/AboutVerifier";
 import NotFound from "./pages/NotFound";
 import VerifyCertificate from "./pages/VerifyCertificate";
 import VerifyExecution from "./pages/VerifyExecution";
 import VerificationGuarantees from "./pages/VerificationGuarantees";
-import { ProjectBundlePage } from "./pages/ProjectBundlePage";
+const ProjectBundlePage = lazy(() => import("./pages/ProjectBundlePage").then(m => ({ default: m.ProjectBundlePage })));
 import { AuditPage } from "./components/AuditPage";
 import { AuditLogPage } from "./components/AuditLogPage";
 import { AuditLayout } from "./components/AuditLayout";
@@ -28,7 +29,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/about" element={<AboutVerifier />} />
           <Route path="/verification-guarantees" element={<VerificationGuarantees />} />
-          <Route path="/project" element={<ProjectBundlePage />} />
+          <Route path="/project" element={<Suspense fallback={null}><ProjectBundlePage /></Suspense>} />
           <Route path="/c/:certificateHash" element={<VerifyCertificate />} />
           <Route path="/e/:executionId" element={<VerifyExecution />} />
           <Route path="/audit/:hash" element={
