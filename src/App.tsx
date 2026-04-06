@@ -9,6 +9,7 @@ import NotFound from "./pages/NotFound";
 import VerifyCertificate from "./pages/VerifyCertificate";
 import VerifyExecution from "./pages/VerifyExecution";
 import VerificationGuarantees from "./pages/VerificationGuarantees";
+import { ProjectBundlePage } from "./pages/ProjectBundlePage";
 import { AuditPage } from "./components/AuditPage";
 import { AuditLogPage } from "./components/AuditLogPage";
 import { AuditLayout } from "./components/AuditLayout";
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/about" element={<AboutVerifier />} />
           <Route path="/verification-guarantees" element={<VerificationGuarantees />} />
+          <Route path="/project" element={<ProjectBundlePage />} />
           <Route path="/c/:certificateHash" element={<VerifyCertificate />} />
           <Route path="/e/:executionId" element={<VerifyExecution />} />
           <Route path="/audit/:hash" element={
