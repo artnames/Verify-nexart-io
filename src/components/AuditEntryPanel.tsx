@@ -117,7 +117,6 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
 
     setError('Enter a valid project hash (e.g. sha256:abc123...).');
   };
-  };
 
   const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
