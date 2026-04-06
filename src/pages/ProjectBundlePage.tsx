@@ -4,6 +4,10 @@
  * Displays project-level verification status and ordered certified steps.
  * Allows drill-down into individual step CER details, reusing AICERVerifyResult
  * and CertificationReport for step-level trust surfaces.
+ *
+ * ARCHITECTURE: All verification semantics come from verifyProjectBundle()
+ * exported by @nexart/ai-execution. The frontend does NOT own verification
+ * logic — it consumes and presents canonical results.
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -28,89 +32,18 @@ import {
   ChevronUp,
   Cpu,
   Tag,
-  Target,
   FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { isAICERBundle } from '@/types/aiCerBundle';
 import {
-  isProjectBundle,
-  validateProjectBundleStructure,
-  sortStepsBySequence,
-  type ProjectBundleManifest,
-  type ProjectBundleStep,
-} from '@/types/projectBundle';
-import { verifyUploadedBundleAsync, type BundleVerifyResult } from '@/lib/verifyBundle';
+  verifyProjectBundle,
+  type ProjectBundle,
+  type ProjectBundleVerifyResult,
+  type ProjectBundleStepVerifyResult,
+} from '@nexart/ai-execution';
 import { AICERVerifyResult } from '@/components/AICERVerifyResult';
 import { CertificationReport } from '@/components/certification-report/CertificationReport';
 import { useSEO } from '@/hooks/useSEO';
-
-/* -------------------------------------------------------------------------- */
-/*  Project-level hash verification (WebCrypto)                               */
-/* -------------------------------------------------------------------------- */
-
-async function sha256Hex(input: string): Promise<string> {
-  const data = new TextEncoder().encode(input);
-  const buf = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-async function verifyProjectHash(bundle: ProjectBundleManifest): Promise<{
-  valid: boolean;
-  computed?: string;
-  expected?: string;
-}> {
-  const expected = bundle.projectHash;
-  if (!expected || typeof expected !== 'string') {
-    return { valid: false };
-  }
-
-  // Project hash = SHA-256 of ordered step certificate hashes joined by '|'
-  const orderedSteps = sortStepsBySequence(bundle.steps);
-  const hashInput = orderedSteps
-    .map(s => s.certificateHash || (s.bundle as any)?.certificateHash || '')
-    .join('|');
-
-  const computed = `sha256:${await sha256Hex(hashInput)}`;
-  const normalizedExpected = expected.toLowerCase();
-
-  return {
-    valid: computed === normalizedExpected,
-    computed,
-    expected: normalizedExpected,
-  };
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Step verification                                                         */
-/* -------------------------------------------------------------------------- */
-
-interface StepVerification {
-  step: ProjectBundleStep;
-  result: BundleVerifyResult | null;
-  status: 'pass' | 'fail' | 'error' | 'pending';
-}
-
-async function verifyAllSteps(steps: ProjectBundleStep[]): Promise<StepVerification[]> {
-  const results: StepVerification[] = [];
-  for (const step of steps) {
-    try {
-      const result = await verifyUploadedBundleAsync(step.bundle);
-      results.push({
-        step,
-        result,
-        status: result.ok ? 'pass' : (result.degraded ? 'pass' : 'fail'),
-      });
-    } catch {
-      results.push({
-        step,
-        result: null,
-        status: 'error',
-      });
-    }
-  }
-  return results;
-}
 
 /* -------------------------------------------------------------------------- */
 /*  Main component                                                            */
@@ -119,75 +52,71 @@ async function verifyAllSteps(steps: ProjectBundleStep[]): Promise<StepVerificat
 export function ProjectBundlePage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const routerState = location.state as { projectBundle?: ProjectBundleManifest } | null;
+  const routerState = location.state as { projectBundle?: ProjectBundle } | null;
   const projectBundle = routerState?.projectBundle ?? null;
 
-  const [selectedStepIndex, setSelectedStepIndex] = useState<number | null>(null);
-  const [stepVerifications, setStepVerifications] = useState<StepVerification[]>([]);
-  const [projectHashResult, setProjectHashResult] = useState<{ valid: boolean; computed?: string; expected?: string } | null>(null);
-  const [structureResult, setStructureResult] = useState<ReturnType<typeof validateProjectBundleStructure> | null>(null);
+  const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
+  const [verifyResult, setVerifyResult] = useState<ProjectBundleVerifyResult | null>(null);
   const [isVerifying, setIsVerifying] = useState(true);
   const [showRawJson, setShowRawJson] = useState(false);
 
   useSEO({
-    title: projectBundle?.title
-      ? `${projectBundle.title} — Project Verification | verify.nexart.io`
+    title: projectBundle?.projectTitle
+      ? `${projectBundle.projectTitle} — Project Verification | verify.nexart.io`
       : 'Project Bundle Verification | verify.nexart.io',
     description: 'Verify a NexArt project bundle containing multiple certified execution records.',
     path: '/project',
   });
 
-  const sortedSteps = useMemo(
-    () => projectBundle ? sortStepsBySequence(projectBundle.steps) : [],
+  // Ordered step registry (by sequence)
+  const orderedSteps = useMemo(
+    () => projectBundle
+      ? [...projectBundle.stepRegistry].sort((a, b) => a.sequence - b.sequence)
+      : [],
     [projectBundle]
   );
 
-  // Run verification on mount
+  // Run canonical verification on mount
   useEffect(() => {
     if (!projectBundle) return;
 
-    async function run() {
-      setIsVerifying(true);
-
-      const structure = validateProjectBundleStructure(projectBundle);
-      setStructureResult(structure);
-
-      const [hashResult, stepResults] = await Promise.all([
-        verifyProjectHash(projectBundle!),
-        verifyAllSteps(sortStepsBySequence(projectBundle!.steps)),
-      ]);
-
-      setProjectHashResult(hashResult);
-      setStepVerifications(stepResults);
+    setIsVerifying(true);
+    try {
+      const result = verifyProjectBundle(projectBundle);
+      setVerifyResult(result);
+    } catch (err) {
+      // SDK threw — treat as structural failure
+      setVerifyResult({
+        ok: false,
+        code: 'SCHEMA_ERROR' as any,
+        errors: [err instanceof Error ? err.message : 'Unknown verification error'],
+        steps: [],
+      });
+    } finally {
       setIsVerifying(false);
     }
-
-    run();
   }, [projectBundle]);
 
-  const passedCount = stepVerifications.filter(s => s.status === 'pass').length;
-  const failedCount = stepVerifications.filter(s => s.status === 'fail' || s.status === 'error').length;
-  const totalSteps = sortedSteps.length;
-
-  const overallStatus: 'pass' | 'fail' | 'partial' | 'pending' = isVerifying
-    ? 'pending'
-    : (structureResult?.valid === false)
-      ? 'fail'
-      : (failedCount === 0 && passedCount === totalSteps)
-        ? 'pass'
-        : failedCount === totalSteps
-          ? 'fail'
-          : 'partial';
+  // Build a lookup map from stepId to per-step verify result
+  const stepResultMap = useMemo(() => {
+    const map = new Map<string, ProjectBundleStepVerifyResult>();
+    if (verifyResult?.steps) {
+      for (const sr of verifyResult.steps) {
+        map.set(sr.stepId, sr);
+      }
+    }
+    return map;
+  }, [verifyResult]);
 
   const handleBack = useCallback(() => {
-    if (selectedStepIndex !== null) {
-      setSelectedStepIndex(null);
+    if (selectedStepId !== null) {
+      setSelectedStepId(null);
     } else {
       navigate('/');
     }
-  }, [selectedStepIndex, navigate]);
+  }, [selectedStepId, navigate]);
 
-  // Not found
+  // Not found / no bundle
   if (!projectBundle) {
     return (
       <div className="max-w-4xl mx-auto space-y-6 px-4 py-8">
@@ -213,24 +142,34 @@ export function ProjectBundlePage() {
     );
   }
 
+  // Derive display values from canonical verification result
+  const totalSteps = verifyResult?.totalSteps ?? projectBundle.totalSteps;
+  const passedCount = verifyResult?.passedSteps ?? 0;
+  const failedCount = verifyResult?.failedSteps ?? 0;
+
+  const overallStatus: 'pass' | 'fail' | 'partial' | 'pending' = isVerifying
+    ? 'pending'
+    : verifyResult?.ok
+      ? 'pass'
+      : (verifyResult && failedCount > 0 && passedCount > 0)
+        ? 'partial'
+        : 'fail';
+
   // Step detail drill-down
-  if (selectedStepIndex !== null) {
-    const sv = stepVerifications[selectedStepIndex];
-    const step = sortedSteps[selectedStepIndex];
-    if (!step) {
-      setSelectedStepIndex(null);
+  if (selectedStepId !== null) {
+    const stepEntry = orderedSteps.find(s => s.stepId === selectedStepId);
+    const stepIdx = orderedSteps.findIndex(s => s.stepId === selectedStepId);
+    const embeddedBundle = stepEntry ? projectBundle.embeddedBundles[stepEntry.stepId] : null;
+    const stepResult = stepEntry ? stepResultMap.get(stepEntry.stepId) : undefined;
+
+    if (!stepEntry || !embeddedBundle) {
+      setSelectedStepId(null);
       return null;
     }
 
-    const stepBundle = step.bundle as Record<string, unknown>;
-    const isAiCer = isAICERBundle(stepBundle);
-    const vResult = sv?.result;
-
+    // Map step verification result to the CER detail view's expected format
     const verifyStatus: 'pass' | 'fail' | 'error' | 'degraded' =
-      vResult?.ok ? 'pass'
-        : vResult?.degraded ? 'degraded'
-          : vResult ? 'fail'
-            : 'error';
+      stepResult?.ok ? 'pass' : 'fail';
 
     return (
       <div className="max-w-6xl mx-auto space-y-6 px-6 pb-12">
@@ -242,7 +181,7 @@ export function ProjectBundlePage() {
           </Button>
           <span className="text-muted-foreground">/</span>
           <span className="text-muted-foreground">
-            Step {step.sequence}{step.label ? ` — ${step.label}` : step.title ? ` — ${step.title}` : ''}
+            Step {stepEntry.sequence} — {stepEntry.stepLabel}
           </span>
         </div>
 
@@ -250,8 +189,8 @@ export function ProjectBundlePage() {
         <div className="rounded-lg border border-border/60 bg-muted/5 px-4 py-2 flex items-center gap-3 text-xs text-muted-foreground">
           <Layers className="w-3.5 h-3.5 shrink-0" />
           <span>
-            Viewing step {step.sequence} of {totalSteps} in project{' '}
-            <strong className="text-foreground">{projectBundle.title || projectBundle.projectId}</strong>
+            Viewing step {stepEntry.sequence + 1} of {totalSteps} in project{' '}
+            <strong className="text-foreground">{projectBundle.projectTitle}</strong>
           </span>
           <Badge
             variant="outline"
@@ -266,29 +205,27 @@ export function ProjectBundlePage() {
           </Badge>
         </div>
 
-        {/* Step CER detail — reuse existing trust surface */}
-        {isAiCer ? (
-          <AICERVerifyResult
-            verifyResult={{
-              ok: vResult?.ok ?? false,
-              code: (vResult?.code ?? 'ERROR') as any,
-              errors: vResult?.errors ?? [],
-              details: vResult?.details ?? [],
-            } as any}
-            bundle={stepBundle}
-            attestationPresent={false}
-            contextIntegrityProtected={vResult?.contextIntegrityProtected}
-          />
-        ) : (
-          <CertificationReport
-            bundle={stepBundle}
-            bundleKind="code-mode"
-            verifyStatus={verifyStatus}
-            verifyCode={vResult?.code}
-            verifyDetails={vResult?.details}
-            contextIntegrityProtected={vResult?.contextIntegrityProtected}
-          />
+        {/* Step-level verification error details from canonical result */}
+        {stepResult && !stepResult.ok && stepResult.errors.length > 0 && (
+          <div className="p-3 rounded-md border border-destructive/30 bg-destructive/10 space-y-1">
+            <p className="text-sm font-medium text-destructive">Step Verification Failed — {stepResult.code}</p>
+            {stepResult.errors.map((e, i) => (
+              <p key={i} className="text-xs text-destructive">{e}</p>
+            ))}
+          </div>
         )}
+
+        {/* Reuse existing CER detail view for the embedded bundle */}
+        <AICERVerifyResult
+          verifyResult={{
+            ok: stepResult?.ok ?? false,
+            code: (stepResult?.code ?? 'UNKNOWN_ERROR') as any,
+            errors: stepResult?.errors ?? [],
+            details: [],
+          } as any}
+          bundle={embeddedBundle}
+          attestationPresent={false}
+        />
       </div>
     );
   }
@@ -319,7 +256,7 @@ export function ProjectBundlePage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Overall status */}
+          {/* Overall status — derived from canonical verifyProjectBundle() result */}
           <div className="flex items-center gap-3">
             {isVerifying ? (
               <>
@@ -339,7 +276,7 @@ export function ProjectBundlePage() {
                 <ShieldAlert className="w-6 h-6 text-warning" />
                 <div>
                   <p className="text-sm font-semibold text-warning">Partially Verified</p>
-                  <p className="text-xs text-muted-foreground">Some steps failed verification. Review individual results below.</p>
+                  <p className="text-xs text-muted-foreground">{passedCount} of {totalSteps} steps passed. Review individual results below.</p>
                 </div>
               </>
             ) : (
@@ -348,113 +285,96 @@ export function ProjectBundlePage() {
                 <div>
                   <p className="text-sm font-semibold text-destructive">Verification Failed</p>
                   <p className="text-xs text-muted-foreground">
-                    {structureResult?.valid === false
-                      ? 'Project bundle structure is invalid.'
-                      : 'Step verification failed.'}
+                    {verifyResult?.code || 'Unknown failure'}{verifyResult?.errors?.length ? ` — ${verifyResult.errors[0]}` : ''}
                   </p>
                 </div>
               </>
             )}
           </div>
 
-          {/* Structure errors */}
-          {structureResult && !structureResult.valid && (
+          {/* Canonical verification errors */}
+          {verifyResult && !verifyResult.ok && verifyResult.errors.length > 0 && (
             <div className="p-3 rounded-md border border-destructive/30 bg-destructive/10 space-y-1">
-              <p className="text-sm font-medium text-destructive">Structure Errors</p>
-              {structureResult.errors.map((e, i) => (
+              <p className="text-sm font-medium text-destructive">Verification Errors</p>
+              {verifyResult.errors.map((e, i) => (
                 <p key={i} className="text-xs text-destructive">{e}</p>
               ))}
             </div>
           )}
-          {structureResult && structureResult.warnings.length > 0 && (
-            <div className="p-3 rounded-md border border-warning/30 bg-warning/10 space-y-1">
-              <p className="text-sm font-medium text-warning">Warnings</p>
-              {structureResult.warnings.map((w, i) => (
-                <p key={i} className="text-xs text-warning">{w}</p>
-              ))}
-            </div>
-          )}
 
-          {/* Key fields grid */}
+          {/* Key fields grid — presentation only */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {projectBundle.title && (
-              <MetaField label="Project Title" value={projectBundle.title} icon={<FileText className="w-3.5 h-3.5" />} />
-            )}
-            <MetaField label="Project ID" value={projectBundle.projectId} mono icon={<Hash className="w-3.5 h-3.5" />} />
-            {projectBundle.protocolVersion && (
-              <MetaField label="Protocol Version" value={projectBundle.protocolVersion} />
-            )}
-            {projectBundle.version && (
-              <MetaField label="Artifact Version" value={projectBundle.version} />
-            )}
-            {projectBundle.startedAt && (
-              <MetaField label="Started At" value={formatDate(projectBundle.startedAt)} icon={<Clock className="w-3.5 h-3.5" />} />
-            )}
-            {projectBundle.completedAt && (
-              <MetaField label="Completed At" value={formatDate(projectBundle.completedAt)} icon={<Clock className="w-3.5 h-3.5" />} />
-            )}
+            <MetaField label="Project Title" value={projectBundle.projectTitle} icon={<FileText className="w-3.5 h-3.5" />} />
+            <MetaField label="Project Bundle ID" value={projectBundle.projectBundleId} mono icon={<Hash className="w-3.5 h-3.5" />} />
+            <MetaField label="Protocol Version" value={projectBundle.protocolVersion} />
+            <MetaField label="Artifact Version" value={projectBundle.version} />
+            <MetaField label="Started At" value={formatDate(projectBundle.startedAt)} icon={<Clock className="w-3.5 h-3.5" />} />
+            <MetaField label="Completed At" value={formatDate(projectBundle.completedAt)} icon={<Clock className="w-3.5 h-3.5" />} />
             <MetaField label="Total Steps" value={String(totalSteps)} />
             <MetaField
               label="Passed / Failed"
-              value={`${passedCount} passed · ${failedCount} failed`}
-              valueColor={failedCount > 0 ? 'text-warning' : 'text-verified'}
+              value={isVerifying ? 'Verifying…' : `${passedCount} passed · ${failedCount} failed`}
+              valueColor={!isVerifying && failedCount > 0 ? 'text-warning' : !isVerifying ? 'text-verified' : undefined}
             />
-            {projectBundle.app && (
-              <MetaField label="Application" value={projectBundle.app} icon={<Cpu className="w-3.5 h-3.5" />} />
+            {projectBundle.appName && (
+              <MetaField label="Application" value={projectBundle.appName} icon={<Cpu className="w-3.5 h-3.5" />} />
             )}
-            {projectBundle.framework && (
-              <MetaField label="Framework" value={projectBundle.framework} />
+            {projectBundle.frameworkName && (
+              <MetaField label="Framework" value={projectBundle.frameworkName} />
             )}
           </div>
 
-          {/* Project hash */}
-          {projectHashResult && (
+          {/* Project hash validity — from canonical result */}
+          {verifyResult && verifyResult.projectHashValid !== undefined && (
             <div className={cn(
               "p-3 rounded-md border text-sm",
-              projectHashResult.valid
+              verifyResult.projectHashValid
                 ? "border-verified/30 bg-verified/5"
                 : "border-destructive/30 bg-destructive/5"
             )}>
               <div className="flex items-center gap-2 mb-1">
-                {projectHashResult.valid ? (
+                {verifyResult.projectHashValid ? (
                   <CheckCircle2 className="w-4 h-4 text-verified" />
                 ) : (
                   <XCircle className="w-4 h-4 text-destructive" />
                 )}
                 <span className="font-medium">
-                  Project Hash: {projectHashResult.valid ? 'Valid' : 'Mismatch'}
+                  Project Hash: {verifyResult.projectHashValid ? 'Valid' : 'Mismatch'}
                 </span>
               </div>
-              {projectHashResult.expected && (
-                <p className="text-xs font-mono text-muted-foreground break-all">
-                  Expected: {projectHashResult.expected}
-                </p>
-              )}
-              {projectHashResult.computed && !projectHashResult.valid && (
-                <p className="text-xs font-mono text-muted-foreground break-all">
-                  Computed: {projectHashResult.computed}
-                </p>
-              )}
+              <p className="text-xs font-mono text-muted-foreground break-all">
+                {projectBundle.integrity.projectHash}
+              </p>
             </div>
           )}
 
-          {/* Goal / Summary / Final output */}
-          {projectBundle.goal && (
+          {/* Structural validity — from canonical result */}
+          {verifyResult && verifyResult.structuralValid !== undefined && !verifyResult.structuralValid && (
+            <div className="p-3 rounded-md border border-destructive/30 bg-destructive/5 text-sm">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-destructive" />
+                <span className="font-medium text-destructive">Structural Validation Failed</span>
+              </div>
+            </div>
+          )}
+
+          {/* Goal / Summary / Final output — presentation only */}
+          {projectBundle.projectGoal && (
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Project Goal</p>
-              <p className="text-sm">{projectBundle.goal}</p>
+              <p className="text-sm">{projectBundle.projectGoal}</p>
             </div>
           )}
-          {projectBundle.summary && (
+          {projectBundle.projectSummary && (
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Summary</p>
-              <p className="text-sm">{projectBundle.summary}</p>
+              <p className="text-sm">{projectBundle.projectSummary}</p>
             </div>
           )}
-          {projectBundle.finalOutput && (
+          {projectBundle.finalOutputSummary && (
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Final Output</p>
-              <p className="text-sm">{projectBundle.finalOutput}</p>
+              <p className="text-sm">{projectBundle.finalOutputSummary}</p>
             </div>
           )}
 
@@ -480,21 +400,20 @@ export function ProjectBundlePage() {
       </div>
 
       <div className="space-y-2">
-        {sortedSteps.map((step, idx) => {
-          const sv = stepVerifications[idx];
-          const status = sv?.status ?? 'pending';
-          const stepLabel = step.label || step.title || `Step ${step.sequence}`;
-          const certHash = step.certificateHash || (step.bundle as any)?.certificateHash;
+        {orderedSteps.map((step) => {
+          const stepVR = stepResultMap.get(step.stepId);
+          const status: 'pass' | 'fail' | 'pending' = !stepVR
+            ? 'pending'
+            : stepVR.ok ? 'pass' : 'fail';
 
           return (
             <Card
-              key={idx}
+              key={step.stepId}
               className={cn(
                 "cursor-pointer hover:border-primary/40 transition-colors",
                 status === 'fail' && "border-destructive/30",
-                status === 'error' && "border-destructive/30",
               )}
-              onClick={() => setSelectedStepIndex(idx)}
+              onClick={() => setSelectedStepId(step.stepId)}
             >
               <CardContent className="py-3 px-4">
                 <div className="flex items-center gap-3">
@@ -506,41 +425,33 @@ export function ProjectBundlePage() {
                   {/* Step info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium truncate">{stepLabel}</span>
-                      {step.stepType && (
-                        <Badge variant="outline" className="text-[10px] h-4 shrink-0">{step.stepType}</Badge>
-                      )}
+                      <span className="text-sm font-medium truncate">{step.stepLabel}</span>
+                      <Badge variant="outline" className="text-[10px] h-4 shrink-0">{step.stepType}</Badge>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-                      {step.executionId && (
-                        <span className="font-mono truncate max-w-[180px]">{step.executionId}</span>
-                      )}
-                      {certHash && (
-                        <span className="font-mono truncate max-w-[160px]">
-                          {typeof certHash === 'string' ? certHash.slice(0, 24) + '…' : ''}
-                        </span>
-                      )}
+                      <span className="font-mono truncate max-w-[180px]">{step.executionId}</span>
+                      <span className="font-mono truncate max-w-[160px]">
+                        {step.certificateHash.slice(0, 24)}…
+                      </span>
                       {step.recordedAt && (
                         <span className="shrink-0">{formatDate(step.recordedAt)}</span>
                       )}
-                      {(step.model || step.provider || step.tool) && (
+                      {step.modelIdentity && (
                         <span className="shrink-0">
-                          {step.provider && step.model ? `${step.provider}/${step.model}` : step.model || step.tool || ''}
+                          {step.modelIdentity.provider}/{step.modelIdentity.model}
                         </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Status */}
+                  {/* Status — from canonical per-step result */}
                   <div className="shrink-0">
                     {status === 'pending' ? (
                       <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
                     ) : status === 'pass' ? (
                       <CheckCircle2 className="w-5 h-5 text-verified" />
-                    ) : status === 'fail' ? (
-                      <XCircle className="w-5 h-5 text-destructive" />
                     ) : (
-                      <AlertTriangle className="w-5 h-5 text-destructive" />
+                      <XCircle className="w-5 h-5 text-destructive" />
                     )}
                   </div>
 
@@ -575,7 +486,7 @@ export function ProjectBundlePage() {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Helpers                                                                    */
+/*  Presentation helpers — no verification semantics                          */
 /* -------------------------------------------------------------------------- */
 
 function formatDate(iso: string): string {
