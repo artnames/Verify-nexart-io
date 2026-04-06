@@ -27,6 +27,7 @@ import {
 } from '@/api/auditRecords';
 import { computeCertificateHash } from '@/lib/canonicalize';
 import { isAICERBundle } from '@/types/aiCerBundle';
+import { isProjectBundle } from '@/types/projectBundle';
 import { normalizeHash } from '@/lib/hashResolver';
 import type { CERBundle } from '@/types/auditRecord';
 import type { PackageEnvelopeData } from '@/types/cerPackage';
