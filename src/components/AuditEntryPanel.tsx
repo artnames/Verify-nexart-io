@@ -1,6 +1,6 @@
 /**
  * Audit Entry Panel — Clean verifier input for NexArt Verification Portal.
- * Three focused actions: Verify by Execution ID, Verify by Certificate Hash, Upload CER Bundle.
+ * Four focused actions: Verify by Execution ID, Verify by Certificate Hash, Verify by Project Hash, Upload artifact.
  */
 
 import { useState } from 'react';
@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Hash,
   FileText,
+  Layers,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -47,6 +48,9 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
   // Certificate Hash state
   const [hashInput, setHashInput] = useState('');
   const [isLookingUpHash, setIsLookingUpHash] = useState(false);
+
+  // Project Hash state
+  const [projectHashInput, setProjectHashInput] = useState('');
 
   // File upload state
   const [isUploading, setIsUploading] = useState(false);
@@ -99,6 +103,20 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
     }
 
     setError('Enter a valid certificate hash (e.g. sha256:d25a3557...).');
+  };
+
+  const handleProjectHashLookup = () => {
+    const trimmed = projectHashInput.trim();
+    if (!trimmed) return;
+    setError(null);
+
+    if (looksLikeHash(trimmed)) {
+      navigate(`/p/${encodeURIComponent(trimmed)}`);
+      return;
+    }
+
+    setError('Enter a valid project hash (e.g. sha256:abc123...).');
+  };
   };
 
   const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -325,6 +343,44 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
           </div>
           <p className="text-xs text-muted-foreground">
             The SHA-256 certificate hash from the certified execution record.
+          </p>
+        </div>
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-border" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-card px-2 text-muted-foreground">or</span>
+          </div>
+        </div>
+
+        {/* Verify by Project Hash */}
+        <div className="space-y-2">
+          <Label htmlFor="project-hash-input" className="text-sm font-medium">
+            Verify by Project Hash
+          </Label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Layers className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                id="project-hash-input"
+                placeholder="sha256:abc123..."
+                value={projectHashInput}
+                onChange={(e) => { setProjectHashInput(e.target.value); setError(null); }}
+                onKeyDown={(e) => e.key === 'Enter' && handleProjectHashLookup()}
+                className="pl-9 font-mono text-sm"
+              />
+            </div>
+            <Button
+              onClick={handleProjectHashLookup}
+              disabled={!projectHashInput.trim()}
+            >
+              Verify
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            The SHA-256 project hash identifying a full Project Bundle with multiple certified steps.
           </p>
         </div>
 

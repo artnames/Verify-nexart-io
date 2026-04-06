@@ -11,6 +11,7 @@ import VerifyCertificate from "./pages/VerifyCertificate";
 import VerifyExecution from "./pages/VerifyExecution";
 import VerificationGuarantees from "./pages/VerificationGuarantees";
 const ProjectBundlePage = lazy(() => import("./pages/ProjectBundlePage").then(m => ({ default: m.ProjectBundlePage })));
+const VerifyProjectHash = lazy(() => import("./pages/VerifyProjectHash"));
 import { AuditPage } from "./components/AuditPage";
 import { AuditLogPage } from "./components/AuditLogPage";
 import { AuditLayout } from "./components/AuditLayout";
@@ -32,6 +33,7 @@ const App = () => (
           <Route path="/project" element={<Suspense fallback={null}><ProjectBundlePage /></Suspense>} />
           <Route path="/c/:certificateHash" element={<VerifyCertificate />} />
           <Route path="/e/:executionId" element={<VerifyExecution />} />
+          <Route path="/p/:projectHash" element={<Suspense fallback={null}><VerifyProjectHash /></Suspense>} />
           <Route path="/audit/:hash" element={
             <AuditLayout>
               <AuditPage />
