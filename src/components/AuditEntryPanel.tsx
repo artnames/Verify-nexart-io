@@ -340,7 +340,7 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
         {/* Upload CER Bundle */}
         <div className="space-y-2">
           <Label htmlFor="bundle-upload" className="text-sm font-medium">
-            Upload CER Bundle, AI CER Package, or Project Bundle
+            Upload Project Bundle, CER Bundle, or AI CER Package
           </Label>
           <div className="flex gap-2">
             <Button
@@ -367,7 +367,7 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Upload a .json file: single CER bundle, AI CER package, or project bundle.
+            Upload a .json Project Bundle, CER bundle, or AI CER package from your device.
           </p>
         </div>
 
