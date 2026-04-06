@@ -24,7 +24,7 @@ export function HowItWorksPanel() {
           <a href="https://nexart.io/protocol" target="_blank" rel="noopener noreferrer" className="text-link hover:underline">
             Certified Execution Records (CERs)
           </a>.{" "}
-          Look up any record by execution ID or certificate hash, upload a CER bundle,
+          Look up any record by execution ID or certificate hash, upload a CER bundle or project bundle,
           and validate its integrity without relying on the system that created it.
         </p>
         <p className="text-sm text-muted-foreground mt-3 max-w-3xl">

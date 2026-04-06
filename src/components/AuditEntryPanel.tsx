@@ -27,6 +27,7 @@ import {
 } from '@/api/auditRecords';
 import { computeCertificateHash } from '@/lib/canonicalize';
 import { isAICERBundle } from '@/types/aiCerBundle';
+import { isProjectBundle } from '@/types/projectBundle';
 import { normalizeHash } from '@/lib/hashResolver';
 import type { CERBundle } from '@/types/auditRecord';
 import type { PackageEnvelopeData } from '@/types/cerPackage';
@@ -118,6 +119,20 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
 
     try {
       const text = await file.text();
+      
+      // Try to detect project bundle before standard parsing
+      try {
+        const rawJson = JSON.parse(text);
+        if (isProjectBundle(rawJson)) {
+          // Route to project bundle verification page
+          navigate('/project', { state: { projectBundle: rawJson } });
+          setIsUploading(false);
+          return;
+        }
+      } catch {
+        // Not valid JSON — fall through to standard parsing
+      }
+
       const result = parseBundleJson(text);
 
       if (!result.success || !result.bundle) {
@@ -325,7 +340,7 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
         {/* Upload CER Bundle */}
         <div className="space-y-2">
           <Label htmlFor="bundle-upload" className="text-sm font-medium">
-            Upload CER Bundle or AI CER Package
+            Upload CER Bundle, AI CER Package, or Project Bundle
           </Label>
           <div className="flex gap-2">
             <Button
@@ -352,7 +367,7 @@ export function AuditEntryPanel({ onRecordFound, compact = false }: AuditEntryPa
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Upload a .json CER bundle file or an AI CER package file (.json) from your device.
+            Upload a .json file: single CER bundle, AI CER package, or project bundle.
           </p>
         </div>
 
