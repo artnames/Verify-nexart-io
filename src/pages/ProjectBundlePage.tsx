@@ -274,8 +274,7 @@ export function ProjectBundlePage() {
               code: (vResult?.code ?? 'ERROR') as any,
               errors: vResult?.errors ?? [],
               details: vResult?.details ?? [],
-              degraded: vResult?.degraded,
-            }}
+            } as any}
             bundle={stepBundle}
             attestationPresent={false}
             contextIntegrityProtected={vResult?.contextIntegrityProtected}
