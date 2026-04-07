@@ -13,8 +13,10 @@
  * against the node's published public key.
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { recertifyAICER } from '@/api/aiCerRecertification';
+import type { AICERBundle } from '@/types/aiCerBundle';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -71,6 +73,9 @@ export function ProjectBundlePage({ projectBundle: propBundle, nodeReceipt, node
   const [verifyResult, setVerifyResult] = useState<ProjectBundleVerifyResult | null>(null);
   const [isVerifying, setIsVerifying] = useState(true);
   const [showRawJson, setShowRawJson] = useState(false);
+  const [isAttesting, setIsAttesting] = useState(false);
+  const [stepAttestResult, setStepAttestResult] = useState<any>(null);
+  const [stepAttestError, setStepAttestError] = useState<string | null>(null);
 
   useSEO({
     title: projectBundle?.projectTitle
@@ -129,10 +134,35 @@ export function ProjectBundlePage({ projectBundle: propBundle, nodeReceipt, node
   const handleBack = useCallback(() => {
     if (selectedStepId !== null) {
       setSelectedStepId(null);
+      setStepAttestResult(null);
+      setStepAttestError(null);
     } else {
       navigate('/');
     }
   }, [selectedStepId, navigate]);
+
+  // Attestation handler for embedded step CERs
+  const handleStepAttest = useCallback(async () => {
+    if (!selectedStepId || !projectBundle) return;
+    const embeddedBundle = projectBundle.embeddedBundles[selectedStepId];
+    if (!embeddedBundle) return;
+
+    setIsAttesting(true);
+    setStepAttestResult(null);
+    setStepAttestError(null);
+
+    try {
+      const result = await recertifyAICER(selectedStepId, embeddedBundle as unknown as AICERBundle);
+      setStepAttestResult(result);
+      if (!result.ok) {
+        setStepAttestError(result.errorMessage || 'Attestation failed');
+      }
+    } catch (err) {
+      setStepAttestError(err instanceof Error ? err.message : 'Attestation failed');
+    } finally {
+      setIsAttesting(false);
+    }
+  }, [selectedStepId, projectBundle]);
 
   // Not found / no bundle
   if (!projectBundle) {
@@ -243,6 +273,10 @@ export function ProjectBundlePage({ projectBundle: propBundle, nodeReceipt, node
           } as any}
           bundle={embeddedBundle}
           attestationPresent={false}
+          onAttest={handleStepAttest}
+          isAttesting={isAttesting}
+          attestResult={stepAttestResult}
+          attestError={stepAttestError}
         />
       </div>
     );
