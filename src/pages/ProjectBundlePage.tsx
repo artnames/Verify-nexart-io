@@ -8,6 +8,9 @@
  * ARCHITECTURE: All verification semantics come from verifyProjectBundle()
  * exported by @nexart/ai-execution. The frontend does NOT own verification
  * logic — it consumes and presents canonical results.
+ *
+ * Node receipt verification is performed browser-side using WebCrypto
+ * against the node's published public key.
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
