@@ -39,11 +39,13 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
-  verifyProjectBundle,
   type ProjectBundle,
+} from '@nexart/ai-execution';
+import {
+  verifyProjectBundleBrowser,
   type ProjectBundleVerifyResult,
   type ProjectBundleStepVerifyResult,
-} from '@nexart/ai-execution';
+} from '@/lib/verifyProjectBundleBrowser';
 import { AICERVerifyResult } from '@/components/AICERVerifyResult';
 import { CertificationReport } from '@/components/certification-report/CertificationReport';
 import { useSEO } from '@/hooks/useSEO';
