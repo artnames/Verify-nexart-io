@@ -42,12 +42,10 @@ import {
 import { cn } from '@/lib/utils';
 import {
   type ProjectBundle,
-} from '@nexart/ai-execution';
-import {
-  verifyProjectBundleBrowser,
   type ProjectBundleVerifyResult,
   type ProjectBundleStepVerifyResult,
-} from '@/lib/verifyProjectBundleBrowser';
+  verifyProjectBundleAsync,
+} from '@nexart/ai-execution';
 import { AICERVerifyResult } from '@/components/AICERVerifyResult';
 import { CertificationReport } from '@/components/certification-report/CertificationReport';
 import { useSEO } from '@/hooks/useSEO';
@@ -99,7 +97,7 @@ export function ProjectBundlePage({ projectBundle: propBundle, nodeReceipt, node
     let cancelled = false;
 
     setIsVerifying(true);
-    verifyProjectBundleBrowser(projectBundle)
+    verifyProjectBundleAsync(projectBundle)
       .then(result => {
         if (!cancelled) setVerifyResult(result);
       })
