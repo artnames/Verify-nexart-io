@@ -39,11 +39,13 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
-  verifyProjectBundle,
   type ProjectBundle,
+} from '@nexart/ai-execution';
+import {
+  verifyProjectBundleBrowser,
   type ProjectBundleVerifyResult,
   type ProjectBundleStepVerifyResult,
-} from '@nexart/ai-execution';
+} from '@/lib/verifyProjectBundleBrowser';
 import { AICERVerifyResult } from '@/components/AICERVerifyResult';
 import { CertificationReport } from '@/components/certification-report/CertificationReport';
 import { useSEO } from '@/hooks/useSEO';
@@ -89,22 +91,28 @@ export function ProjectBundlePage({ projectBundle: propBundle, nodeReceipt, node
   // Run canonical verification on mount
   useEffect(() => {
     if (!projectBundle) return;
+    let cancelled = false;
 
     setIsVerifying(true);
-    try {
-      const result = verifyProjectBundle(projectBundle);
-      setVerifyResult(result);
-    } catch (err) {
-      // SDK threw — treat as structural failure
-      setVerifyResult({
-        ok: false,
-        code: 'SCHEMA_ERROR' as any,
-        errors: [err instanceof Error ? err.message : 'Unknown verification error'],
-        steps: [],
+    verifyProjectBundleBrowser(projectBundle)
+      .then(result => {
+        if (!cancelled) setVerifyResult(result);
+      })
+      .catch(err => {
+        if (!cancelled) {
+          setVerifyResult({
+            ok: false,
+            code: 'SCHEMA_ERROR',
+            errors: [err instanceof Error ? err.message : 'Unknown verification error'],
+            steps: [],
+          });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsVerifying(false);
       });
-    } finally {
-      setIsVerifying(false);
-    }
+
+    return () => { cancelled = true; };
   }, [projectBundle]);
 
   // Build a lookup map from stepId to per-step verify result
