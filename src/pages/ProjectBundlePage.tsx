@@ -73,6 +73,10 @@ export function ProjectBundlePage({ projectBundle: propBundle, nodeReceipt, node
   const [verifyResult, setVerifyResult] = useState<ProjectBundleVerifyResult | null>(null);
   const [isVerifying, setIsVerifying] = useState(true);
   const [showRawJson, setShowRawJson] = useState(false);
+  const [isAttesting, setIsAttesting] = useState(false);
+  const [stepAttestResult, setStepAttestResult] = useState<any>(null);
+  const [stepAttestError, setStepAttestError] = useState<string | null>(null);
+  const [showRawJson, setShowRawJson] = useState(false);
 
   useSEO({
     title: projectBundle?.projectTitle
