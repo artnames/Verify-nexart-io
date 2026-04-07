@@ -8,6 +8,9 @@
  * ARCHITECTURE: All verification semantics come from verifyProjectBundle()
  * exported by @nexart/ai-execution. The frontend does NOT own verification
  * logic — it consumes and presents canonical results.
+ *
+ * Node receipt verification is performed browser-side using WebCrypto
+ * against the node's published public key.
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -44,6 +47,7 @@ import {
 import { AICERVerifyResult } from '@/components/AICERVerifyResult';
 import { CertificationReport } from '@/components/certification-report/CertificationReport';
 import { useSEO } from '@/hooks/useSEO';
+import type { NodeReceipt, NodeReceiptVerifyResult } from '@/lib/verifyNodeReceipt';
 
 /* -------------------------------------------------------------------------- */
 /*  Main component                                                            */
@@ -51,9 +55,11 @@ import { useSEO } from '@/hooks/useSEO';
 
 interface ProjectBundlePageProps {
   projectBundle?: ProjectBundle | null;
+  nodeReceipt?: NodeReceipt | null;
+  nodeReceiptResult?: NodeReceiptVerifyResult | null;
 }
 
-export function ProjectBundlePage({ projectBundle: propBundle }: ProjectBundlePageProps = {}) {
+export function ProjectBundlePage({ projectBundle: propBundle, nodeReceipt, nodeReceiptResult }: ProjectBundlePageProps = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const routerState = location.state as { projectBundle?: ProjectBundle } | null;
@@ -359,6 +365,38 @@ export function ProjectBundlePage({ projectBundle: propBundle }: ProjectBundlePa
                 <AlertTriangle className="w-4 h-4 text-destructive" />
                 <span className="font-medium text-destructive">Structural Validation Failed</span>
               </div>
+            </div>
+          )}
+
+          {/* Node Receipt — independent verification of node endorsement */}
+          {nodeReceipt && nodeReceiptResult && (
+            <div className={cn(
+              "p-3 rounded-md border text-sm",
+              nodeReceiptResult.status === 'valid'
+                ? "border-verified/30 bg-verified/5"
+                : nodeReceiptResult.status === 'invalid'
+                  ? "border-destructive/30 bg-destructive/5"
+                  : "border-border bg-muted/5"
+            )}>
+              <div className="flex items-center gap-2 mb-1">
+                {nodeReceiptResult.status === 'valid' ? (
+                  <CheckCircle2 className="w-4 h-4 text-verified" />
+                ) : nodeReceiptResult.status === 'invalid' ? (
+                  <XCircle className="w-4 h-4 text-destructive" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-muted-foreground" />
+                )}
+                <span className="font-medium">
+                  Node Receipt: {nodeReceiptResult.status === 'valid' ? 'Verified' : nodeReceiptResult.status === 'invalid' ? 'Invalid' : 'Not Verified'}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">{nodeReceiptResult.detail}</p>
+              {nodeReceiptResult.kid && (
+                <p className="text-xs font-mono text-muted-foreground mt-1">Key: {nodeReceiptResult.kid}</p>
+              )}
+              {nodeReceiptResult.signedAt && (
+                <p className="text-xs text-muted-foreground mt-0.5">Signed: {formatDate(nodeReceiptResult.signedAt)}</p>
+              )}
             </div>
           )}
 
