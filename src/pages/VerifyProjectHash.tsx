@@ -1,10 +1,9 @@
 /**
  * VerifyProjectHash — resolves /p/:projectHash by fetching the project bundle
- * from the nexart.io public Project Bundle registry, then renders the existing
- * ProjectBundlePage with the fetched bundle.
+ * from node.nexart.io's live Project Bundle trust surface, then independently
+ * verifies and renders via ProjectBundlePage.
  *
- * No frontend-owned verification semantics — canonical verification is delegated
- * to ProjectBundlePage which uses verifyProjectBundle() from @nexart/ai-execution.
+ * Trust model: fetch from public trust surface → independently verify locally.
  */
 
 import { useEffect, useState } from 'react';
@@ -15,15 +14,16 @@ import { Card, CardContent } from '@/components/ui/card';
 import { AuditLayout } from '@/components/AuditLayout';
 import { ProjectBundlePage } from '@/pages/ProjectBundlePage';
 import { useSEO } from '@/hooks/useSEO';
+import { verifyNodeReceipt, type NodeReceipt, type NodeReceiptVerifyResult } from '@/lib/verifyNodeReceipt';
 import type { ProjectBundle } from '@nexart/ai-execution';
 
-/** The public registry endpoint on nexart.io */
-const PROJECT_BUNDLE_REGISTRY_BASE = 'https://nexart.io/api/public/project-bundle';
+/** Live node-backed Project Bundle endpoint */
+const NODE_PROJECT_BUNDLE_BASE = 'https://node.nexart.io/api/project-bundles';
 
 type PageState =
   | { status: 'loading' }
   | { status: 'error'; code: string; message: string }
-  | { status: 'ready'; bundle: ProjectBundle };
+  | { status: 'ready'; bundle: ProjectBundle; nodeReceipt: NodeReceipt | null; receiptResult: NodeReceiptVerifyResult | null };
 
 /**
  * Validate project hash format: must be sha256:<64 hex chars> or raw 64 hex chars
@@ -77,7 +77,8 @@ export default function VerifyProjectHash() {
 
     (async () => {
       try {
-        const url = `${PROJECT_BUNDLE_REGISTRY_BASE}?projectHash=${encodeURIComponent(normalized)}`;
+        // Fetch from live node-backed trust surface
+        const url = `${NODE_PROJECT_BUNDLE_BASE}/${encodeURIComponent(normalized)}`;
         const res = await fetch(url, {
           method: 'GET',
           headers: { 'Accept': 'application/json' },
@@ -89,7 +90,16 @@ export default function VerifyProjectHash() {
           setState({
             status: 'error',
             code: 'NOT_FOUND',
-            message: `No project bundle found for hash ${normalized}. The project may not be registered in the public registry.`,
+            message: `No project bundle found for hash ${normalized}. The project may not be registered on the node.`,
+          });
+          return;
+        }
+
+        if (res.status === 400) {
+          setState({
+            status: 'error',
+            code: 'INVALID_FORMAT',
+            message: `The node rejected the project hash as invalid.`,
           });
           return;
         }
@@ -106,8 +116,9 @@ export default function VerifyProjectHash() {
 
         const json = await res.json();
 
-        // The registry may wrap the bundle in a response envelope
+        // Node returns { proof, bundle, nodeReceipt }
         const bundle: ProjectBundle = json.bundle ?? json;
+        const nodeReceipt: NodeReceipt | null = json.nodeReceipt ?? null;
 
         if (!bundle || typeof bundle !== 'object' || bundle.bundleType !== 'cer.project.bundle.v1') {
           setState({
@@ -118,7 +129,15 @@ export default function VerifyProjectHash() {
           return;
         }
 
-        setState({ status: 'ready', bundle });
+        // Independently verify nodeReceipt
+        let receiptResult: NodeReceiptVerifyResult | null = null;
+        if (nodeReceipt) {
+          receiptResult = await verifyNodeReceipt(nodeReceipt, normalized);
+        }
+
+        if (!cancelled) {
+          setState({ status: 'ready', bundle, nodeReceipt, receiptResult });
+        }
       } catch (err) {
         if (cancelled) return;
         setState({
@@ -137,7 +156,7 @@ export default function VerifyProjectHash() {
       <AuditLayout>
         <div className="max-w-4xl mx-auto px-4 py-16 flex flex-col items-center gap-4">
           <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Looking up project bundle…</p>
+          <p className="text-sm text-muted-foreground">Fetching project bundle from node…</p>
           <p className="text-xs font-mono text-muted-foreground break-all max-w-md text-center">
             {projectHash}
           </p>
@@ -177,6 +196,11 @@ export default function VerifyProjectHash() {
     );
   }
 
-  // Render the existing ProjectBundlePage with the fetched bundle
-  return <ProjectBundlePage projectBundle={state.bundle} />;
+  return (
+    <ProjectBundlePage
+      projectBundle={state.bundle}
+      nodeReceipt={state.nodeReceipt}
+      nodeReceiptResult={state.receiptResult}
+    />
+  );
 }
