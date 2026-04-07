@@ -368,6 +368,38 @@ export function ProjectBundlePage({ projectBundle: propBundle, nodeReceipt, node
             </div>
           )}
 
+          {/* Node Receipt — independent verification of node endorsement */}
+          {nodeReceipt && nodeReceiptResult && (
+            <div className={cn(
+              "p-3 rounded-md border text-sm",
+              nodeReceiptResult.status === 'valid'
+                ? "border-verified/30 bg-verified/5"
+                : nodeReceiptResult.status === 'invalid'
+                  ? "border-destructive/30 bg-destructive/5"
+                  : "border-border bg-muted/5"
+            )}>
+              <div className="flex items-center gap-2 mb-1">
+                {nodeReceiptResult.status === 'valid' ? (
+                  <CheckCircle2 className="w-4 h-4 text-verified" />
+                ) : nodeReceiptResult.status === 'invalid' ? (
+                  <XCircle className="w-4 h-4 text-destructive" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-muted-foreground" />
+                )}
+                <span className="font-medium">
+                  Node Receipt: {nodeReceiptResult.status === 'valid' ? 'Verified' : nodeReceiptResult.status === 'invalid' ? 'Invalid' : 'Not Verified'}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">{nodeReceiptResult.detail}</p>
+              {nodeReceiptResult.kid && (
+                <p className="text-xs font-mono text-muted-foreground mt-1">Key: {nodeReceiptResult.kid}</p>
+              )}
+              {nodeReceiptResult.signedAt && (
+                <p className="text-xs text-muted-foreground mt-0.5">Signed: {formatDate(nodeReceiptResult.signedAt)}</p>
+              )}
+            </div>
+          )}
+
           {/* Goal / Summary / Final output — presentation only */}
           {projectBundle.projectGoal && (
             <div className="space-y-1">
