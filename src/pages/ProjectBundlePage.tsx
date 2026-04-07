@@ -13,8 +13,10 @@
  * against the node's published public key.
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { recertifyAICER } from '@/api/aiCerRecertification';
+import type { AICERBundle } from '@/types/aiCerBundle';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
