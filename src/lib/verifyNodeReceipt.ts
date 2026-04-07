@@ -145,7 +145,7 @@ export async function verifyNodeReceipt(
     const valid = await crypto.subtle.verify(
       { name: 'Ed25519' },
       key,
-      sigBytes,
+      sigBytes.buffer as ArrayBuffer,
       data,
     );
 
