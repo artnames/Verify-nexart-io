@@ -470,7 +470,7 @@ export async function verifyProjectBundleBrowser(bundle: any): Promise<ProjectBu
     if (!step.stepId) continue;
     const embedded = b.embeddedBundles[step.stepId];
     const stepErrors: string[] = [];
-    let stepCode = CerVerifyCode.OK;
+    let stepCode: string = CerVerifyCode.OK;
 
     if (!embedded) {
       stepErrors.push(`step "${step.stepId}": no embedded bundle found in embeddedBundles`);
