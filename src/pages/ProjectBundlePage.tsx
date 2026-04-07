@@ -273,6 +273,10 @@ export function ProjectBundlePage({ projectBundle: propBundle, nodeReceipt, node
           } as any}
           bundle={embeddedBundle}
           attestationPresent={false}
+          onAttest={handleStepAttest}
+          isAttesting={isAttesting}
+          attestResult={stepAttestResult}
+          attestError={stepAttestError}
         />
       </div>
     );
