@@ -97,7 +97,7 @@ export function ProjectBundlePage({ projectBundle: propBundle, nodeReceipt, node
     let cancelled = false;
 
     setIsVerifying(true);
-    verifyProjectBundleBrowser(projectBundle)
+    verifyProjectBundleAsync(projectBundle)
       .then(result => {
         if (!cancelled) setVerifyResult(result);
       })
