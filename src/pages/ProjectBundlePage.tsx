@@ -134,10 +134,35 @@ export function ProjectBundlePage({ projectBundle: propBundle, nodeReceipt, node
   const handleBack = useCallback(() => {
     if (selectedStepId !== null) {
       setSelectedStepId(null);
+      setStepAttestResult(null);
+      setStepAttestError(null);
     } else {
       navigate('/');
     }
   }, [selectedStepId, navigate]);
+
+  // Attestation handler for embedded step CERs
+  const handleStepAttest = useCallback(async () => {
+    if (!selectedStepId || !projectBundle) return;
+    const embeddedBundle = projectBundle.embeddedBundles[selectedStepId];
+    if (!embeddedBundle) return;
+
+    setIsAttesting(true);
+    setStepAttestResult(null);
+    setStepAttestError(null);
+
+    try {
+      const result = await recertifyAICER(selectedStepId, embeddedBundle as unknown as AICERBundle);
+      setStepAttestResult(result);
+      if (!result.ok) {
+        setStepAttestError(result.errorMessage || 'Attestation failed');
+      }
+    } catch (err) {
+      setStepAttestError(err instanceof Error ? err.message : 'Attestation failed');
+    } finally {
+      setIsAttesting(false);
+    }
+  }, [selectedStepId, projectBundle]);
 
   // Not found / no bundle
   if (!projectBundle) {
