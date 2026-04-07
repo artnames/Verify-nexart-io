@@ -47,6 +47,7 @@ import {
 import { AICERVerifyResult } from '@/components/AICERVerifyResult';
 import { CertificationReport } from '@/components/certification-report/CertificationReport';
 import { useSEO } from '@/hooks/useSEO';
+import type { NodeReceipt, NodeReceiptVerifyResult } from '@/lib/verifyNodeReceipt';
 
 /* -------------------------------------------------------------------------- */
 /*  Main component                                                            */
@@ -54,9 +55,11 @@ import { useSEO } from '@/hooks/useSEO';
 
 interface ProjectBundlePageProps {
   projectBundle?: ProjectBundle | null;
+  nodeReceipt?: NodeReceipt | null;
+  nodeReceiptResult?: NodeReceiptVerifyResult | null;
 }
 
-export function ProjectBundlePage({ projectBundle: propBundle }: ProjectBundlePageProps = {}) {
+export function ProjectBundlePage({ projectBundle: propBundle, nodeReceipt, nodeReceiptResult }: ProjectBundlePageProps = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const routerState = location.state as { projectBundle?: ProjectBundle } | null;
