@@ -128,13 +128,15 @@ export function WhatWasVerified({ summary, passed, degraded, verifyDetails, core
   );
 }
 
-function VerifiedLine({ text, icon = 'check' }: { text: string; icon?: 'check' | 'warning' }) {
+function VerifiedLine({ text, icon = 'check' }: { text: string; icon?: 'check' | 'warning' | 'info' }) {
   return (
     <li className="flex items-start gap-2 text-xs text-foreground leading-relaxed">
       {icon === 'check' ? (
         <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0 text-verified" />
-      ) : (
+      ) : icon === 'warning' ? (
         <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-warning" />
+      ) : (
+        <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-muted-foreground" />
       )}
       <span>{text}</span>
     </li>
