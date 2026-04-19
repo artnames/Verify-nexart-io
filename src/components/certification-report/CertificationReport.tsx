@@ -145,20 +145,8 @@ export function CertificationReport({
       {/* 2. Execution Summary — human-readable overview */}
       <ExecutionSummary summary={summary} passed={passed || degraded} />
 
-      {/* Provenance note (redacted reseal, etc.) */}
-      {provenance && (
-        <div className="rounded-lg border border-border/60 bg-muted/5 px-5 py-3 flex items-start gap-3">
-          <GitBranch className="w-3.5 h-3.5 mt-0.5 shrink-0 text-muted-foreground" />
-          <div className="text-xs text-muted-foreground leading-relaxed space-y-1">
-            {provenance.isReseal && (
-              <p>This record is a redacted reseal of an earlier certified record. Some fields may have been removed or replaced before re-certification.</p>
-            )}
-            {provenance.originalHash && (
-              <p>Original certificate hash: <code className="font-mono text-foreground">{provenance.originalHash}</code></p>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Provenance / Artifact Identity (redacted reseal, requested-vs-returned) */}
+      {provenance && <ProvenanceSection info={provenance} />}
 
       {/* 2b. What was verified — plain-language trust explanation */}
       <WhatWasVerified summary={summary} passed={passed} degraded={degraded} verifyDetails={verifyDetails} />
@@ -219,6 +207,14 @@ export function CertificationReport({
 
     </div>
   );
+}
+
+/** Normalize a certificate hash for equality comparison only. */
+function normalizeForCompare(h: string): string {
+  const t = h.trim().toLowerCase();
+  if (t.startsWith('sha256:')) return t;
+  if (/^[a-f0-9]{64}$/.test(t)) return `sha256:${t}`;
+  return t;
 }
 
 export { type CertificationReportProps } from './types';
