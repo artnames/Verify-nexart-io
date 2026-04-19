@@ -19,6 +19,14 @@ interface Props {
   verifyCode?: string;
   verifyDetails?: string[];
   trustWarnings?: string[];
+  /**
+   * Narrow re-framing flag for legitimate public redacted reseals where
+   * the only degraded reason is supplemental context.signals outside the
+   * certificate hash scope. When true, the headline is presented as
+   * "Verified" with a supplemental-context note instead of "Partially
+   * Verified". Underlying verifyCode/status are unchanged.
+   */
+  coreVerifiedReseal?: boolean;
 }
 
 function formatBytes(bytes: number): string {
@@ -109,7 +117,7 @@ function explainVerifyCode(code: string, degraded: boolean): string {
   }
 }
 
-export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, trustWarnings }: Props) {
+export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, trustWarnings, coreVerifiedReseal }: Props) {
   const [showWhy, setShowWhy] = useState(false);
   const [downloadingPack, setDownloadingPack] = useState(false);
 
@@ -205,11 +213,14 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, t
   const passed = summary.status === 'pass';
   const degraded = summary.status === 'degraded';
   const hasTrustWarnings = trustWarnings && trustWarnings.length > 0;
-  const fullyTrusted = passed && !hasTrustWarnings;
+  // For legitimate public reseals (coreVerifiedReseal), present as a verified
+  // outcome with a supplemental-context note rather than as a partial state.
+  const presentAsVerified = (passed || coreVerifiedReseal) && !hasTrustWarnings;
+  const fullyTrusted = passed && !hasTrustWarnings; // strict full-pass for legacy semantics
   const isAI = summary.certType === 'AI Execution Record';
 
-  // Visual state: green (full pass), amber (degraded), red (fail/error)
-  const borderColor = fullyTrusted
+  // Visual state: green (verified — incl. core-verified reseal), amber (other degraded), red (fail)
+  const borderColor = presentAsVerified
     ? "border-verified/20"
     : degraded
       ? "border-warning/30"
@@ -223,7 +234,7 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, t
           {/* Left: Status + explanation */}
           <div className="min-w-0 space-y-4">
             <div className="flex items-start gap-4">
-              {fullyTrusted ? (
+              {presentAsVerified ? (
                 <div className="w-12 h-12 rounded-full bg-verified/10 flex items-center justify-center shrink-0">
                   <ShieldCheck className="w-6 h-6 text-verified" />
                 </div>
@@ -239,20 +250,28 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, t
               <div>
                 <h1 className={cn(
                   "text-2xl font-semibold tracking-tight",
-                  fullyTrusted ? "text-verified" : degraded ? "text-warning" : "text-destructive",
+                  presentAsVerified ? "text-verified" : degraded ? "text-warning" : "text-destructive",
                 )}>
-                  {fullyTrusted ? 'Fully Verified' : degraded ? 'Partially Verified' : 'Not Verified'}
+                  {fullyTrusted
+                    ? 'Fully Verified'
+                    : coreVerifiedReseal
+                      ? 'Verified'
+                      : degraded
+                        ? 'Partially Verified'
+                        : 'Not Verified'}
                 </h1>
                 <p className="text-sm text-muted-foreground mt-1">
                   {fullyTrusted
                     ? 'All fields are integrity-protected. This record has not been altered since certification.'
-                    : degraded
-                      ? 'Core record integrity passed, but context data is NOT covered by the certificate hash.'
-                      : !passed
-                        ? 'This record may have been modified after certification.'
-                        : 'Bundle integrity passed, but one or more trust layers failed verification.'}
+                    : coreVerifiedReseal
+                      ? 'The public artifact verified successfully. Supplemental context signals are present for review but are not sealed into this artifact\'s certificate hash.'
+                      : degraded
+                        ? 'Core record integrity passed, but context data is NOT covered by the certificate hash.'
+                        : !passed
+                          ? 'This record may have been modified after certification.'
+                          : 'Bundle integrity passed, but one or more trust layers failed verification.'}
                 </p>
-                {degraded && (
+                {degraded && !coreVerifiedReseal && (
                   <p className="text-xs text-warning mt-2 font-medium">
                     ⚠ Context data may have been modified after certification. Do not treat it as integrity-protected.
                   </p>
@@ -265,26 +284,34 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, t
               </div>
             </div>
 
-            {/* Why? — shown for any non-fully-passed state with a code */}
+            {/* Why? — shown for any non-fully-passed state with a code.
+                For coreVerifiedReseal we still surface it (informational), but
+                styled as neutral/info rather than warning. */}
             {!fullyTrusted && verifyCode && verifyCode !== 'OK' && (
               <Collapsible open={showWhy} onOpenChange={setShowWhy}>
                 <CollapsibleTrigger className={cn(
                   "flex items-center gap-1 text-xs hover:text-foreground transition-colors",
-                  degraded ? "text-warning" : "text-muted-foreground",
+                  coreVerifiedReseal ? "text-muted-foreground" : degraded ? "text-warning" : "text-muted-foreground",
                 )}>
                   <ChevronDown className={cn("w-3 h-3 transition-transform", showWhy && "rotate-180")} />
-                  <span>Why?</span>
+                  <span>{coreVerifiedReseal ? 'Details' : 'Why?'}</span>
                 </CollapsibleTrigger>
                 <CollapsibleContent className={cn(
                   "mt-2 p-3 rounded-md border",
-                  degraded ? "bg-warning/5 border-warning/20" : "bg-destructive/5 border-destructive/20",
+                  coreVerifiedReseal
+                    ? "bg-muted/30 border-border"
+                    : degraded
+                      ? "bg-warning/5 border-warning/20"
+                      : "bg-destructive/5 border-destructive/20",
                 )}>
                   <p className={cn(
                     "text-sm font-mono mb-1",
-                    degraded ? "text-warning" : "text-destructive",
+                    coreVerifiedReseal ? "text-muted-foreground" : degraded ? "text-warning" : "text-destructive",
                   )}>{verifyCode}</p>
                   <p className="text-xs text-muted-foreground">
-                    {explainVerifyCode(verifyCode, degraded)}
+                    {coreVerifiedReseal
+                      ? 'Public artifact integrity passed. Supplemental context signals are present in this resealed record but are not bound to its certificate hash. They are shown below for review only.'
+                      : explainVerifyCode(verifyCode, degraded)}
                   </p>
                   {verifyDetails && verifyDetails.length > 0 && (
                     <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground list-disc list-inside">
