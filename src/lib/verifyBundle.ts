@@ -10,6 +10,7 @@
 
 import { isAICERBundle } from '@/types/aiCerBundle';
 import { canonicalize, computeCertificateHash } from '@/lib/canonicalize';
+import { verifyCerAsync } from '@nexart/ai-execution';
 
 /* ------------------------------------------------------------------ */
 /*  Normalised result returned to the UI                              */
