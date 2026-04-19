@@ -163,16 +163,23 @@ export function CertificationReport({
         verifyCode={verifyCode}
         verifyDetails={verifyDetails}
         trustWarnings={trustWarnings}
+        coreVerifiedReseal={resealCoreVerified}
       />
 
       {/* 2. Execution Summary — human-readable overview */}
-      <ExecutionSummary summary={summary} passed={passed || degraded} />
+      <ExecutionSummary summary={summary} passed={passed || degraded || resealCoreVerified} />
 
       {/* Provenance / Artifact Identity (redacted reseal, requested-vs-returned) */}
       {provenance && <ProvenanceSection info={provenance} />}
 
       {/* 2b. What was verified — plain-language trust explanation */}
-      <WhatWasVerified summary={summary} passed={passed} degraded={degraded} verifyDetails={verifyDetails} />
+      <WhatWasVerified
+        summary={summary}
+        passed={passed}
+        degraded={degraded}
+        verifyDetails={verifyDetails}
+        coreVerifiedReseal={resealCoreVerified}
+      />
 
       {/* 3. Sticky mini status bar */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border border-border rounded-lg px-4 py-2 flex items-center justify-between gap-3">
