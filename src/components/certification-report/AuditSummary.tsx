@@ -88,6 +88,27 @@ function FactRow({ label, value, mono = true, truncate = false, copyable = false
 
 const NODE_URL = 'https://node.nexart.io';
 
+/** Map verify codes to plain-English explanations. Avoids false 'hash mismatch' wording for non-mismatch codes. */
+function explainVerifyCode(code: string, degraded: boolean): string {
+  switch (code) {
+    case 'CONTEXT_NOT_PROTECTED':
+      return 'The core record integrity passed. Context signals exist outside the certificate hash scope, so they are not cryptographically bound to this record.';
+    case 'CERTIFICATE_HASH_MISMATCH':
+      return "The record's certificate hash does not match the computed hash. This record may have been altered.";
+    case 'CANONICALIZATION_ERROR':
+      return 'The record could not be canonicalized for hashing. Its structure may be malformed.';
+    case 'SCHEMA_INVALID':
+    case 'INVALID_SCHEMA':
+      return 'The record does not match the expected schema.';
+    case 'MISSING_CERTIFICATE_HASH':
+      return 'The record is missing a certificate hash and cannot be verified.';
+    default:
+      return degraded
+        ? 'Core integrity passed, but one or more trust layers returned a non-fatal warning.'
+        : 'Verification did not complete successfully. See details below.';
+  }
+}
+
 export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, trustWarnings }: Props) {
   const [showWhy, setShowWhy] = useState(false);
   const [downloadingPack, setDownloadingPack] = useState(false);
@@ -244,17 +265,26 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, t
               </div>
             </div>
 
-            {/* Why? (failure only) */}
-            {!passed && verifyCode && (
+            {/* Why? — shown for any non-fully-passed state with a code */}
+            {!fullyTrusted && verifyCode && verifyCode !== 'OK' && (
               <Collapsible open={showWhy} onOpenChange={setShowWhy}>
-                <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                <CollapsibleTrigger className={cn(
+                  "flex items-center gap-1 text-xs hover:text-foreground transition-colors",
+                  degraded ? "text-warning" : "text-muted-foreground",
+                )}>
                   <ChevronDown className={cn("w-3 h-3 transition-transform", showWhy && "rotate-180")} />
                   <span>Why?</span>
                 </CollapsibleTrigger>
-                <CollapsibleContent className="mt-2 p-3 rounded-md bg-destructive/5 border border-destructive/20">
-                  <p className="text-sm font-mono text-destructive mb-1">{verifyCode}</p>
+                <CollapsibleContent className={cn(
+                  "mt-2 p-3 rounded-md border",
+                  degraded ? "bg-warning/5 border-warning/20" : "bg-destructive/5 border-destructive/20",
+                )}>
+                  <p className={cn(
+                    "text-sm font-mono mb-1",
+                    degraded ? "text-warning" : "text-destructive",
+                  )}>{verifyCode}</p>
                   <p className="text-xs text-muted-foreground">
-                    The record's certificate hash does not match the computed hash.
+                    {explainVerifyCode(verifyCode, degraded)}
                   </p>
                   {verifyDetails && verifyDetails.length > 0 && (
                     <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground list-disc list-inside">
