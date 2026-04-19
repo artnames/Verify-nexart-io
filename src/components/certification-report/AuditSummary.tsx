@@ -117,7 +117,7 @@ function explainVerifyCode(code: string, degraded: boolean): string {
   }
 }
 
-export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, trustWarnings }: Props) {
+export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, trustWarnings, coreVerifiedReseal }: Props) {
   const [showWhy, setShowWhy] = useState(false);
   const [downloadingPack, setDownloadingPack] = useState(false);
 
@@ -213,11 +213,14 @@ export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, t
   const passed = summary.status === 'pass';
   const degraded = summary.status === 'degraded';
   const hasTrustWarnings = trustWarnings && trustWarnings.length > 0;
-  const fullyTrusted = passed && !hasTrustWarnings;
+  // For legitimate public reseals (coreVerifiedReseal), present as a verified
+  // outcome with a supplemental-context note rather than as a partial state.
+  const presentAsVerified = (passed || coreVerifiedReseal) && !hasTrustWarnings;
+  const fullyTrusted = passed && !hasTrustWarnings; // strict full-pass for legacy semantics
   const isAI = summary.certType === 'AI Execution Record';
 
-  // Visual state: green (full pass), amber (degraded), red (fail/error)
-  const borderColor = fullyTrusted
+  // Visual state: green (verified — incl. core-verified reseal), amber (other degraded), red (fail)
+  const borderColor = presentAsVerified
     ? "border-verified/20"
     : degraded
       ? "border-warning/30"
