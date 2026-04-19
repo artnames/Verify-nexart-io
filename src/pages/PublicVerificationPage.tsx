@@ -153,6 +153,7 @@ export default function PublicVerificationPage({ lookupKey, mode }: PublicVerifi
             attestationPresent={attPresent}
             attestationFields={attFields}
             contextIntegrityProtected={verifyResult.contextIntegrityProtected}
+            requestedHash={mode === 'certificateHash' ? lookupKey : undefined}
           />
         </div>
       </AuditLayout>
@@ -177,6 +178,7 @@ export default function PublicVerificationPage({ lookupKey, mode }: PublicVerifi
           verifyCode={verifyResult.code}
           verifyDetails={verifyResult.details}
           contextIntegrityProtected={verifyResult.contextIntegrityProtected}
+          requestedHash={mode === 'certificateHash' ? lookupKey : undefined}
         />
       </div>
     </AuditLayout>
