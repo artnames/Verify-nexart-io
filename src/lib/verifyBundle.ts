@@ -121,6 +121,32 @@ async function verifyAiCerBrowser(rawBundle: Record<string, unknown>): Promise<B
   const hasLegacySignals = Array.isArray(legacySignals) && legacySignals.length > 0;
   const hasContextualData = hasContext || hasLegacySignals;
 
+  // Detect redacted reseal: snapshot is missing raw prompt/input/output
+  // because the auditor stripped them before resealing for public exposure.
+  // The SDK's verifyCerAsync requires these fields and throws CANONICALIZATION_ERROR
+  // when they are absent. We must verify these artifacts using the envelope hash
+  // directly, since their certificateHash was computed over the redacted snapshot.
+  const meta = rawBundle.meta as Record<string, unknown> | undefined;
+  const metaAtt = meta?.attestation as Record<string, unknown> | undefined;
+  const provBlock = (meta?.provenance as Record<string, unknown> | undefined)
+    || (rawBundle.provenance as Record<string, unknown> | undefined);
+  const isMarkedReseal =
+    rawBundle.redacted_reseal === true ||
+    meta?.redacted_reseal === true ||
+    (provBlock?.kind as string | undefined) === 'redacted_reseal' ||
+    (metaAtt?.mode as string | undefined) === 'redacted_reseal';
+  const snapshot = rawBundle.snapshot as Record<string, unknown> | undefined;
+  const snapshotMissingRawFields = !!snapshot && (
+    snapshot.prompt === undefined ||
+    snapshot.input === undefined ||
+    snapshot.output === undefined
+  );
+  const isRedactedReseal = isMarkedReseal || snapshotMissingRawFields;
+
+  if (isRedactedReseal) {
+    return await verifyRedactedReseal(rawBundle, bundleType, hasContextSignals, hasContextualData);
+  }
+
   // Primary: SDK-canonical verification
   let sdkResult: { ok: boolean; code: string; errors: string[]; details?: string[] };
   try {
@@ -216,6 +242,121 @@ async function verifyAiCerBrowser(rawBundle: Record<string, unknown>): Promise<B
     code: sdkResult.code || 'CERTIFICATE_HASH_MISMATCH',
     details: sdkResult.details ?? (sdkResult.errors?.length ? sdkResult.errors : ['Certificate hash mismatch']),
     errors: sdkResult.errors ?? [],
+    bundleType,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Redacted reseal verification                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Verify a redacted reseal (public-safe artifact).
+ *
+ * In a redacted reseal, the auditor stripped raw prompt/input/output from the
+ * snapshot and re-sealed the bundle. The certificateHash on the resealed bundle
+ * was computed over the standard envelope:
+ *   { bundleType, createdAt, snapshot, version }
+ * (with optional `context` if `context.signals` were bound at reseal time).
+ *
+ * The SDK's verifyCerAsync cannot verify these directly because it requires
+ * the raw input/output to be present. We recompute the envelope hash ourselves
+ * using the same canonicalization rules (sorted keys, no whitespace).
+ *
+ * Trust verdict mapping:
+ *  - envelope hash matches AND no context signals present  → OK (full)
+ *  - envelope hash matches AND context signals present     → DEGRADED (CONTEXT_NOT_PROTECTED)
+ *  - envelope hash matches with context bound              → OK (full, context-bound)
+ *  - envelope hash mismatch                                → CERTIFICATE_HASH_MISMATCH (real failure)
+ */
+async function verifyRedactedReseal(
+  rawBundle: Record<string, unknown>,
+  bundleType: string,
+  hasContextSignals: boolean,
+  hasContextualData: boolean,
+): Promise<BundleVerifyResult> {
+  const storedHash = (rawBundle.certificateHash as string).toLowerCase();
+  const baseEnvelope: Record<string, unknown> = {
+    bundleType: rawBundle.bundleType,
+    createdAt: rawBundle.createdAt,
+    snapshot: rawBundle.snapshot,
+    version: rawBundle.version ?? rawBundle.bundleVersion,
+  };
+
+  // Strategy A: envelope WITHOUT context (typical reseal — context.signals are
+  // public-safe metadata appended outside the hash scope).
+  try {
+    const canonicalA = JSON.stringify(canonicalizeValue(baseEnvelope));
+    const computedA = await sha256HexWebCrypto(canonicalA);
+    if (computedA === storedHash) {
+      const coverage = ['bundleType', 'version', 'createdAt', 'snapshot'];
+      if (hasContextualData) {
+        return {
+          ok: false,
+          degraded: true,
+          code: 'CONTEXT_NOT_PROTECTED',
+          details: [
+            'Public redacted reseal verified: envelope hash matches.',
+            'Sensitive fields (prompt, input, output) were removed before reseal.',
+            'Context signals are present but NOT covered by this artifact\'s certificate hash.',
+          ],
+          errors: [],
+          bundleType,
+          contextIntegrityProtected: false,
+          verificationScope: 'core-only',
+          integrityCoverage: coverage,
+        };
+      }
+      return {
+        ok: true,
+        code: 'OK',
+        details: ['Public redacted reseal verified: envelope hash matches.'],
+        errors: [],
+        bundleType,
+        contextIntegrityProtected: true,
+        verificationScope: 'full',
+        integrityCoverage: coverage,
+      };
+    }
+  } catch {
+    // try strategy B
+  }
+
+  // Strategy B: envelope WITH context.signals (some reseals bind signals).
+  if (hasContextSignals) {
+    try {
+      const withContext = {
+        ...baseEnvelope,
+        context: { signals: (rawBundle.context as any).signals },
+      };
+      const canonicalB = JSON.stringify(canonicalizeValue(withContext));
+      const computedB = await sha256HexWebCrypto(canonicalB);
+      if (computedB === storedHash) {
+        return {
+          ok: true,
+          code: 'OK',
+          details: ['Public redacted reseal verified: envelope hash matches (context-bound).'],
+          errors: [],
+          bundleType,
+          contextIntegrityProtected: true,
+          verificationScope: 'full',
+          integrityCoverage: ['bundleType', 'version', 'createdAt', 'snapshot', 'context.signals'],
+        };
+      }
+    } catch {
+      // fall through
+    }
+  }
+
+  // Real hash mismatch — surface as integrity failure.
+  return {
+    ok: false,
+    code: 'CERTIFICATE_HASH_MISMATCH',
+    details: [
+      'Public redacted reseal: envelope hash does not match the stored certificate hash.',
+      `Stored: ${storedHash}`,
+    ],
+    errors: ['Redacted reseal envelope hash mismatch'],
     bundleType,
   };
 }
