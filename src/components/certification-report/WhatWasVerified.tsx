@@ -13,9 +13,17 @@ interface Props {
   passed: boolean;
   degraded?: boolean;
   verifyDetails?: string[];
+  /**
+   * When true, renders the legitimate-public-reseal variant: green/verified
+   * styling with an informational note that supplemental context signals
+   * are present but outside the artifact's certificate hash scope.
+   * Only set by the parent for the exact narrow condition (reseal + degraded
+   * + CONTEXT_NOT_PROTECTED). Underlying verification semantics unchanged.
+   */
+  coreVerifiedReseal?: boolean;
 }
 
-export function WhatWasVerified({ summary, passed, degraded, verifyDetails }: Props) {
+export function WhatWasVerified({ summary, passed, degraded, verifyDetails, coreVerifiedReseal }: Props) {
   if (!passed && !degraded) return null;
 
   const hasStamp = summary.attestation?.hasSignedReceipt || summary.attestation?.verified;
