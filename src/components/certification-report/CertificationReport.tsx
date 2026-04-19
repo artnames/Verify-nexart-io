@@ -64,12 +64,15 @@ export function CertificationReport({
     const meta = bundle.meta as Record<string, unknown> | undefined;
     const provBlock = (meta?.provenance as Record<string, unknown> | undefined)
       || (bundle.provenance as Record<string, unknown> | undefined);
+    const metaAtt = meta?.attestation as Record<string, unknown> | undefined;
 
     const provKind = provBlock?.kind as string | undefined;
+    const attMode = metaAtt?.mode as string | undefined;
     const isReseal =
       bundle.redacted_reseal === true ||
       meta?.redacted_reseal === true ||
-      provKind === 'redacted_reseal';
+      provKind === 'redacted_reseal' ||
+      attMode === 'redacted_reseal';
 
     const originalHash =
       (provBlock?.originalCertificateHash as string) ||
