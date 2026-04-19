@@ -19,6 +19,14 @@ interface Props {
   verifyCode?: string;
   verifyDetails?: string[];
   trustWarnings?: string[];
+  /**
+   * Narrow re-framing flag for legitimate public redacted reseals where
+   * the only degraded reason is supplemental context.signals outside the
+   * certificate hash scope. When true, the headline is presented as
+   * "Verified" with a supplemental-context note instead of "Partially
+   * Verified". Underlying verifyCode/status are unchanged.
+   */
+  coreVerifiedReseal?: boolean;
 }
 
 function formatBytes(bytes: number): string {
