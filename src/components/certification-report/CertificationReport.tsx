@@ -14,7 +14,7 @@
 
 import { useMemo } from 'react';
 import { VerifyDebugBlock } from '@/components/VerifyDebugBlock';
-import { ShieldCheck, AlertTriangle, ShieldAlert, Stamp, Link2, GitBranch } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, ShieldAlert, Stamp, Link2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
