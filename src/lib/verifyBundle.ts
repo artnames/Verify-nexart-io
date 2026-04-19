@@ -121,6 +121,32 @@ async function verifyAiCerBrowser(rawBundle: Record<string, unknown>): Promise<B
   const hasLegacySignals = Array.isArray(legacySignals) && legacySignals.length > 0;
   const hasContextualData = hasContext || hasLegacySignals;
 
+  // Detect redacted reseal: snapshot is missing raw prompt/input/output
+  // because the auditor stripped them before resealing for public exposure.
+  // The SDK's verifyCerAsync requires these fields and throws CANONICALIZATION_ERROR
+  // when they are absent. We must verify these artifacts using the envelope hash
+  // directly, since their certificateHash was computed over the redacted snapshot.
+  const meta = rawBundle.meta as Record<string, unknown> | undefined;
+  const metaAtt = meta?.attestation as Record<string, unknown> | undefined;
+  const provBlock = (meta?.provenance as Record<string, unknown> | undefined)
+    || (rawBundle.provenance as Record<string, unknown> | undefined);
+  const isMarkedReseal =
+    rawBundle.redacted_reseal === true ||
+    meta?.redacted_reseal === true ||
+    (provBlock?.kind as string | undefined) === 'redacted_reseal' ||
+    (metaAtt?.mode as string | undefined) === 'redacted_reseal';
+  const snapshot = rawBundle.snapshot as Record<string, unknown> | undefined;
+  const snapshotMissingRawFields = !!snapshot && (
+    snapshot.prompt === undefined ||
+    snapshot.input === undefined ||
+    snapshot.output === undefined
+  );
+  const isRedactedReseal = isMarkedReseal || snapshotMissingRawFields;
+
+  if (isRedactedReseal) {
+    return await verifyRedactedReseal(rawBundle, bundleType, hasContextSignals, hasContextualData);
+  }
+
   // Primary: SDK-canonical verification
   let sdkResult: { ok: boolean; code: string; errors: string[]; details?: string[] };
   try {
