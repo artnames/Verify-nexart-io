@@ -109,6 +109,26 @@ export function CertificationReport({
   const passed = verifyStatus === 'pass';
   const degraded = verifyStatus === 'degraded';
 
+  /*
+   * Narrow re-framing condition: a legitimate public redacted reseal where
+   *   - the artifact is a redacted reseal (provenance.kind === 'redacted_reseal'
+   *     or meta.attestation.mode === 'redacted_reseal' or legacy flag),
+   *   - core integrity passed (status === 'degraded', not 'fail'/'error'),
+   *   - the only reason for degradation is supplemental context.signals
+   *     sitting outside the certificate hash scope (CONTEXT_NOT_PROTECTED).
+   *
+   * In this exact case we present the result as VERIFIED with a supplemental
+   * note, instead of "Partially Verified", because the public artifact's
+   * envelope hash and any node stamp have both verified successfully.
+   * The underlying verifyStatus / verifyCode are NOT mutated — only the UI
+   * framing changes. True failures (envelope mismatch, stamp failure,
+   * malformed artifact) still render the standard degraded/failure UI.
+   */
+  const resealCoreVerified =
+    !!provenance?.isReseal &&
+    degraded &&
+    verifyCode === 'CONTEXT_NOT_PROTECTED';
+
   const nodeStampLabel = summary.attestation
     ? summary.attestation.hasSignedReceipt
       ? 'Stamp verified'
