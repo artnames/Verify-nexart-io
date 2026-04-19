@@ -148,11 +148,11 @@ export function CertificationReport({
     toast.success('Link copied');
   };
 
-  // Integrity badge logic
-  const integrityLabel = passed ? 'PASS' : degraded ? 'PARTIAL' : 'FAIL';
-  const integrityVariant = passed ? 'default' : degraded ? 'outline' : 'destructive';
-  const IntegrityIcon = passed ? ShieldCheck : degraded ? ShieldAlert : AlertTriangle;
-  const integrityIconColor = passed ? 'text-verified' : degraded ? 'text-warning' : 'text-destructive';
+  // Integrity badge logic — re-framed for legitimate public reseals.
+  const integrityLabel = passed || resealCoreVerified ? 'PASS' : degraded ? 'PARTIAL' : 'FAIL';
+  const integrityVariant = passed || resealCoreVerified ? 'default' : degraded ? 'outline' : 'destructive';
+  const IntegrityIcon = passed || resealCoreVerified ? ShieldCheck : degraded ? ShieldAlert : AlertTriangle;
+  const integrityIconColor = passed || resealCoreVerified ? 'text-verified' : degraded ? 'text-warning' : 'text-destructive';
 
   return (
     <div className="space-y-6">
