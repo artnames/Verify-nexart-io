@@ -10,6 +10,7 @@
 
 import { isAICERBundle } from '@/types/aiCerBundle';
 import { canonicalize, computeCertificateHash } from '@/lib/canonicalize';
+import { verifyCerAsync } from '@nexart/ai-execution';
 
 /* ------------------------------------------------------------------ */
 /*  Normalised result returned to the UI                              */
@@ -85,14 +86,16 @@ function canonicalizeValue(value: unknown, depth: number = 0): unknown {
 
 /**
  * Browser-safe AI CER verification.
- * Certificate hash is computed over exactly:
- *   { bundleType, version, createdAt, snapshot }
- * meta and attestation are excluded — matching @nexart/ai-execution rules.
  *
- * SECURITY FIX: When context/signals are present in the bundle but only the
- * core-only (no-context) strategy matches, the result is DEGRADED — not a
- * clean PASS. This prevents context stripping/modification from appearing
- * as a fully verified record.
+ * SOURCE OF TRUTH: @nexart/ai-execution v0.14.0 `verifyCerAsync`.
+ * The SDK applies the canonical protocol-1.2.0 hash scope, which only binds
+ * `context.signals` (not arbitrary `context` metadata). This is what produces
+ * the certificate hash on the auditor side, so the verifier MUST use the same
+ * logic to avoid false `CONTEXT_NOT_PROTECTED` downgrades.
+ *
+ * Backward compatibility: if the SDK rejects the bundle with a hash mismatch
+ * but the legacy no-context envelope matches, we surface a true DEGRADED
+ * (CONTEXT_NOT_PROTECTED) result for older resealed/pre-v0.11 records.
  */
 async function verifyAiCerBrowser(rawBundle: Record<string, unknown>): Promise<BundleVerifyResult> {
   const bundleType = (rawBundle.bundleType as string) || 'unknown';
@@ -108,78 +111,70 @@ async function verifyAiCerBrowser(rawBundle: Record<string, unknown>): Promise<B
     };
   }
 
+  // Detect contextual data presence (used for coverage reporting + legacy fallback)
+  const context = rawBundle.context as Record<string, unknown> | undefined;
+  const hasContext = !!(context && typeof context === 'object' && Object.keys(context).length > 0);
+  const hasContextSignals = !!(context && Array.isArray((context as any).signals) && (context as any).signals.length > 0);
+  const legacySignals = (rawBundle as any).signals
+    ?? (rawBundle.snapshot as any)?.signals
+    ?? (rawBundle.meta as any)?.signals;
+  const hasLegacySignals = Array.isArray(legacySignals) && legacySignals.length > 0;
+  const hasContextualData = hasContext || hasLegacySignals;
+
+  // Primary: SDK-canonical verification
+  let sdkResult: { ok: boolean; code: string; errors: string[]; details?: string[] };
   try {
-    // Build envelope with context included (v0.11.0+ SDK behavior)
-    const baseEnvelope: Record<string, unknown> = {
-      bundleType: rawBundle.bundleType,
-      version: rawBundle.version ?? rawBundle.bundleVersion,
-      createdAt: rawBundle.createdAt,
-      snapshot: rawBundle.snapshot,
+    sdkResult = await verifyCerAsync(rawBundle as any) as any;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      ok: false,
+      code: 'CANONICALIZATION_ERROR',
+      details: [msg],
+      errors: [msg],
+      bundleType,
     };
+  }
 
-    const context = rawBundle.context as Record<string, unknown> | undefined;
-    const hasContext = context && typeof context === 'object' && Object.keys(context).length > 0;
+  if (sdkResult.ok) {
+    // Coverage reporting reflects what the SDK protocol actually binds:
+    // snapshot is always covered; context.signals are bound when present.
+    const coverage = ['bundleType', 'version', 'createdAt', 'snapshot'];
+    if (hasContextSignals) coverage.push('context.signals');
+    return {
+      ok: true,
+      code: 'OK',
+      details: [],
+      errors: [],
+      bundleType,
+      // contextIntegrityProtected reflects the protocol-bound subset (signals).
+      // For modern v0.11+ records this is true when signals exist; metadata-only
+      // context is intentionally not part of the hash by design.
+      contextIntegrityProtected: hasContextSignals || !hasContextualData,
+      verificationScope: 'full',
+      integrityCoverage: coverage,
+      degraded: false,
+    };
+  }
 
-    // Backward compat: older bundles stored signals at root/snapshot/meta level
-    const legacySignals = rawBundle.signals
-      ?? (rawBundle.snapshot as any)?.signals
-      ?? (rawBundle.meta as any)?.signals;
-    const hasLegacySignals = Array.isArray(legacySignals) && legacySignals.length > 0;
-
-    const hasContextualData = hasContext || hasLegacySignals;
-
-    const normalizedExpected = storedHash.toLowerCase();
-
-    // Strategy 1: Try with context included (v0.11.0+ originals)
-    if (hasContext) {
-      const envelopeWithCtx = { ...baseEnvelope, context };
-      const canonicalJson = JSON.stringify(canonicalizeValue(envelopeWithCtx));
-      const computedHash = await sha256HexWebCrypto(canonicalJson);
-      if (computedHash === normalizedExpected) {
-        return {
-          ok: true,
-          code: 'OK',
-          details: [],
-          errors: [],
-          bundleType,
-          contextIntegrityProtected: true,
-          verificationScope: 'full',
-          integrityCoverage: ['bundleType', 'version', 'createdAt', 'snapshot', 'context'],
-          degraded: false,
-        };
-      }
-    }
-
-    // Strategy 2: Try with legacy signals at envelope root
-    if (!hasContext && hasLegacySignals) {
-      const envelopeWithSignals = { ...baseEnvelope, signals: legacySignals };
-      const canonicalJson = JSON.stringify(canonicalizeValue(envelopeWithSignals));
-      const computedHash = await sha256HexWebCrypto(canonicalJson);
-      if (computedHash === normalizedExpected) {
-        return {
-          ok: true,
-          code: 'OK',
-          details: [],
-          errors: [],
-          bundleType,
-          contextIntegrityProtected: true,
-          verificationScope: 'full',
-          integrityCoverage: ['bundleType', 'version', 'createdAt', 'snapshot', 'signals'],
-          degraded: false,
-        };
-      }
-    }
-
-    // Strategy 3: Try without context/signals (resealed artifacts or pre-v0.11.0)
-    {
+  // Backward-compat fallback: SDK rejected, but legacy no-context envelope may match.
+  // Only relevant for pre-v0.11 / resealed records that were hashed without context.
+  if (sdkResult.code === 'CERTIFICATE_HASH_MISMATCH') {
+    try {
+      const baseEnvelope: Record<string, unknown> = {
+        bundleType: rawBundle.bundleType,
+        version: rawBundle.version ?? rawBundle.bundleVersion,
+        createdAt: rawBundle.createdAt,
+        snapshot: rawBundle.snapshot,
+      };
       const canonicalJson = JSON.stringify(canonicalizeValue(baseEnvelope));
       const computedHash = await sha256HexWebCrypto(canonicalJson);
+      const normalizedExpected = storedHash.toLowerCase();
+
       if (computedHash === normalizedExpected) {
         const baseCoverage = ['bundleType', 'version', 'createdAt', 'snapshot'];
-
-        // SECURITY: If context/signals ARE present but NOT hash-covered,
-        // return DEGRADED — not a clean PASS.
         if (hasContextualData) {
+          // Genuinely degraded: contextual data exists but is NOT hash-bound.
           return {
             ok: false,
             degraded: true,
@@ -187,10 +182,9 @@ async function verifyAiCerBrowser(rawBundle: Record<string, unknown>): Promise<B
             details: [
               'Core record integrity verified (snapshot, bundleType, version, createdAt).',
               hasContext
-                ? 'Context data is present but NOT covered by the certificate hash.'
-                : 'Signals data is present but NOT covered by the certificate hash.',
-              'Context or signals may have been added, modified, or replaced after certification.',
-              'This does not necessarily indicate tampering, but contextual data cannot be independently verified.',
+                ? 'Context data is present but NOT covered by the certificate hash (legacy/resealed record).'
+                : 'Signals data is present but NOT covered by the certificate hash (legacy record).',
+              'Contextual data cannot be independently verified for this record.',
             ],
             errors: [],
             bundleType,
@@ -199,8 +193,7 @@ async function verifyAiCerBrowser(rawBundle: Record<string, unknown>): Promise<B
             integrityCoverage: baseCoverage,
           };
         }
-
-        // No context/signals at all — clean PASS (legacy or intentionally context-free)
+        // No context at all — clean legacy PASS
         return {
           ok: true,
           code: 'OK',
@@ -212,34 +205,19 @@ async function verifyAiCerBrowser(rawBundle: Record<string, unknown>): Promise<B
           integrityCoverage: baseCoverage,
         };
       }
+    } catch {
+      // fall through to SDK error
     }
-
-    // None matched — compute the most specific hash for the error message
-    const fullEnvelope = hasContext
-      ? { ...baseEnvelope, context }
-      : hasLegacySignals
-        ? { ...baseEnvelope, signals: legacySignals }
-        : baseEnvelope;
-    const canonicalJson = JSON.stringify(canonicalizeValue(fullEnvelope));
-    const computedHash = await sha256HexWebCrypto(canonicalJson);
-
-    return {
-      ok: false,
-      code: 'CERTIFICATE_HASH_MISMATCH',
-      details: [`Expected ${normalizedExpected}, computed ${computedHash}`],
-      errors: ['Certificate hash mismatch'],
-      bundleType,
-    };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return {
-      ok: false,
-      code: 'CANONICALIZATION_ERROR',
-      details: [msg],
-      errors: [msg],
-      bundleType,
-    };
   }
+
+  // Surface the SDK's verdict unchanged
+  return {
+    ok: false,
+    code: sdkResult.code || 'CERTIFICATE_HASH_MISMATCH',
+    details: sdkResult.details ?? (sdkResult.errors?.length ? sdkResult.errors : ['Certificate hash mismatch']),
+    errors: sdkResult.errors ?? [],
+    bundleType,
+  };
 }
 
 /* ------------------------------------------------------------------ */
