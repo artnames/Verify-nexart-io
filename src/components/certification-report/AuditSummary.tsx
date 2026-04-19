@@ -88,6 +88,27 @@ function FactRow({ label, value, mono = true, truncate = false, copyable = false
 
 const NODE_URL = 'https://node.nexart.io';
 
+/** Map verify codes to plain-English explanations. Avoids false 'hash mismatch' wording for non-mismatch codes. */
+function explainVerifyCode(code: string, degraded: boolean): string {
+  switch (code) {
+    case 'CONTEXT_NOT_PROTECTED':
+      return 'The core record integrity passed. Context signals exist outside the certificate hash scope, so they are not cryptographically bound to this record.';
+    case 'CERTIFICATE_HASH_MISMATCH':
+      return "The record's certificate hash does not match the computed hash. This record may have been altered.";
+    case 'CANONICALIZATION_ERROR':
+      return 'The record could not be canonicalized for hashing. Its structure may be malformed.';
+    case 'SCHEMA_INVALID':
+    case 'INVALID_SCHEMA':
+      return 'The record does not match the expected schema.';
+    case 'MISSING_CERTIFICATE_HASH':
+      return 'The record is missing a certificate hash and cannot be verified.';
+    default:
+      return degraded
+        ? 'Core integrity passed, but one or more trust layers returned a non-fatal warning.'
+        : 'Verification did not complete successfully. See details below.';
+  }
+}
+
 export function AuditSummary({ summary, bundleJson, verifyCode, verifyDetails, trustWarnings }: Props) {
   const [showWhy, setShowWhy] = useState(false);
   const [downloadingPack, setDownloadingPack] = useState(false);
