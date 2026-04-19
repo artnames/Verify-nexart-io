@@ -34,6 +34,7 @@ import {
   extractContextSignals,
 } from './extractors';
 import { ContextSignalsPanel, type ContextSignal } from './ContextSignalsPanel';
+import { ProvenanceSection, type ProvenanceInfo } from './ProvenanceSection';
 import type { CertificationReportProps } from './types';
 
 export function CertificationReport({
@@ -44,6 +45,7 @@ export function CertificationReport({
   verifyDetails,
   contextIntegrityProtected,
   trustWarnings,
+  requestedHash,
   children,
 }: CertificationReportProps) {
   const bundleJson = useMemo(() => JSON.stringify(bundle), [bundle]);
@@ -56,16 +58,50 @@ export function CertificationReport({
   const evidence = useMemo(() => extractEvidence(bundle, bundleKind), [bundle, bundleKind]);
   const contextSignals = useMemo(() => extractContextSignals(bundle) as ContextSignal[], [bundle]);
 
-  // Provenance detection
-  const provenance = useMemo(() => {
+  // Provenance / artifact-identity detection.
+  // Recognizes both legacy flag shape and the standard meta.provenance.kind === 'redacted_reseal'.
+  const provenance = useMemo<ProvenanceInfo | null>(() => {
     const meta = bundle.meta as Record<string, unknown> | undefined;
-    const isReseal = bundle.redacted_reseal === true || meta?.redacted_reseal === true;
-    const originalHash = (bundle.originalCertificateHash as string)
-      || (meta?.originalCertificateHash as string)
-      || undefined;
-    if (!isReseal && !originalHash) return null;
-    return { isReseal, originalHash };
-  }, [bundle]);
+    const provBlock = (meta?.provenance as Record<string, unknown> | undefined)
+      || (bundle.provenance as Record<string, unknown> | undefined);
+
+    const provKind = provBlock?.kind as string | undefined;
+    const isReseal =
+      bundle.redacted_reseal === true ||
+      meta?.redacted_reseal === true ||
+      provKind === 'redacted_reseal';
+
+    const originalHash =
+      (provBlock?.originalCertificateHash as string) ||
+      (bundle.originalCertificateHash as string) ||
+      (meta?.originalCertificateHash as string) ||
+      undefined;
+
+    const redactionReason =
+      (provBlock?.redactionReason as string) ||
+      (meta?.redactionReason as string) ||
+      undefined;
+
+    const redactionPolicy =
+      (provBlock?.redactionPolicy as string) ||
+      (meta?.redactionPolicy as string) ||
+      undefined;
+
+    const publicHash = (bundle.certificateHash as string) || undefined;
+
+    // Surface section if reseal OR if requested hash differs from artifact hash.
+    const requestedDiffers = !!(requestedHash && publicHash && normalizeForCompare(requestedHash) !== normalizeForCompare(publicHash));
+    if (!isReseal && !requestedDiffers) return null;
+
+    return {
+      isReseal,
+      publicHash,
+      originalHash,
+      requestedHash,
+      redactionReason,
+      redactionPolicy,
+    };
+  }, [bundle, requestedHash]);
 
   const passed = verifyStatus === 'pass';
   const degraded = verifyStatus === 'degraded';
