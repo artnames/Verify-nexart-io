@@ -6,7 +6,7 @@
       "name": "vite_react_shadcn_ts",
       "dependencies": {
         "@hookform/resolvers": "^3.10.0",
-        "@nexart/ai-execution": "0.14.0",
+        "@nexart/ai-execution": "0.15.0",
         "@nexart/codemode-sdk": "1.10.1",
         "@radix-ui/react-accordion": "^1.2.11",
         "@radix-ui/react-alert-dialog": "^1.1.14",
@@ -196,7 +196,7 @@
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.1.4", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@napi-rs/wasm-runtime/-/wasm-runtime-1.1.4.tgz", { "dependencies": { "@tybys/wasm-util": "^0.10.1" }, "peerDependencies": { "@emnapi/core": "^1.7.1", "@emnapi/runtime": "^1.7.1" } }, "sha512-3NQNNgA1YSlJb/kMH1ildASP9HW7/7kYnRI2szWJaofaS1hWmbGI4H+d3+22aGzXXN9IJ+n+GiFVcGipJP18ow=="],
 
-    "@nexart/ai-execution": ["@nexart/ai-execution@0.14.0", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@nexart/ai-execution/-/ai-execution-0.14.0.tgz", {}, "sha512-98CYiunOjw0Tb5y4F49+KW8FnzWcEaJoQEacO1HpgjyRM3N/kyBj9anIHa1g+corzBPo7kxzwGCWvNjuIuBo0g=="],
+    "@nexart/ai-execution": ["@nexart/ai-execution@0.15.0", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@nexart/ai-execution/-/ai-execution-0.15.0.tgz", {}, "sha512-b+M5UCCz97xzKOneov7hPffowFZD0FBtdZCo/Qy55EQ/+rlmpaX+HBsB+dw2Isg5jB+GxNLb5wVet2dzEj7tJw=="],
 
     "@nexart/codemode-sdk": ["@nexart/codemode-sdk@1.10.1", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@nexart/codemode-sdk/-/codemode-sdk-1.10.1.tgz", { "dependencies": { "@noble/ed25519": "^3.0.0", "@noble/hashes": "^1.7.0" } }, "sha512-3TtZQBlJYZOU709QhTcoFf/wGHGZwxCc4UAX8PKa0pUR/XGAPxhOhhNnpqvX08qcq9CCzyK+YjmCdVEcOSc3Bg=="],
 
