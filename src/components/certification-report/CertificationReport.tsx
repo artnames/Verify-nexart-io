@@ -14,7 +14,7 @@
 
 import { useMemo } from 'react';
 import { VerifyDebugBlock } from '@/components/VerifyDebugBlock';
-import { ShieldCheck, AlertTriangle, ShieldAlert, Stamp, Link2, GitBranch } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, ShieldAlert, Stamp, Link2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -34,6 +34,7 @@ import {
   extractContextSignals,
 } from './extractors';
 import { ContextSignalsPanel, type ContextSignal } from './ContextSignalsPanel';
+import { ProvenanceSection, type ProvenanceInfo } from './ProvenanceSection';
 import type { CertificationReportProps } from './types';
 
 export function CertificationReport({
@@ -44,6 +45,7 @@ export function CertificationReport({
   verifyDetails,
   contextIntegrityProtected,
   trustWarnings,
+  requestedHash,
   children,
 }: CertificationReportProps) {
   const bundleJson = useMemo(() => JSON.stringify(bundle), [bundle]);
@@ -56,16 +58,50 @@ export function CertificationReport({
   const evidence = useMemo(() => extractEvidence(bundle, bundleKind), [bundle, bundleKind]);
   const contextSignals = useMemo(() => extractContextSignals(bundle) as ContextSignal[], [bundle]);
 
-  // Provenance detection
-  const provenance = useMemo(() => {
+  // Provenance / artifact-identity detection.
+  // Recognizes both legacy flag shape and the standard meta.provenance.kind === 'redacted_reseal'.
+  const provenance = useMemo<ProvenanceInfo | null>(() => {
     const meta = bundle.meta as Record<string, unknown> | undefined;
-    const isReseal = bundle.redacted_reseal === true || meta?.redacted_reseal === true;
-    const originalHash = (bundle.originalCertificateHash as string)
-      || (meta?.originalCertificateHash as string)
-      || undefined;
-    if (!isReseal && !originalHash) return null;
-    return { isReseal, originalHash };
-  }, [bundle]);
+    const provBlock = (meta?.provenance as Record<string, unknown> | undefined)
+      || (bundle.provenance as Record<string, unknown> | undefined);
+
+    const provKind = provBlock?.kind as string | undefined;
+    const isReseal =
+      bundle.redacted_reseal === true ||
+      meta?.redacted_reseal === true ||
+      provKind === 'redacted_reseal';
+
+    const originalHash =
+      (provBlock?.originalCertificateHash as string) ||
+      (bundle.originalCertificateHash as string) ||
+      (meta?.originalCertificateHash as string) ||
+      undefined;
+
+    const redactionReason =
+      (provBlock?.redactionReason as string) ||
+      (meta?.redactionReason as string) ||
+      undefined;
+
+    const redactionPolicy =
+      (provBlock?.redactionPolicy as string) ||
+      (meta?.redactionPolicy as string) ||
+      undefined;
+
+    const publicHash = (bundle.certificateHash as string) || undefined;
+
+    // Surface section if reseal OR if requested hash differs from artifact hash.
+    const requestedDiffers = !!(requestedHash && publicHash && normalizeForCompare(requestedHash) !== normalizeForCompare(publicHash));
+    if (!isReseal && !requestedDiffers) return null;
+
+    return {
+      isReseal,
+      publicHash,
+      originalHash,
+      requestedHash,
+      redactionReason,
+      redactionPolicy,
+    };
+  }, [bundle, requestedHash]);
 
   const passed = verifyStatus === 'pass';
   const degraded = verifyStatus === 'degraded';
@@ -109,20 +145,8 @@ export function CertificationReport({
       {/* 2. Execution Summary — human-readable overview */}
       <ExecutionSummary summary={summary} passed={passed || degraded} />
 
-      {/* Provenance note (redacted reseal, etc.) */}
-      {provenance && (
-        <div className="rounded-lg border border-border/60 bg-muted/5 px-5 py-3 flex items-start gap-3">
-          <GitBranch className="w-3.5 h-3.5 mt-0.5 shrink-0 text-muted-foreground" />
-          <div className="text-xs text-muted-foreground leading-relaxed space-y-1">
-            {provenance.isReseal && (
-              <p>This record is a redacted reseal of an earlier certified record. Some fields may have been removed or replaced before re-certification.</p>
-            )}
-            {provenance.originalHash && (
-              <p>Original certificate hash: <code className="font-mono text-foreground">{provenance.originalHash}</code></p>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Provenance / Artifact Identity (redacted reseal, requested-vs-returned) */}
+      {provenance && <ProvenanceSection info={provenance} />}
 
       {/* 2b. What was verified — plain-language trust explanation */}
       <WhatWasVerified summary={summary} passed={passed} degraded={degraded} verifyDetails={verifyDetails} />
@@ -183,6 +207,14 @@ export function CertificationReport({
 
     </div>
   );
+}
+
+/** Normalize a certificate hash for equality comparison only. */
+function normalizeForCompare(h: string): string {
+  const t = h.trim().toLowerCase();
+  if (t.startsWith('sha256:')) return t;
+  if (/^[a-f0-9]{64}$/.test(t)) return `sha256:${t}`;
+  return t;
 }
 
 export { type CertificationReportProps } from './types';

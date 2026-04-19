@@ -50,6 +50,8 @@ interface AICERVerifyResultProps {
   contextIntegrityProtected?: boolean;
   /** Package-level envelope data for official CER package uploads */
   packageEnvelopeData?: PackageEnvelopeData;
+  /** Hash the user originally requested (e.g. from /c/:hash URL) */
+  requestedHash?: string;
 }
 
 export function AICERVerifyResult({
@@ -63,6 +65,7 @@ export function AICERVerifyResult({
   attestError,
   contextIntegrityProtected,
   packageEnvelopeData,
+  requestedHash,
 }: AICERVerifyResultProps) {
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [hasKey, setHasKey] = useState(hasNodeApiKey());
@@ -143,6 +146,7 @@ export function AICERVerifyResult({
       verifyDetails={!passed ? verifyResult.errors : degraded ? (verifyResult as any).details : undefined}
       contextIntegrityProtected={contextIntegrityProtected}
       trustWarnings={trustWarnings.length > 0 ? trustWarnings : undefined}
+      requestedHash={requestedHash}
     >
       {/* ─── Layer 2a: Verification Envelope (highest trust) ─── */}
       {hasEnvelope && (

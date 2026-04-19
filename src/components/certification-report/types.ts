@@ -23,6 +23,13 @@ export interface CertificationReportProps {
    * should indicate the document cannot be fully verified.
    */
   trustWarnings?: string[];
+  /**
+   * Hash the user originally requested (from URL or input).
+   * Surfaced in the Artifact Identity section when it differs from the
+   * returned artifact's hash (e.g. requested original, got public reseal).
+   * Optional, additive only.
+   */
+  requestedHash?: string;
   /** Additional children rendered after the report (e.g. Node Attestation, Attestation actions) */
   children?: React.ReactNode;
 }
